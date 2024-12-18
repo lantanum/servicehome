@@ -10,7 +10,7 @@ class User(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=255, null=True, blank=True)
     telegram_id = models.CharField(max_length=255, null=True, blank=True)
-    email = models.CharField(max_length=255, null=True, blank=True)
+    telegram_login = models.CharField(max_length=255, null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Client')
     created_at = models.DateTimeField(auto_now_add=True)
 
