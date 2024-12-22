@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-xp8lc#&_5+x-$tq0iyzmi5azb82)c&arrrx_2yx0q7cspz&8+7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['servicehome.onrender.com']
+ALLOWED_HOSTS = ['servicehome.onrender.com', '127.0.0.1']
 
 
 # Application definition
@@ -37,7 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'serviceapp'
+    'serviceapp',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -51,6 +52,16 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'myproject.urls'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Разрешить доступ всем по умолчанию
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Уберите или оставьте ваши текущие методы аутентификации
+        # 'rest_framework.authentication.TokenAuthentication',
+    ],
+}
 
 TEMPLATES = [
     {
