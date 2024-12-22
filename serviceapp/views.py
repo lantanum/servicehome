@@ -1,10 +1,48 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserRegistrationSerializer, ServiceRequestCreateSerializer, RequestHistorySerializer
-from .models import ServiceRequest
+from django.db import transaction
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .serializers import (
+    UserRegistrationSerializer, 
+    ServiceRequestCreateSerializer, 
+    RequestHistorySerializer, 
+    ServiceRequestSerializer, 
+    MasterActiveRequestsSerializer, 
+    AssignRequestSerializer, 
+    CloseRequestSerializer, 
+    UserProfileRequestSerializer, 
+    UserProfileSerializer
+)
+from .models import ServiceRequest, User
 
 class UserRegistrationView(APIView):
+    @swagger_auto_schema(
+        operation_description="Регистрация пользователя или мастера.",
+        request_body=UserRegistrationSerializer,
+        responses={
+            201: openapi.Response(
+                description="Регистрация успешна",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешной регистрации')
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                        # Добавьте другие поля ошибок, если необходимо
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -13,10 +51,37 @@ class UserRegistrationView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class ServiceRequestCreateView(APIView):
     """
     API-эндпоинт для создания заявки клиентом.
     """
+    @swagger_auto_schema(
+        operation_description="Создание новой заявки клиентом.",
+        request_body=ServiceRequestCreateSerializer,
+        responses={
+            201: openapi.Response(
+                description="Заявка успешно создана",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном создании заявки'),
+                        'request_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID созданной заявки')
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                        # Добавьте другие поля ошибок, если необходимо
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = ServiceRequestCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -30,6 +95,43 @@ class ServiceRequestCreateView(APIView):
 
 
 class ServiceRequestHistoryView(APIView):
+    @swagger_auto_schema(
+        operation_description="Получение истории заявок клиента по его telegram_id.",
+        request_body=RequestHistorySerializer,
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ с историей заявок",
+                schema=ServiceRequestSerializer(many=True)
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                    }
+                )
+            ),
+            403: openapi.Response(
+                description="Доступ запрещен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = RequestHistorySerializer(data=request.data)
         if not serializer.is_valid():
@@ -55,11 +157,48 @@ class ServiceRequestHistoryView(APIView):
         sr_serializer = ServiceRequestSerializer(requests_qs, many=True)
         return Response(sr_serializer.data, status=status.HTTP_200_OK)
 
+
 class MasterActiveRequestsView(APIView):
     """
     API-эндпоинт для получения активных заявок мастера по telegram_id.
     """
-
+    @swagger_auto_schema(
+        operation_description="Получение активных заявок мастера по его telegram_id.",
+        request_body=MasterActiveRequestsSerializer,
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ с активными заявками",
+                schema=ServiceRequestSerializer(many=True)
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                    }
+                )
+            ),
+            403: openapi.Response(
+                description="Доступ запрещен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = MasterActiveRequestsSerializer(data=request.data)
         if not serializer.is_valid():
@@ -93,11 +232,53 @@ class MasterActiveRequestsView(APIView):
         requests_serializer = ServiceRequestSerializer(active_requests, many=True)
         return Response(requests_serializer.data, status=status.HTTP_200_OK)
 
+
 class AssignRequestView(APIView):
     """
     API-эндпоинт для того, чтобы мастер мог взять заявку в работу по её ID.
     """
-
+    @swagger_auto_schema(
+        operation_description="Мастер берет заявку в работу по её ID.",
+        request_body=AssignRequestSerializer,
+        responses={
+            200: openapi.Response(
+                description="Заявка успешно взята в работу",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном присвоении заявки')
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные или заявка уже назначена",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь или заявка не найдены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description="Внутренняя ошибка сервера",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = AssignRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -144,7 +325,48 @@ class CloseRequestView(APIView):
     """
     API-эндпоинт для закрытия заявки мастером.
     """
-
+    @swagger_auto_schema(
+        operation_description="Закрытие заявки мастером.",
+        request_body=CloseRequestSerializer,
+        responses={
+            200: openapi.Response(
+                description="Заявка успешно закрыта",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном закрытии заявки')
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь или заявка не найдены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description="Внутренняя ошибка сервера",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         serializer = CloseRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -162,13 +384,38 @@ class CloseRequestView(APIView):
             {"detail": "Заявка успешно закрыта."},
             status=status.HTTP_200_OK
         )
-
-
 class UserProfileView(APIView):
     """
     API-эндпоинт для получения профиля пользователя по telegram_id.
     """
-
+    @swagger_auto_schema(
+        operation_description="Получение профиля пользователя по его telegram_id.",
+        request_body=UserProfileRequestSerializer,
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ с данными профиля пользователя",
+                schema=UserProfileSerializer
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
     def post(self, request):
         # Валидируем входные данные
         serializer = UserProfileRequestSerializer(data=request.data)
