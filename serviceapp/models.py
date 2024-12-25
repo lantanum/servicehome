@@ -51,6 +51,13 @@ class ServiceRequest(models.Model):
 
     client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_requests')
     master = models.ForeignKey(Master, on_delete=models.SET_NULL, null=True, blank=True, related_name='master_requests')
+
+    # Новые поля для оборудования
+    equipment_type = models.CharField(max_length=255, null=True, blank=True, help_text="Тип оборудования (например, стиральная машина)")
+    equipment_brand = models.CharField(max_length=255, null=True, blank=True, help_text="Марка оборудования (например, LG, Samsung)")
+    equipment_model = models.CharField(max_length=255, null=True, blank=True, help_text="Модель оборудования")
+
+    # Поля, что были раньше
     service_name = models.CharField(max_length=255, null=True, blank=True)
     city_name = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
@@ -62,37 +69,12 @@ class ServiceRequest(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     description = models.TextField(null=True, blank=True)
 
-    # Поле для хранения ID лида из AmoCRM
     amo_crm_lead_id = models.IntegerField(null=True, blank=True, unique=True, help_text="ID лида в AmoCRM")
 
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
 
 
-
-class ServiceRequest(models.Model):
-    STATUS_CHOICES = [
-        ('Open', 'Open'),
-        ('In Progress', 'In Progress'),
-        ('Completed', 'Completed'),
-        ('Cancelled', 'Cancelled'),
-    ]
-
-    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_requests')
-    master = models.ForeignKey(Master, on_delete=models.SET_NULL, null=True, blank=True, related_name='master_requests')
-    service_name = models.CharField(max_length=255, null=True, blank=True)  # Изменено с service_id
-    city_name = models.CharField(max_length=255, null=True, blank=True)     # Изменено с city_id
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
-    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    client_rating = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    address = models.TextField(null=True, blank=True)
-    cancellation_reason = models.CharField(max_length=255, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    description = models.TextField(null=True, blank=True)
-
-    def __str__(self):
-        return f"Request {self.id} by {self.client.name}"
 
 class Transaction(models.Model):
     TRANSACTION_CHOICES = [

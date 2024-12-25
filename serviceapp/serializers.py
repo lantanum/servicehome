@@ -189,75 +189,121 @@ class UserRegistrationSerializer(serializers.Serializer):
         return user
 
 
-# Сериализатор для создания заявки
 class ServiceRequestCreateSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")
-    service_name = serializers.CharField(required=True, help_text="Название услуги")
+    service_name = serializers.CharField(required=True, help_text="Название услуги (например, 'Ремонт бытовой техники')")
     city_name = serializers.CharField(required=True, help_text="Название города")
     address = serializers.CharField(required=True, allow_blank=False, help_text="Адрес")
     description = serializers.CharField(required=False, allow_blank=True, help_text="Описание заявки")
 
+    equipment_type = serializers.CharField(required=True, help_text="Тип оборудования (напр. стиральная машина)")
+    equipment_brand = serializers.CharField(required=True, help_text="Марка оборудования (Samsung, LG и т.д.)")
+    equipment_model = serializers.CharField(required=True, help_text="Модель оборудования")
+
     def validate_telegram_id(self, value):
-        # Проверяем, есть ли пользователь с таким telegram_id и он клиент
         try:
             user = User.objects.get(telegram_id=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Пользователь с указанным telegram_id не найден.")
+            raise serializers.ValidationError("Пользователь (Client) с указанным telegram_id не найден.")
         if user.role != 'Client':
-            raise serializers.ValidationError("Только 'Client' может создавать заявки.")
+            raise serializers.ValidationError("Только пользователь с ролью 'Client' может создавать заявку.")
         return value
 
     def create(self, validated_data):
         telegram_id = validated_data['telegram_id']
-        service_name = validated_data['service_name']
+        service_name = validated_data['service_name']  # Пример: "Ремонт бытовой техники"
         city_name = validated_data['city_name']
         address = validated_data['address']
         description = validated_data.get('description', '')
 
-        # 1. Получаем клиента
+        equipment_type = validated_data['equipment_type']
+        equipment_brand = validated_data['equipment_brand']
+        equipment_model = validated_data['equipment_model']
+
+        # 1. Находим клиента
         client = User.objects.get(telegram_id=telegram_id, role='Client')
 
-        # 2. Используем транзакцию — атомарное создание заявки + лид
         with transaction.atomic():
-            # Сначала создаём заявку в локальной базе
+            # 2. Создаём заявку в локальной базе
             service_request = ServiceRequest.objects.create(
                 client=client,
                 service_name=service_name,
                 city_name=city_name,
                 address=address,
                 description=description,
-                status='Open'
+                status='Open',
+
+                equipment_type=equipment_type,
+                equipment_brand=equipment_brand,
+                equipment_model=equipment_model
             )
 
-            # 3. Формируем данные лида для AmoCRM
-            amo_client = AmoCRMClient()
-            lead_data = {
-                "name": f"Заявка #{service_request.id}",  # например, "Заявка #10"
-                "price": 0,  # можете указать, если есть цена
-                "custom_fields_values": []
-                # например, можно добавить поле "SERVICE_NAME", если есть:
-                # "custom_fields_values": [{
-                #     "field_id": settings.AMOCRM_CUSTOM_FIELD_SERVICE_NAME,
-                #     "values": [{"value": service_name}]
-                # }]
-            }
-            # Можно добавить pipeline_id, status_id, и т.д., если нужно:
-            # lead_data["pipeline_id"] = <ID воронки>
-            # lead_data["status_id"] = <статус воронки>
+            # 3. Готовим данные для лида
+            #    Пример: pipeline_id=7734406, status_id=65736946 (подставьте нужные)
+            pipeline_id = 7734406
+            status_id = 65736946
 
-            # Создаём лид в AmoCRM
+            # Название лида: сначала service_name, затем тип, марка, модель
+            lead_data = {
+                "name": f"{service_name} {equipment_type} {equipment_brand} {equipment_model}",
+                "status_id": status_id,
+                "pipeline_id": pipeline_id,
+
+                "_embedded": {
+                    "contacts": []
+                },
+                "custom_fields_values": []
+            }
+
+            # Привязываем контакт, если у клиента есть amo_crm_contact_id
+            if client.amo_crm_contact_id:
+                lead_data["_embedded"]["contacts"].append({"id": client.amo_crm_contact_id})
+
+            # Поля custom_fields_values (ID полей в AmoCRM берём из ваших настроек):
+            lead_data["custom_fields_values"].extend([
+                {
+                    "field_id": 240623,  # например City
+                    "values": [{"value": city_name}]
+                },
+                {
+                    "field_id": 743447,  # например Street
+                    "values": [{"value": address}]
+                },
+                {
+                    "field_id": 743839,  # для service_name
+                    "values": [{"value": service_name}]
+                },
+                {
+                    "field_id": 725136,  # описание
+                    "values": [{"value": description}]
+                },
+                {
+                    "field_id": 240637,  # модель оборудования
+                    "values": [{"value": equipment_model}]
+                },
+                {
+                    "field_id": 240631,  # тип
+                    "values": [{"value": equipment_type}]
+                },
+                {
+                    "field_id": 240635,  # марка
+                    "values": [{"value": equipment_brand}]
+                }
+            ])
+
+            # 4. Создаём лид в AmoCRM
+            amo_client = AmoCRMClient()
             try:
-                created_lead = amo_client.create_lead(lead_data)
-                # Сохраняем ID лида в модели ServiceRequest
+                created_lead = amo_client.create_lead(lead_data)  
+                # Сохраняем ID лида
                 service_request.amo_crm_lead_id = created_lead['id']
                 service_request.save()
             except Exception as e:
-                logger.error(f"Не удалось создать лид в AmoCRM: {e}", exc_info=True)
+                logger.error("Не удалось создать лид в AmoCRM: %s", e, exc_info=True)
                 raise serializers.ValidationError("Ошибка при создании лида в AmoCRM, заявка откатывается.")
 
         return service_request
-
-
+    
 # Сериализатор для запроса истории заявок
 class RequestHistorySerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")

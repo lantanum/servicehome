@@ -71,18 +71,29 @@ class AmoCRMClient:
 
     def create_lead(self, lead_data):
         """
-        Создание лида (Lead) в AmoCRM и возврат его ID.
-        lead_data — словарь вида {"name": "...", "price": 1000, "custom_fields_values": [...]} и т.д.
+        Создаёт лид (Lead) в AmoCRM v4.
+        lead_data - словарь вида:
+        {
+          "name": "...",
+          "status_id": 63819782,
+          "pipeline_id": 7734406,
+          "_embedded": { "contacts": [{ "id": ... }] },
+          "custom_fields_values": [...]
+        }
+
+        В AmoCRM API v4 обычно отправляем массив [ lead_data ].
         """
         url = f'{self.base_url}/leads'
         headers = self._get_headers()
         response = requests.post(url, json=[lead_data], headers=headers)
         if response.status_code in [200, 201]:
+            # response.json()['_embedded']['leads'][0]
             lead = response.json()['_embedded']['leads'][0]
-            logger.info(f"Lead created in AmoCRM with ID: {lead['id']}")
+            logger.info(f"Lead created in AmoCRM with ID={lead['id']}")
             return lead
         else:
-            logger.error(f"Failed to create lead in AmoCRM: {response.text}")
+            logger.error("Failed to create lead in AmoCRM. status=%s, text=%s, data=%s",
+                         response.status_code, response.text, lead_data)
             response.raise_for_status()
     # Можно добавить методы update_contact, search_contact и т.д.
     def update_contact(self, contact_id, contact_data):
