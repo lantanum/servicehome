@@ -1,4 +1,4 @@
-# users_app/serializers.py
+
 
 from rest_framework import serializers
 from django.utils import timezone
@@ -13,115 +13,248 @@ class MinimalUserSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'telegram_login']
 
 
-# Сериализатор для регистрации пользователя или мастера
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    service_name = serializers.CharField(
-        required=False, allow_blank=True, help_text="Название услуги"
-    )
-    address = serializers.CharField(
-        required=False, allow_blank=True, help_text="Адрес работы мастера"
-    )
 
-    class Meta:
-        model = User
-        fields = [
-            'id',
-            'name',
-            'phone',
-            'telegram_id',
-            'telegram_login',
-            'role',
-            'city_name',
-            'service_name',
-            'address',
-        ]
+from rest_framework import serializers
+from django.conf import settings
+from .models import User, Master
+from .amocrm_client import AmoCRMClient  # Импорт клиента, где Bearer-токен
+import logging
+
+logger = logging.getLogger(__name__)
+
+class UserRegistrationSerializer(serializers.Serializer):
+    """
+    Сериализатор для регистрации/обновления пользователя (Client или Master) по номеру телефона.
+    Если phone уже есть в системе — обновляем, иначе создаём.
+    Принимает start_command ("/start ref...") для реферальной логики.
+    """
+    phone = serializers.CharField(required=True, help_text="Телефон (используется как ключ для update)")
+    name = serializers.CharField(required=True, help_text="Имя пользователя")
+    telegram_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    telegram_login = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default='Client')
+    city_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    start_command = serializers.CharField(required=False, allow_blank=True, help_text="Строка /start ref...")
+    service_name = serializers.CharField(required=False, allow_blank=True, help_text="Услуга мастера")
+    address = serializers.CharField(required=False, allow_blank=True, help_text="Адрес мастера")
+
+    def parse_referral(self, start_cmd: str) -> str:
+        """
+        Извлекает из "/start ref226882363_kl" -> '226882363'.
+        Возвращает None, если формат не подходит.
+        """
+        text = start_cmd.replace("/start ", "").strip()  # "ref226882363_kl"
+        match = re.match(r"^ref(\d+)_", text)
+        if match:
+            return match.group(1)  # "226882363"
+        return None
 
     def validate(self, attrs):
-        role = attrs.get('role')
+        role = attrs.get('role', 'Client')
         errors = {}
 
         if role == 'Master':
             if not attrs.get('city_name'):
-                errors['city_name'] = "Необходимо указать название города для регистрации мастера."
+                errors['city_name'] = "Необходимо указать город для мастера."
             if not attrs.get('service_name'):
-                errors['service_name'] = "Необходимо указать название услуги для регистрации мастера."
+                errors['service_name'] = "Необходимо указать услугу для мастера."
             if not attrs.get('address'):
-                errors['address'] = "Необходимо указать адрес работы мастера."
+                errors['address'] = "Необходимо указать адрес мастера."
         elif role == 'Client':
             if not attrs.get('city_name'):
-                errors['city_name'] = "Необходимо указать название города для регистрации клиента."
-
+                errors['city_name'] = "Необходимо указать город для клиента."
+        
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
 
     def create(self, validated_data):
-        role = validated_data.pop('role', 'Client')
-        city_name = validated_data.pop('city_name', None)
-        service_name = validated_data.pop('service_name', None)
-        address = validated_data.pop('address', None)
+        """
+        1. Ищем пользователя по phone (User.objects.filter(phone=...)). 
+        2. Если нет -> create, иначе -> update.
+        3. Если role=Master, create/update Master.
+        4. Реферальная логика (start_command -> referral_link, referrer).
+        5. Интеграция с AmoCRM: create или update контакт.
+        """
+        phone = validated_data['phone']
+        name = validated_data['name']
+        telegram_id = validated_data.get('telegram_id')
+        telegram_login = validated_data.get('telegram_login')
+        role = validated_data.get('role', 'Client')
+        city_name = validated_data.get('city_name', '')
+        start_cmd = validated_data.pop('start_command', '')
+        service_name = validated_data.pop('service_name', '')
+        address = validated_data.pop('address', '')
 
-        user = User.objects.create(
-            role=role,
-            city_name=city_name,
-            **validated_data
-        )
+        # Парсим реферера
+        telegram_ref_id = self.parse_referral(start_cmd)
 
-        if role == 'Master':
-            Master.objects.create(
-                user=user,
-                city_name=city_name,
-                service_name=service_name,
-                address=address
-            )
+        with transaction.atomic():
+            # 1) Проверяем, есть ли User с таким телефоном
+            user = User.objects.filter(phone=phone).first()
+            is_new = (user is None)
 
+            if is_new:
+                # Создаём
+                logger.info(f"No user with phone={phone}, creating new.")
+                user = User.objects.create(
+                    phone=phone,
+                    name=name,
+                    telegram_id=telegram_id,
+                    telegram_login=telegram_login,
+                    role=role,
+                    city_name=city_name
+                )
+            else:
+                # Обновляем
+                logger.info(f"User with phone={phone} found (id={user.id}), updating data.")
+                user.name = name
+                user.telegram_id = telegram_id
+                user.telegram_login = telegram_login
+                user.role = role
+                user.city_name = city_name
+                user.save()
+
+            # Сохраняем сырую команду
+            user.referral_link = start_cmd
+
+            # Если есть telegram_ref_id -> ищем реферера
+            if telegram_ref_id:
+                try:
+                    referrer_user = User.objects.get(telegram_id=telegram_ref_id)
+                    user.referrer = referrer_user
+                except User.DoesNotExist:
+                    logger.warning(f"Referrer user with telegram_id={telegram_ref_id} not found.")
+            user.save()
+
+            # Если role=Master, создаём/обновляем Master
+            if role == 'Master':
+                # Проверяем, есть ли уже master_profile
+                if not hasattr(user, 'master_profile'):
+                    logger.info(f"Creating Master for user={user.id}")
+                    Master.objects.create(
+                        user=user,
+                        city_name=city_name,
+                        service_name=service_name,
+                        address=address
+                    )
+                else:
+                    master = user.master_profile
+                    master.city_name = city_name
+                    master.service_name = service_name
+                    master.address = address
+                    master.save()
+            else:
+                # Если он был мастером, а теперь role=Client, по логике можно:
+                # 1) master_profile удалить, или 
+                # 2) оставить как есть. Зависит от бизнес-требований.
+                pass
+
+            # Создаём / обновляем контакт в AmoCRM
+            amo_client = AmoCRMClient()
+
+            contact_data = {
+                "name": user.name,
+                "custom_fields_values": []
+            }
+            if user.phone:
+                contact_data["custom_fields_values"].append({
+                    "field_code": "PHONE",
+                    "values": [{"value": user.phone, "enum_code": "WORK"}]
+                })
+            if user.telegram_id:
+                contact_data["custom_fields_values"].append({
+                    "field_id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,
+                    "values": [{"value": user.telegram_id}]
+                })
+
+            try:
+                if user.amo_crm_contact_id:
+                    # update contact
+                    logger.info(f"Updating contact in AmoCRM (id={user.amo_crm_contact_id}) for user={user.id}")
+                    updated_contact = amo_client.update_contact(user.amo_crm_contact_id, contact_data)
+                    # user.amo_crm_contact_id = updated_contact['id'] (не меняется)
+                else:
+                    # create contact
+                    logger.info(f"Creating contact in AmoCRM for user={user.id}")
+                    created_contact = amo_client.create_contact(contact_data)
+                    user.amo_crm_contact_id = created_contact['id']
+                user.save()
+
+            except Exception as e:
+                logger.error("CRM Error while create/update contact: %s", e, exc_info=True)
+                raise serializers.ValidationError("Ошибка в AmoCRM при создании/обновлении контакта.")
+        
         return user
 
 
 # Сериализатор для создания заявки
-class ServiceRequestCreateSerializer(serializers.ModelSerializer):
-    telegram_id = serializers.CharField(
-        required=True, help_text="Telegram ID клиента"
-    )
-
-    class Meta:
-        model = ServiceRequest
-        fields = [
-            'id',
-            'telegram_id',
-            'service_name',
-            'city_name',
-            'address',
-            'description',
-        ]
+class ServiceRequestCreateSerializer(serializers.Serializer):
+    telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")
+    service_name = serializers.CharField(required=True, help_text="Название услуги")
+    city_name = serializers.CharField(required=True, help_text="Название города")
+    address = serializers.CharField(required=True, allow_blank=False, help_text="Адрес")
+    description = serializers.CharField(required=False, allow_blank=True, help_text="Описание заявки")
 
     def validate_telegram_id(self, value):
+        # Проверяем, есть ли пользователь с таким telegram_id и он клиент
         try:
             user = User.objects.get(telegram_id=value)
         except User.DoesNotExist:
             raise serializers.ValidationError("Пользователь с указанным telegram_id не найден.")
-
         if user.role != 'Client':
-            raise serializers.ValidationError("Только пользователи с ролью 'Client' могут создавать заявки.")
+            raise serializers.ValidationError("Только 'Client' может создавать заявки.")
         return value
 
     def create(self, validated_data):
-        telegram_id = validated_data.pop('telegram_id')
-        service_name = validated_data.get('service_name')
-        city_name = validated_data.get('city_name')
-        address = validated_data.get('address')
+        telegram_id = validated_data['telegram_id']
+        service_name = validated_data['service_name']
+        city_name = validated_data['city_name']
+        address = validated_data['address']
         description = validated_data.get('description', '')
 
+        # 1. Получаем клиента
         client = User.objects.get(telegram_id=telegram_id, role='Client')
 
-        service_request = ServiceRequest.objects.create(
-            client=client,
-            service_name=service_name,
-            city_name=city_name,
-            address=address,
-            description=description,
-            status='Open'
-        )
+        # 2. Используем транзакцию — атомарное создание заявки + лид
+        with transaction.atomic():
+            # Сначала создаём заявку в локальной базе
+            service_request = ServiceRequest.objects.create(
+                client=client,
+                service_name=service_name,
+                city_name=city_name,
+                address=address,
+                description=description,
+                status='Open'
+            )
+
+            # 3. Формируем данные лида для AmoCRM
+            amo_client = AmoCRMClient()
+            lead_data = {
+                "name": f"Заявка #{service_request.id}",  # например, "Заявка #10"
+                "price": 0,  # можете указать, если есть цена
+                "custom_fields_values": []
+                # например, можно добавить поле "SERVICE_NAME", если есть:
+                # "custom_fields_values": [{
+                #     "field_id": settings.AMOCRM_CUSTOM_FIELD_SERVICE_NAME,
+                #     "values": [{"value": service_name}]
+                # }]
+            }
+            # Можно добавить pipeline_id, status_id, и т.д., если нужно:
+            # lead_data["pipeline_id"] = <ID воронки>
+            # lead_data["status_id"] = <статус воронки>
+
+            # Создаём лид в AmoCRM
+            try:
+                created_lead = amo_client.create_lead(lead_data)
+                # Сохраняем ID лида в модели ServiceRequest
+                service_request.amo_crm_lead_id = created_lead['id']
+                service_request.save()
+            except Exception as e:
+                logger.error(f"Не удалось создать лид в AmoCRM: {e}", exc_info=True)
+                raise serializers.ValidationError("Ошибка при создании лида в AmoCRM, заявка откатывается.")
+
         return service_request
 
 
@@ -302,3 +435,16 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             'completed_at',
             'description',
         ]
+
+
+class CheckUserByPhoneSerializer(serializers.Serializer):
+    phone = serializers.CharField(required=True, help_text="Номер телефона для проверки")
+
+    def validate_phone(self, value):
+        """
+        Можно добавить любую валидацию формата номера,
+        но как минимум проверяем, что не пустой
+        """
+        if not value.strip():
+            raise serializers.ValidationError("Номер телефона не должен быть пустым.")
+        return value

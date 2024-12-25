@@ -384,6 +384,7 @@ class CloseRequestView(APIView):
             {"detail": "Заявка успешно закрыта."},
             status=status.HTTP_200_OK
         )
+        
 class UserProfileView(APIView):
     """
     API-эндпоинт для получения профиля пользователя по telegram_id.
@@ -436,3 +437,5 @@ class UserProfileView(APIView):
         # Сериализуем данные профиля пользователя
         profile_serializer = UserProfileSerializer(user)
         return Response(profile_serializer.data, status=status.HTTP_200_OK)
+
+
