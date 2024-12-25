@@ -19,6 +19,7 @@ from django.conf import settings
 from .models import User, Master
 from .amocrm_client import AmoCRMClient  # Импорт клиента, где Bearer-токен
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
