@@ -27,7 +27,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     """
     Сериализатор для регистрации/обновления пользователя (Client или Master) по номеру телефона.
     Если phone уже есть в системе — обновляем, иначе создаём.
-    Принимает start_command ("/start ref...") для реферальной логики.
+    Принимает referral_link (содержимое команды /start ref...).
     """
     phone = serializers.CharField(required=True, help_text="Телефон (используется как ключ для update)")
     name = serializers.CharField(required=True, help_text="Имя пользователя")
@@ -36,16 +36,17 @@ class UserRegistrationSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default='Client')
     city_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
-    start_command = serializers.CharField(required=False, allow_blank=True, help_text="Строка /start ref...")
+    referral_link = serializers.CharField(required=False, allow_blank=True, help_text="Содержимое команды /start (реферальная строка)")
     service_name = serializers.CharField(required=False, allow_blank=True, help_text="Услуга мастера")
     address = serializers.CharField(required=False, allow_blank=True, help_text="Адрес мастера")
+    equipment_type_name = serializers.CharField(required=False, allow_blank=True, help_text="Тип оборудования мастера")  # Новое поле
 
-    def parse_referral(self, start_cmd: str) -> str:
+    def parse_referral(self, referral_link: str) -> str:
         """
-        Извлекает из "/start ref226882363_kl" -> '226882363'.
+        Извлекает из "ref226882363_kl" -> '226882363'.
         Возвращает None, если формат не подходит.
         """
-        text = start_cmd.replace("/start ", "").strip()  # "ref226882363_kl"
+        text = referral_link.strip()  # "ref226882363_kl"
         match = re.match(r"^ref(\d+)_", text)
         if match:
             return match.group(1)  # "226882363"
@@ -56,16 +57,17 @@ class UserRegistrationSerializer(serializers.Serializer):
         errors = {}
 
         if role == 'Master':
-            if not attrs.get('city_name'):
-                errors['city_name'] = "Необходимо указать город для мастера."
-            if not attrs.get('service_name'):
-                errors['service_name'] = "Необходимо указать услугу для мастера."
-            if not attrs.get('address'):
-                errors['address'] = "Необходимо указать адрес мастера."
+            required_fields = ['city_name', 'service_name', 'address', 'equipment_type_name']
+            for field in required_fields:
+                if not attrs.get(field):
+                    errors[field] = f"Необходимо указать {field.replace('_', ' ')} для мастера."
+
+            # Если необходимо, можно добавить дополнительные проверки для `equipment_type_name`
+            # Например, ограничить длину или разрешенные символы
         elif role == 'Client':
             if not attrs.get('city_name'):
                 errors['city_name'] = "Необходимо указать город для клиента."
-        
+
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
@@ -75,7 +77,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         1. Ищем пользователя по phone (User.objects.filter(phone=...)). 
         2. Если нет -> create, иначе -> update.
         3. Если role=Master, create/update Master.
-        4. Реферальная логика (start_command -> referral_link, referrer).
+        4. Реферальная логика (referral_link -> referral_link, referrer).
         5. Интеграция с AmoCRM: create или update контакт.
         """
         phone = validated_data['phone']
@@ -84,12 +86,13 @@ class UserRegistrationSerializer(serializers.Serializer):
         telegram_login = validated_data.get('telegram_login')
         role = validated_data.get('role', 'Client')
         city_name = validated_data.get('city_name', '')
-        start_cmd = validated_data.pop('start_command', '')
+        referral_link = validated_data.pop('referral_link', '')
         service_name = validated_data.pop('service_name', '')
         address = validated_data.pop('address', '')
+        equipment_type_name = validated_data.pop('equipment_type_name', '')  # Получаем тип оборудования
 
         # Парсим реферера
-        telegram_ref_id = self.parse_referral(start_cmd)
+        telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
             # 1) Проверяем, есть ли User с таким телефоном
@@ -117,8 +120,8 @@ class UserRegistrationSerializer(serializers.Serializer):
                 user.city_name = city_name
                 user.save()
 
-            # Сохраняем сырую команду
-            user.referral_link = start_cmd
+            # Сохраняем сырую реферальную строку
+            user.referral_link = referral_link
 
             # Если есть telegram_ref_id -> ищем реферера
             if telegram_ref_id:
@@ -138,18 +141,19 @@ class UserRegistrationSerializer(serializers.Serializer):
                         user=user,
                         city_name=city_name,
                         service_name=service_name,
-                        address=address
+                        address=address,
+                        equipment_type_name=equipment_type_name  # Сохраняем тип оборудования как строку
                     )
                 else:
                     master = user.master_profile
                     master.city_name = city_name
                     master.service_name = service_name
                     master.address = address
+                    master.equipment_type_name = equipment_type_name  # Обновляем тип оборудования как строку
                     master.save()
             else:
-                # Если он был мастером, а теперь role=Client, по логике можно:
-                # 1) master_profile удалить, или 
-                # 2) оставить как есть. Зависит от бизнес-требований.
+                # Если пользователь был мастером, а теперь стал клиентом
+                # Логика зависит от бизнес-требований
                 pass
 
             # Создаём / обновляем контакт в AmoCRM
@@ -172,12 +176,12 @@ class UserRegistrationSerializer(serializers.Serializer):
 
             try:
                 if user.amo_crm_contact_id:
-                    # update contact
+                    # Update contact
                     logger.info(f"Updating contact in AmoCRM (id={user.amo_crm_contact_id}) for user={user.id}")
                     updated_contact = amo_client.update_contact(user.amo_crm_contact_id, contact_data)
                     # user.amo_crm_contact_id = updated_contact['id'] (не меняется)
                 else:
-                    # create contact
+                    # Create contact
                     logger.info(f"Creating contact in AmoCRM for user={user.id}")
                     created_contact = amo_client.create_contact(contact_data)
                     user.amo_crm_contact_id = created_contact['id']
@@ -186,9 +190,8 @@ class UserRegistrationSerializer(serializers.Serializer):
             except Exception as e:
                 logger.error("CRM Error while create/update contact: %s", e, exc_info=True)
                 raise serializers.ValidationError("Ошибка в AmoCRM при создании/обновлении контакта.")
-        
-        return user
 
+        return user
 
 class ServiceRequestCreateSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")
