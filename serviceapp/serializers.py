@@ -463,10 +463,10 @@ class MasterSerializer(serializers.ModelSerializer):
         ]
 
 
-# Сериализатор для отображения заявки
 class ServiceRequestSerializer(serializers.ModelSerializer):
     client = MinimalUserSerializer(read_only=True)
     master = MasterSerializer(read_only=True)
+    status = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = ServiceRequest
@@ -485,7 +485,6 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             'completed_at',
             'description',
         ]
-
 
 class CheckUserByPhoneSerializer(serializers.Serializer):
     phone = serializers.CharField(required=True, help_text="Номер телефона для проверки")
@@ -509,3 +508,25 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = EquipmentType
         fields = ['id', 'name']
+
+
+class LeadSerializer(serializers.Serializer):
+    id = serializers.IntegerField(required=True, help_text="ID лида в AmoCRM")
+    status_id = serializers.IntegerField(required=True, help_text="ID статуса лида")
+
+class AmoCRMWebhookSerializer(serializers.Serializer):
+    _embedded = serializers.DictField(
+        child=serializers.ListField(child=LeadSerializer())
+    )
+
+    def validate(self, attrs):
+        embedded = attrs.get('_embedded', {})
+        leads = embedded.get('leads', [])
+        if not leads:
+            raise serializers.ValidationError("No leads found in webhook data.")
+        
+        for lead in leads:
+            if 'id' not in lead or 'status_id' not in lead:
+                raise serializers.ValidationError("Each lead must have 'id' and 'status_id'.")
+        
+        return attrs

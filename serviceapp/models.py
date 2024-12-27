@@ -42,10 +42,11 @@ class Master(models.Model):
 
 class ServiceRequest(models.Model):
     STATUS_CHOICES = [
-        ('Open', 'Open'),
-        ('In Progress', 'In Progress'),
-        ('Completed', 'Completed'),
-        ('Cancelled', 'Cancelled'),
+        ('Open', 'Новая заявка'),
+        ('In Progress', 'Взяли в работу'),
+        ('Completed', 'Успешно реализовано'),
+        ('Cancelled', 'Отказ от ремонта'),
+        ('Free', 'Свободная заявка'),
     ]
 
     client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_requests')
@@ -69,6 +70,7 @@ class ServiceRequest(models.Model):
     description = models.TextField(null=True, blank=True)
 
     amo_crm_lead_id = models.IntegerField(null=True, blank=True, unique=True, help_text="ID лида в AmoCRM")
+    amo_status_code = models.IntegerField(null=True, blank=True, help_text="Внешний статус заявки (например, из AmoCRM)")
 
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
