@@ -500,12 +500,18 @@ class AmoCRMWebhookView(APIView):
     """
 
     def post(self, request):
-        # Убрать проверку секретного токена, как требовал пользователь
-
+        # Логирование входящего JSON
+        try:
+            raw_data = request.body.decode('utf-8')  # Получаем сырые данные
+            logger.debug(f"Incoming AmoCRM webhook data: {raw_data}")
+        except Exception as e:
+            logger.error(f"Error decoding request body: {e}")
+            return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
+        
         # Валидация входящих данных
         serializer = AmoCRMWebhookSerializer(data=request.data)
         if not serializer.is_valid():
-            logger.warning("Invalid AmoCRM webhook data: %s", serializer.errors)
+            logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         # Извлечение изменений статусов лидов

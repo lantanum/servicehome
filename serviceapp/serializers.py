@@ -523,3 +523,14 @@ class LeadsSerializer(serializers.Serializer):
 class AmoCRMWebhookSerializer(serializers.Serializer):
     leads = LeadsSerializer()
     account = serializers.DictField()
+
+    def validate(self, attrs):
+        leads = attrs.get('leads', {}).get('status', [])
+        if not leads:
+            raise serializers.ValidationError("No leads found in webhook data.")
+        
+        for lead in leads:
+            if 'id' not in lead or 'status_id' not in lead:
+                raise serializers.ValidationError("Each lead must have 'id' and 'status_id'.")
+        
+        return attrs

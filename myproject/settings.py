@@ -152,3 +152,40 @@ AMOCRM_SUBDOMAIN = os.getenv('AMOCRM_SUBDOMAIN', 'servicecentru')
 AMOCRM_CUSTOM_FIELD_TELEGRAM_ID = 744499
 
 API_ACCESS_TOKEN = ''
+
+
+# settings.py
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'amocrm_webhook.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'serviceapp': {  # Замените 'serviceapp' на имя вашего приложения, если отличается
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',  # Устанавливаем уровень на DEBUG для захвата всех сообщений
+            'propagate': True,
+        },
+    },
+}
