@@ -111,6 +111,7 @@ class InteractionLog(models.Model):
 
 
 
+
 class ServiceType(models.Model):
     name = models.CharField(max_length=255, unique=True, help_text="Название типа сервиса")
 
