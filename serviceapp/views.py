@@ -8,7 +8,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from serviceapp.utils import STATUS_MAPPING
+from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
 from .serializers import (
     AmoCRMWebhookSerializer,
     EquipmentTypeSerializer,
