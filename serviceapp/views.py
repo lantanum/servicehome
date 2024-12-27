@@ -5,6 +5,8 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import (
+    EquipmentTypeSerializer,
+    ServiceTypeSerializer,
     UserRegistrationSerializer, 
     ServiceRequestCreateSerializer, 
     RequestHistorySerializer, 
@@ -15,7 +17,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import ServiceRequest, User
+from .models import EquipmentType, ServiceRequest, ServiceType, User
 
 class UserRegistrationView(APIView):
     @swagger_auto_schema(
@@ -439,3 +441,46 @@ class UserProfileView(APIView):
         return Response(profile_serializer.data, status=status.HTTP_200_OK)
 
 
+
+class ServiceEquipmentTypesView(APIView):
+    """
+    API-эндпоинт для получения списка типов сервисов и типов оборудования.
+    """
+    @swagger_auto_schema(
+        operation_description="Получение списка типов сервисов и типов оборудования.",
+        responses={
+            200: openapi.Response(
+                description="Список типов сервисов и оборудования",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "service_types": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(type=openapi.TYPE_OBJECT, properties={
+                                "id": openapi.Schema(type=openapi.TYPE_INTEGER, description="ID типа сервиса"),
+                                "name": openapi.Schema(type=openapi.TYPE_STRING, description="Название типа сервиса")
+                            })
+                        ),
+                        "equipment_types": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(type=openapi.TYPE_OBJECT, properties={
+                                "id": openapi.Schema(type=openapi.TYPE_INTEGER, description="ID типа оборудования"),
+                                "name": openapi.Schema(type=openapi.TYPE_STRING, description="Название типа оборудования")
+                            })
+                        )
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        service_types = ServiceType.objects.all()
+        equipment_types = EquipmentType.objects.all()
+        
+        service_serializer = ServiceTypeSerializer(service_types, many=True)
+        equipment_serializer = EquipmentTypeSerializer(equipment_types, many=True)
+        
+        return Response({
+            "service_types": service_serializer.data,
+            "equipment_types": equipment_serializer.data
+        }, status=status.HTTP_200_OK)

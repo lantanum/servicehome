@@ -3,7 +3,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import transaction
-from .models import User, Master, ServiceRequest, ReferralLink  # Предполагается, что ReferralLink существует
+from .models import EquipmentType, ServiceType, User, Master, ServiceRequest, ReferralLink  # Предполагается, что ReferralLink существует
 
 
 # Минимальный сериализатор для отображения информации о пользователе
@@ -495,3 +495,14 @@ class CheckUserByPhoneSerializer(serializers.Serializer):
         if not value.strip():
             raise serializers.ValidationError("Номер телефона не должен быть пустым.")
         return value
+    
+
+class ServiceTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceType
+        fields = ['id', 'name']
+
+class EquipmentTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EquipmentType
+        fields = ['id', 'name']

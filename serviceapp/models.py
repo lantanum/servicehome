@@ -39,7 +39,6 @@ class Master(models.Model):
         return f"Master: {self.user.name}"
 
 
-# users_app/models.py
 
 class ServiceRequest(models.Model):
     STATUS_CHOICES = [
@@ -109,3 +108,17 @@ class InteractionLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     action_description = models.CharField(max_length=255, null=True, blank=True)
     action_timestamp = models.DateTimeField(auto_now_add=True)
+
+
+
+class ServiceType(models.Model):
+    name = models.CharField(max_length=255, unique=True, help_text="Название типа сервиса")
+
+    def __str__(self):
+        return self.name
+
+class EquipmentType(models.Model):
+    name = models.CharField(max_length=255, unique=True, help_text="Название типа оборудования")
+
+    def __str__(self):
+        return self.name
