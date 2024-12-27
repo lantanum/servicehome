@@ -500,14 +500,10 @@ class AmoCRMWebhookView(APIView):
     """
 
     def post(self, request):
-        # (Опционально) Проверка секретного токена
-        secret_token = request.headers.get('X-Amocrm-Webhook-Secret')
-        expected_token = settings.AMOCRM_WEBHOOK_SECRET
+        # Убрать проверку секретного токена
+        # Если вы ранее добавляли проверку, удалите соответствующий код
 
-        if expected_token and secret_token != expected_token:
-            logger.warning("Invalid webhook secret token.")
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
-        
+        # Валидация данных
         serializer = AmoCRMWebhookSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("Invalid AmoCRM webhook data: %s", serializer.errors)
@@ -533,11 +529,13 @@ class AmoCRMWebhookView(APIView):
                         
                         # Подготавливаем данные для внешнего сервиса
                         payload = {
-                            "request_id": service_request.id,
-                            "status": service_request.status,
-                            "lead_id": lead_id,
-                            "updated_at": service_request.updated_at.isoformat(),
-                            # Добавьте другие необходимые поля
+                            "город_заявки": service_request.city_name,
+                            "адрес": service_request.address,
+                            "дата_заявки": service_request.created_at.isoformat(),
+                            "тип_оборудования": service_request.equipment_type,
+                            "марка": service_request.equipment_brand,
+                            "модель": service_request.equipment_model,
+                            "комментарий": service_request.description or ""
                         }
                         
                         # Отправляем POST-запрос на внешний сервис
@@ -552,7 +550,7 @@ class AmoCRMWebhookView(APIView):
                                 f"Failed to send data to external service for ServiceRequest {service_request.id}. "
                                 f"Status code: {external_response.status_code}, Response: {external_response.text}"
                             )
-                            # Дополнительно можно реализовать повторные попытки или уведомления
+                            # Опционально: Реализуйте повторные попытки или уведомления
                             
                 except ServiceRequest.DoesNotExist:
                     logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
