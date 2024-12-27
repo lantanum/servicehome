@@ -500,44 +500,46 @@ class AmoCRMWebhookView(APIView):
     """
 
     def post(self, request):
-        # Логирование входящего JSON
+        # Логирование сырого тела запроса
         try:
-            raw_data = request.body.decode('utf-8')  # Получаем сырые данные
-            logger.debug(f"Incoming AmoCRM webhook data: {raw_data}")
+            raw_data = request.body.decode('utf-8')
+            logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
         except Exception as e:
             logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Валидация входящих данных
-        serializer = AmoCRMWebhookSerializer(data=request.data)
+
+        # Преобразование плоских данных в вложенный словарь
+        nested_data = parse_nested_form_data(request.POST)
+
+        # Логирование преобразованных данных
+        logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
+
+        # Валидация преобразованных данных с помощью сериализатора
+        serializer = AmoCRMWebhookSerializer(data=nested_data)
         if not serializer.is_valid():
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Извлечение изменений статусов лидов
         embedded = serializer.validated_data.get('leads', {})
         status_changes = embedded.get('status', [])
-        
+
         for lead in status_changes:
             try:
-                lead_id = int(lead.get('id'))
-                status_id = int(lead.get('status_id'))
-            except (ValueError, TypeError) as e:
-                logger.error(f"Invalid lead data types: {lead} - {e}")
-                continue  # Пропустить этот лид и перейти к следующему
-            
-            # Проверяем, соответствует ли статус 'Free'
-            if status_id == STATUS_MAPPING.get('Free'):
-                try:
+                lead_id = lead.get('id')
+                status_id = lead.get('status_id')
+
+                # Проверяем, соответствует ли статус 'Free'
+                if status_id == STATUS_MAPPING.get('Free'):
                     with transaction.atomic():
                         # Получаем заявку по amo_crm_lead_id
                         service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
-                        
+
                         previous_status = service_request.status
                         service_request.status = 'Free'
                         service_request.save()
                         logger.info(f"ServiceRequest {service_request.id} updated from {previous_status} to 'Free'.")
-                        
+
                         # Подготавливаем данные для внешнего сервиса
                         payload = {
                             "город_заявки": service_request.city_name,
@@ -548,26 +550,25 @@ class AmoCRMWebhookView(APIView):
                             "модель": service_request.equipment_model,
                             "комментарий": service_request.description or ""
                         }
-                        
+
                         # Отправляем POST-запрос на внешний сервис
                         external_response = requests.post(
                             'https://sambot.ru/reactions/2890052/start',
                             json=payload,
                             timeout=10  # Таймаут в секундах
                         )
-                        
+
                         if external_response.status_code != 200:
                             logger.error(
                                 f"Failed to send data to external service for ServiceRequest {service_request.id}. "
                                 f"Status code: {external_response.status_code}, Response: {external_response.text}"
                             )
                             # Опционально: Реализуйте повторные попытки или уведомления
-                            
-                except ServiceRequest.DoesNotExist:
-                    logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
-                    continue
-                except Exception as e:
-                    logger.exception(f"Error processing lead_id={lead_id}: {e}")
-                    continue
-        
+            except ServiceRequest.DoesNotExist:
+                logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
+                continue
+            except Exception as e:
+                logger.exception(f"Error processing lead_id={lead_id}: {e}")
+                continue
+
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
