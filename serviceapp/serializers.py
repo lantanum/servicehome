@@ -510,23 +510,16 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-class LeadSerializer(serializers.Serializer):
+class StatusChangeSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=True, help_text="ID лида в AmoCRM")
     status_id = serializers.IntegerField(required=True, help_text="ID статуса лида")
+    pipeline_id = serializers.IntegerField(required=True, help_text="ID pipeline")
+    old_status_id = serializers.IntegerField(required=True, help_text="Старый ID статуса")
+    old_pipeline_id = serializers.IntegerField(required=True, help_text="Старый ID pipeline")
+
+class LeadsSerializer(serializers.Serializer):
+    status = serializers.ListField(child=StatusChangeSerializer())
 
 class AmoCRMWebhookSerializer(serializers.Serializer):
-    _embedded = serializers.DictField(
-        child=serializers.ListField(child=LeadSerializer())
-    )
-
-    def validate(self, attrs):
-        embedded = attrs.get('_embedded', {})
-        leads = embedded.get('leads', [])
-        if not leads:
-            raise serializers.ValidationError("No leads found in webhook data.")
-        
-        for lead in leads:
-            if 'id' not in lead or 'status_id' not in lead:
-                raise serializers.ValidationError("Each lead must have 'id' and 'status_id'.")
-        
-        return attrs
+    leads = LeadsSerializer()
+    account = serializers.DictField()

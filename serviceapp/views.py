@@ -500,21 +500,25 @@ class AmoCRMWebhookView(APIView):
     """
 
     def post(self, request):
-        # Убрать проверку секретного токена
-        # Если вы ранее добавляли проверку, удалите соответствующий код
+        # Убрать проверку секретного токена, как требовал пользователь
 
-        # Валидация данных
+        # Валидация входящих данных
         serializer = AmoCRMWebhookSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("Invalid AmoCRM webhook data: %s", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        embedded = serializer.validated_data['_embedded']
-        leads = embedded.get('leads', [])
+        # Извлечение изменений статусов лидов
+        embedded = serializer.validated_data.get('leads', {})
+        status_changes = embedded.get('status', [])
         
-        for lead in leads:
-            lead_id = lead['id']
-            status_id = lead['status_id']
+        for lead in status_changes:
+            try:
+                lead_id = int(lead.get('id'))
+                status_id = int(lead.get('status_id'))
+            except (ValueError, TypeError) as e:
+                logger.error(f"Invalid lead data types: {lead} - {e}")
+                continue  # Пропустить этот лид и перейти к следующему
             
             # Проверяем, соответствует ли статус 'Free'
             if status_id == STATUS_MAPPING.get('Free'):
@@ -522,6 +526,7 @@ class AmoCRMWebhookView(APIView):
                     with transaction.atomic():
                         # Получаем заявку по amo_crm_lead_id
                         service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
+                        
                         previous_status = service_request.status
                         service_request.status = 'Free'
                         service_request.save()
