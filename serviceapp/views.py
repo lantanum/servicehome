@@ -542,12 +542,14 @@ class AmoCRMWebhookView(APIView):
         try:
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
+            parsed_data = parse_nested_form_data(raw_data)
+            logger.debug(f"Parsed webhook data: {parsed_data}")
         except Exception as e:
-            logger.error(f"Error decoding request body: {e}")
+            logger.error(f"Error decoding or parsing request body: {e}")
             return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Валидация входящих данных
-        serializer = AmoCRMWebhookSerializer(data=request.data)
+        # Валидация входящих данных через сериализатор
+        serializer = AmoCRMWebhookSerializer(data=parsed_data)
         if not serializer.is_valid():
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
