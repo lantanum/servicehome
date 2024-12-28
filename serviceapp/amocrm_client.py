@@ -1,5 +1,6 @@
 # users_app/amocrm_client.py
 
+import json
 import requests
 import logging
 from django.conf import settings
@@ -115,7 +116,7 @@ class AmoCRMClient:
                          "Status=%s, Resp=%s, Data=%s",
                          response.status_code, response.text, contact_data)
             response.raise_for_status()
-            
+
     def search_contacts(self, phone=None, telegram_id=None):
         """
         Ищет контакты по номеру телефона и/или telegram_id.
@@ -127,13 +128,7 @@ class AmoCRMClient:
         url = f"{self.base_url}/contacts"
         headers = self._get_headers()
 
-        # Формируем параметры фильтрации
-        params = {
-            "page": 1,
-            "limit": 50  # Настройте лимит по необходимости
-        }
-
-        # Строим фильтр
+        # Формируем фильтры в формате, ожидаемом AmoCRM API
         filters = []
         if phone:
             filters.append({
@@ -143,13 +138,20 @@ class AmoCRMClient:
             })
         if telegram_id:
             filters.append({
-                "field": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,  # Предполагается, что это ID кастомного поля Telegram
+                "field": str(settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID),  # Используем ID кастомного поля
                 "operator": "EQUALS",
                 "value": telegram_id
             })
 
-        if filters:
-            params['filter'] = filters
+        # Серилизуем фильтры в JSON-строку
+        params = {
+            "page": 1,
+            "limit": 50,
+            "filter": json.dumps(filters)
+        }
+
+        # Для отладки можно залогировать параметры запроса
+        logger.debug(f"Searching contacts with params: {params}")
 
         response = requests.get(url, headers=headers, params=params)
 
@@ -162,5 +164,11 @@ class AmoCRMClient:
                 logger.error(f"Неожиданный формат ответа от AmoCRM при поиске контактов: {e}, текст ответа: {response.text}")
                 return []
         else:
-            logger.error(f"Не удалось выполнить поиск контактов в AmoCRM. Статус: {response.status_code}, Ответ: {response.text}")
+            # Логируем подробную информацию об ошибке
+            logger.error(
+                "Не удалось выполнить поиск контактов в AmoCRM. "
+                "Статус: %s, Ответ: %s, "
+                "Параметры запроса: %s", 
+                response.status_code, response.text, params
+            )
             response.raise_for_status()
