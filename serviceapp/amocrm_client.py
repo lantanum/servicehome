@@ -115,3 +115,52 @@ class AmoCRMClient:
                          "Status=%s, Resp=%s, Data=%s",
                          response.status_code, response.text, contact_data)
             response.raise_for_status()
+            
+    def search_contacts(self, phone=None, telegram_id=None):
+        """
+        Ищет контакты по номеру телефона и/или telegram_id.
+        Возвращает список найденных контактов.
+        """
+        if not phone and not telegram_id:
+            raise ValueError("Необходимо указать хотя бы номер телефона или telegram_id для поиска.")
+
+        url = f"{self.base_url}/contacts"
+        headers = self._get_headers()
+
+        # Формируем параметры фильтрации
+        params = {
+            "page": 1,
+            "limit": 50  # Настройте лимит по необходимости
+        }
+
+        # Строим фильтр
+        filters = []
+        if phone:
+            filters.append({
+                "field": "PHONE",
+                "operator": "EQUALS",
+                "value": phone
+            })
+        if telegram_id:
+            filters.append({
+                "field": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,  # Предполагается, что это ID кастомного поля Telegram
+                "operator": "EQUALS",
+                "value": telegram_id
+            })
+
+        if filters:
+            params['filter'] = filters
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code == 200:
+            try:
+                contacts = response.json()['_embedded']['contacts']
+                logger.info(f"Найдено {len(contacts)} контактов в AmoCRM по заданным критериям.")
+                return contacts
+            except (KeyError, IndexError) as e:
+                logger.error(f"Неожиданный формат ответа от AmoCRM при поиске контактов: {e}, текст ответа: {response.text}")
+                return []
+        else:
+            logger.error(f"Не удалось выполнить поиск контактов в AmoCRM. Статус: {response.status_code}, Ответ: {response.text}")
+            response.raise_for_status()
