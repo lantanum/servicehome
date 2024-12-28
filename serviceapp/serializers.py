@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class UserRegistrationSerializer(serializers.Serializer):
     """
     Сериализатор для регистрации/обновления пользователя (Client или Master) по номеру телефона.
-    Если phone уже есть в системе — обновляем, иначе создаём.
+    Всегда создаёт новый контакт в AmoCRM.
     Принимает referral_link (содержимое команды /start ref...).
     """
     phone = serializers.CharField(required=True, help_text="Телефон (используется как ключ для update)")
@@ -78,8 +78,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         2. Если нет -> create, иначе -> update.
         3. Если role=Master, create/update Master.
         4. Реферальная логика (referral_link -> referral_link, referrer).
-        5. Интеграция с AmoCRM: проверяем наличие контакта по telegram_id и phone, 
-           если нет - создаём, иначе обновляем существующий контакт.
+        5. Интеграция с AmoCRM: всегда создаём новый контакт.
         """
         phone = validated_data['phone']
         name = validated_data['name']
@@ -157,69 +156,32 @@ class UserRegistrationSerializer(serializers.Serializer):
                 # Логика зависит от бизнес-требований
                 pass
 
-            # Интеграция с AmoCRM: create или update контакт
+            # Интеграция с AmoCRM: всегда создаём новый контакт
             amo_client = AmoCRMClient()
 
-            # Ищем существующие контакты в AmoCRM по telegram_id и/или phone
-            existing_contacts = []
-            if telegram_id:
-                existing_contacts = amo_client.search_contacts(telegram_id=telegram_id)
-            if not existing_contacts and phone:
-                existing_contacts = amo_client.search_contacts(phone=phone)
+            contact_data = {
+                "name": user.name,
+                "custom_fields_values": []
+            }
+            if user.phone:
+                contact_data["custom_fields_values"].append({
+                    "field_code": "PHONE",
+                    "values": [{"value": user.phone, "enum_code": "WORK"}]
+                })
+            if user.telegram_id:
+                contact_data["custom_fields_values"].append({
+                    "field_id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,  # Используем числовой ID
+                    "values": [{"value": user.telegram_id}]
+                })
 
-            if existing_contacts:
-                # Предполагаем, что первый найденный контакт подходит для обновления
-                amo_contact = existing_contacts[0]
-                amo_contact_id = amo_contact['id']
-                logger.info(f"Найден существующий контакт в AmoCRM (id={amo_contact_id}) для пользователя id={user.id}")
-                contact_data = {
-                    "name": user.name,
-                    "custom_fields_values": []
-                }
-                if user.phone:
-                    contact_data["custom_fields_values"].append({
-                        "field_code": "PHONE",
-                        "values": [{"value": user.phone, "enum_code": "WORK"}]
-                    })
-                if user.telegram_id:
-                    contact_data["custom_fields_values"].append({
-                        "field_id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,
-                        "values": [{"value": user.telegram_id}]
-                    })
-
-                try:
-                    updated_contact = amo_client.update_contact(amo_contact_id, contact_data)
-                    user.amo_crm_contact_id = updated_contact['id']
-                    user.save()
-                    logger.info(f"Контакт в AmoCRM обновлен (id={updated_contact['id']}) для пользователя id={user.id}")
-                except Exception as e:
-                    logger.error("Ошибка при обновлении контакта в AmoCRM: %s", e, exc_info=True)
-                    raise serializers.ValidationError("Ошибка в AmoCRM при обновлении контакта.")
-            else:
-                # Если контакт не найден, создаём новый
-                contact_data = {
-                    "name": user.name,
-                    "custom_fields_values": []
-                }
-                if user.phone:
-                    contact_data["custom_fields_values"].append({
-                        "field_code": "PHONE",
-                        "values": [{"value": user.phone, "enum_code": "WORK"}]
-                    })
-                if user.telegram_id:
-                    contact_data["custom_fields_values"].append({
-                        "field_id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID,
-                        "values": [{"value": user.telegram_id}]
-                    })
-
-                try:
-                    created_contact = amo_client.create_contact(contact_data)
-                    user.amo_crm_contact_id = created_contact['id']
-                    user.save()
-                    logger.info(f"Создан новый контакт в AmoCRM (id={created_contact['id']}) для пользователя id={user.id}")
-                except Exception as e:
-                    logger.error("Ошибка при создании контакта в AmoCRM: %s", e, exc_info=True)
-                    raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
+            try:
+                created_contact = amo_client.create_contact(contact_data)
+                user.amo_crm_contact_id = created_contact['id']
+                user.save()
+                logger.info(f"Создан новый контакт в AmoCRM (id={created_contact['id']}) для пользователя id={user.id}")
+            except Exception as e:
+                logger.error("Ошибка при создании контакта в AmoCRM: %s", e, exc_info=True)
+                raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
 
         return user
 

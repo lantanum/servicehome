@@ -128,29 +128,40 @@ class AmoCRMClient:
         url = f"{self.base_url}/contacts"
         headers = self._get_headers()
 
-        # Формируем фильтры в формате, ожидаемом AmoCRM API
-        filters = []
+        # Формируем условия фильтрации
+        conditions = []
+
         if phone:
-            filters.append({
-                "field": "PHONE",
+            conditions.append({
+                "field": {"code": "PHONE"},  # Стандартное поле "PHONE"
                 "operator": "EQUALS",
                 "value": phone
             })
+
         if telegram_id:
-            filters.append({
-                "field": str(settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID),  # Используем ID кастомного поля
+            conditions.append({
+                "field": {"id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID},  # Кастомное поле Telegram
                 "operator": "EQUALS",
                 "value": telegram_id
             })
 
-        # Серилизуем фильтры в JSON-строку
+        # Определяем логику фильтрации
+        if len(conditions) > 1:
+            filter_obj = {
+                "logic": "or",
+                "conditions": conditions
+            }
+        else:
+            filter_obj = conditions  # Передаём массив условий напрямую
+
+        # Серилизуем фильтр в JSON-строку
         params = {
             "page": 1,
             "limit": 50,
-            "filter": json.dumps(filters)
+            "filter": json.dumps(filter_obj)
         }
 
-        # Для отладки можно залогировать параметры запроса
+        # Логируем параметры запроса для отладки
         logger.debug(f"Searching contacts with params: {params}")
 
         response = requests.get(url, headers=headers, params=params)
