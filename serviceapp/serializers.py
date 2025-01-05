@@ -170,51 +170,43 @@ class UserRegistrationSerializer(serializers.Serializer):
                     "field_code": "PHONE",
                     "values": [{"value": user.phone, "enum_code": "WORK"}]
                 })
-            
+
             # Добавляем Telegram ID
             if user.telegram_id:
                 contact_data["custom_fields_values"].append({
                     "field_id": 744499,  # ID кастомного поля Telegram ID в AmoCRM
                     "values": [{"value": user.telegram_id}]
                 })
-            
+
             # Добавляем роль
             if user.role:
                 contact_data["custom_fields_values"].append({
                     "field_id": 744523,  # ID кастомного поля Роль в AmoCRM
                     "values": [{"value": user.role}]
                 })
-            
-            # Добавляем тип услуги
-            service_name = validated_data.get('service_name', '')
+
             if service_name:
                 contact_data["custom_fields_values"].append({
                     "field_id": 744503,  # ID кастомного поля Тип услуги в AmoCRM
                     "values": [{"value": service_name}]
                 })
             
-            # Добавляем тип оборудования
-            equipment_type_name = validated_data.get('equipment_type_name', '')
             if equipment_type_name:
                 contact_data["custom_fields_values"].append({
                     "field_id": 744495,  # ID кастомного поля Тип оборудования в AmoCRM
                     "values": [{"value": equipment_type_name}]
                 })
-            
-            # Добавляем баланс (примерное значение, нужно корректировать в зависимости от источника данных)
-            balance = validated_data.get('balance', 0)  # Здесь `balance` должен быть передан или рассчитан
+
             contact_data["custom_fields_values"].append({
                 "field_id": 744509,  # ID кастомного поля Баланс в AmoCRM
-                "values": [{"value": balance}]
+                "values": [{"value": 0}]
             })
-            
-            # Добавляем рейтинг (примерное значение, нужно корректировать в зависимости от источника данных)
-            rating = validated_data.get('rating', 0)  # Здесь `rating` должен быть передан или рассчитан
+
             contact_data["custom_fields_values"].append({
                 "field_id": 744521,  # ID кастомного поля Рейтинг в AmoCRM
-                "values": [{"value": rating}]
+                "values": [{"value": 5}]
             })
-            
+
             # Добавляем город
             if user.city_name:
                 contact_data["custom_fields_values"].append({
