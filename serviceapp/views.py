@@ -313,7 +313,7 @@ class AssignRequestView(APIView):
             with transaction.atomic():
                 # Получаем пользователя-мастера
                 master_user = User.objects.select_for_update().get(telegram_id=telegram_id)
-                master = master_user.master  # Предполагается, что связь OneToOneField
+                master = master_user.master_profile  # Предполагается, что связь OneToOneField
                 
                 # Получаем заявку
                 service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
