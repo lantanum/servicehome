@@ -542,14 +542,18 @@ class AmoCRMWebhookView(APIView):
         try:
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
-            parsed_data = parse_nested_form_data(raw_data)
-            logger.debug(f"Parsed webhook data: {parsed_data}")
         except Exception as e:
-            logger.error(f"Error decoding or parsing request body: {e}")
+            logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Валидация входящих данных через сериализатор
-        serializer = AmoCRMWebhookSerializer(data=parsed_data)
+        # Преобразование плоских данных в вложенный словарь
+        nested_data = parse_nested_form_data(request.POST)
+
+        # Логирование преобразованных данных
+        logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
+
+        # Валидация преобразованных данных с помощью сериализатора
+        serializer = AmoCRMWebhookSerializer(data=nested_data)
         if not serializer.is_valid():
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -574,18 +578,12 @@ class AmoCRMWebhookView(APIView):
                         service_request.save()
                         logger.info(f"ServiceRequest {service_request.id} updated from {previous_status} to 'Free'.")
 
-                        # Извлечение названия улицы из адреса
-                        street_name = extract_street_name(service_request.address)
-
-                        # Форматирование даты заявки
-                        formatted_date = format_date(service_request.created_at)
-
-                        # Подготавливаем данные для внешнего сервиса
+                        # Подготавливаем данные для внешнего сервиса с использованием функций форматирования
                         payload = {
                             "id": service_request.id,
                             "город_заявки": service_request.city_name,
-                            "адрес": street_name,
-                            "дата_заявки": formatted_date,
+                            "адрес": extract_street_name(service_request.address),  # Использование функции форматирования адреса
+                            "дата_заявки": format_date(service_request.created_at),  # Использование функции форматирования даты
                             "тип_оборудования": service_request.equipment_type,
                             "марка": service_request.equipment_brand,
                             "модель": service_request.equipment_model,
@@ -605,7 +603,6 @@ class AmoCRMWebhookView(APIView):
                                 f"Status code: {external_response.status_code}, Response: {external_response.text}"
                             )
                             # Опционально: Реализуйте повторные попытки или уведомления
-                            
             except ServiceRequest.DoesNotExist:
                 logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
                 continue
