@@ -35,7 +35,7 @@ class Master(models.Model):
     city_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название города")
     service_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название услуги")
     equipment_type_name = models.CharField(max_length=255, null=True, blank=True, help_text="Тип оборудования мастера")  # Новое строковое поле
-
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, help_text="Баланс мастера")
     def __str__(self):
         return f"Master: {self.user.name}"
 

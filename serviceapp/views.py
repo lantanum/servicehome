@@ -13,6 +13,8 @@ from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
 from .serializers import (
     AmoCRMWebhookSerializer,
     EquipmentTypeSerializer,
+    MasterStatisticsRequestSerializer,
+    MasterStatisticsResponseSerializer,
     ServiceTypeSerializer,
     UserRegistrationSerializer, 
     ServiceRequestCreateSerializer, 
@@ -611,3 +613,70 @@ class AmoCRMWebhookView(APIView):
                 continue
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
+    
+
+
+class MasterStatisticsView(APIView):
+    """
+    API-эндпоинт для получения баланса и количества заявок мастера по telegram_id.
+    """
+    @swagger_auto_schema(
+        operation_description="Получение баланса и количества заявок мастера по его telegram_id.",
+        request_body=MasterStatisticsRequestSerializer,
+        responses={
+            200: openapi.Response(
+                description="Баланс и количество заявок мастера",
+                schema=MasterStatisticsResponseSerializer
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        # Валидируем входные данные
+        serializer = MasterStatisticsRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        telegram_id = serializer.validated_data['telegram_id']
+
+        # Пытаемся найти пользователя по telegram_id
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь с указанным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Проверяем, является ли пользователь мастером
+        if not hasattr(user, 'master_profile'):
+            return Response({"detail": "Пользователь не является мастером."}, status=status.HTTP_403_FORBIDDEN)
+
+        master = user.master_profile
+
+        # Получаем данные мастера
+        balance = master.balance
+        active_requests_count = ServiceRequest.objects.filter(master=master, status='in_progress').count()
+
+        # Формируем ответ
+        return Response({
+            "balance": balance,
+            "active_requests_count": active_requests_count
+        }, status=status.HTTP_200_OK)

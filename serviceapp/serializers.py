@@ -12,7 +12,13 @@ class MinimalUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'name', 'telegram_login']
 
+class MasterStatisticsRequestSerializer(serializers.Serializer):
+    telegram_id = serializers.CharField(max_length=50, help_text="Telegram ID пользователя")
 
+
+class MasterStatisticsResponseSerializer(serializers.Serializer):
+    balance = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Баланс мастера")
+    active_requests_count = serializers.IntegerField(help_text="Количество активных заявок")
 
 from rest_framework import serializers
 from django.conf import settings
