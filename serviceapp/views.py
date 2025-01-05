@@ -712,6 +712,9 @@ class MasterStatisticsView(APIView):
         balance = master.balance
         active_requests_count = ServiceRequest.objects.filter(master=master, status='in_progress').count()
 
+        # Проверка баланса: если он отрицательный, возвращаем 0, иначе 1
+        balance = 0 if balance < 0 else 1
+
         # Формируем ответ
         return Response({
             "balance": balance,
