@@ -1,6 +1,7 @@
 import logging
 import re
 from django.conf import settings
+from django.http import JsonResponse
 import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,6 +10,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
+from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
 from .serializers import (
     AmoCRMWebhookSerializer,
@@ -252,7 +254,14 @@ class AssignRequestView(APIView):
     """
     @swagger_auto_schema(
         operation_description="Мастер берет заявку в работу по её ID.",
-        request_body=AssignRequestSerializer,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(type=openapi.TYPE_STRING, description="Telegram ID мастера"),
+                'request_id': openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки")
+            },
+            required=['telegram_id', 'request_id']
+        ),
         responses={
             200: openapi.Response(
                 description="Заявка успешно взята в работу",
@@ -293,13 +302,13 @@ class AssignRequestView(APIView):
         }
     )
     def post(self, request):
-        serializer = AssignRequestSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        telegram_id = serializer.validated_data['telegram_id']
-        request_id = serializer.validated_data['request_id']
-        
+        data = request.data
+        telegram_id = data.get('telegram_id')  # Telegram ID мастера
+        request_id = data.get('request_id')    # ID заявки
+
+        if not telegram_id or not request_id:
+            return JsonResponse({'error': 'telegram_id and request_id are required'}, status=400)
+
         try:
             with transaction.atomic():
                 # Получаем пользователя-мастера
@@ -308,30 +317,58 @@ class AssignRequestView(APIView):
                 
                 # Получаем заявку
                 service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
-                
+
                 # Дополнительная проверка статуса (на случай, если статус изменился после валидации)
                 if service_request.status != 'Open':
-                    return Response(
+                    return JsonResponse(
                         {"detail": "Заявка уже назначена или не может быть взята в работу."},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=400
                     )
-                
+
                 # Присваиваем заявку мастеру и обновляем статус
                 service_request.master = master
                 service_request.status = 'In Progress'
                 service_request.save()
-                
+
+                # Интеграция с AmoCRM
+                lead_id = service_request.amocrm_lead_id  # ID лида в AmoCRM
+                master_contact_id = master.amocrm_contact_id  # ID контакта мастера в AmoCRM
+
+                if not lead_id or not master_contact_id:
+                    return JsonResponse({'error': 'AmoCRM IDs for request or master are missing'}, status=400)
+
+                # Инициализируем клиент AmoCRM
+                amocrm_client = AmoCRMClient()
+
+                # Получаем текущий лид
+                lead = amocrm_client.get_lead(lead_id)
+
+                # Проверяем, не добавлен ли уже контакт мастера
+                existing_contacts = lead.get('_embedded', {}).get('contacts', [])
+                if any(contact['id'] == master_contact_id for contact in existing_contacts):
+                    logger.info(f"Master contact {master_contact_id} already attached to lead {lead_id}")
+                else:
+                    # Добавляем контакт мастера к массиву контактов
+                    updated_contacts = existing_contacts + [{'id': master_contact_id}]
+
+                    # Обновляем лид в AmoCRM
+                    amocrm_client.update_lead(lead_id, {'_embedded': {'contacts': updated_contacts}})
+
+                    # Логируем успешное обновление
+                    logger.info(f"Master contact {master_contact_id} successfully added to lead {lead_id}")
+
         except User.DoesNotExist:
-            return Response({"detail": "Пользователь с указанным telegram_id не найден."},
-                            status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({"detail": "Пользователь с указанным telegram_id не найден."},
+                                status=404)
         except ServiceRequest.DoesNotExist:
-            return Response({"detail": "Заявка с указанным ID не найдена."},
-                            status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({"detail": "Заявка с указанным ID не найдена."},
+                                status=404)
         except Exception as e:
-            return Response({"detail": "Произошла ошибка при присвоении заявки."},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response({"detail": "Заявка успешно взята в работу."}, status=status.HTTP_200_OK)
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({"detail": "Произошла ошибка при присвоении заявки."}, status=500)
+
+        return JsonResponse({"detail": "Заявка успешно взята в работу."}, status=200)
+
 
 
 class CloseRequestView(APIView):

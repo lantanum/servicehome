@@ -117,6 +117,29 @@ class AmoCRMClient:
                          response.status_code, response.text, contact_data)
             response.raise_for_status()
 
+    def update_lead(self, lead_id, data):
+        """
+        Обновление информации о лиде.
+        """
+        url = f"{self.base_url}/api/v4/leads/{lead_id}"
+        response = requests.patch(url, headers=self.headers, json=data)
+        if response.status_code not in (200, 204):
+            logger.error(f"Failed to update lead {lead_id}: {response.text}")
+            response.raise_for_status()
+        logger.info(f"Lead {lead_id} updated successfully")
+        return response.status_code
+
+    def get_lead(self, lead_id):
+        """
+        Получение информации о лиде.
+        """
+        url = f"{self.base_url}/api/v4/leads/{lead_id}"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch lead {lead_id}: {response.text}")
+            response.raise_for_status()
+        return response.json()
+
     def search_contacts(self, phone=None, telegram_id=None):
         """
         Ищет контакты по номеру телефона и/или telegram_id.
