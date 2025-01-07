@@ -368,12 +368,13 @@ class AssignRequestView(APIView):
                         "city_name": city_name,
                         "address": raw_address,
                         "short_address": short_address,
+                        "client_telegram_id": service_request.client.telegram_id,
                         "client_name": service_request.client.name,
                         "client_phone": service_request.client.phone,
                         "equipment_type": service_request.equipment_type,
                         "equipment_brand": service_request.equipment_brand,
                         "equipment_model": service_request.equipment_model,
-                        "comment": service_request.description
+                        "comment": service_request.description,
                     }
                     return JsonResponse(response_data, status=200)
 

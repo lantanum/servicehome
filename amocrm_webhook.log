@@ -34,3 +34,6 @@
 [2025-01-07 23:41:13,860] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-07 23:41:14,960] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-07 23:41:14,961] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
+[2025-01-07 23:58:55,788] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:58:56,906] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:58:56,907] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
