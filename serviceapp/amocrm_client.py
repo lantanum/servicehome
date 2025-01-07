@@ -121,8 +121,10 @@ class AmoCRMClient:
         """
         Обновление информации о лиде.
         """
-        url = f"{self.base_url}/api/v4/leads/{lead_id}"
-        response = requests.patch(url, headers=self.headers, json=data)
+        url = f"{self.base_url}/leads/{lead_id}"
+        # Берём заголовки через вызов метода _get_headers()
+        headers = self._get_headers()
+        response = requests.patch(url, headers=headers, json=data)
         if response.status_code not in (200, 204):
             logger.error(f"Failed to update lead {lead_id}: {response.text}")
             response.raise_for_status()
@@ -133,8 +135,9 @@ class AmoCRMClient:
         """
         Получение информации о лиде.
         """
-        url = f"{self.base_url}/api/v4/leads/{lead_id}"
-        response = requests.get(url, headers=self.headers)
+        url = f"{self.base_url}/leads/{lead_id}"
+        headers = self._get_headers()
+        response = requests.get(url, headers=headers)
         if response.status_code != 200:
             logger.error(f"Failed to fetch lead {lead_id}: {response.text}")
             response.raise_for_status()
@@ -206,3 +209,20 @@ class AmoCRMClient:
                 response.status_code, response.text, params
             )
             response.raise_for_status()
+
+
+    def attach_contact_to_lead(self, lead_id, contact_id):
+        # Получаем лид
+        lead = self.get_lead(lead_id)
+        existing_contacts = lead.get('_embedded', {}).get('contacts', [])
+    
+        # Проверяем, нет ли уже нужного контакта
+        if any(contact['id'] == contact_id for contact in existing_contacts):
+            logger.info(f"Контакт {contact_id} уже прикреплён к лиду {lead_id}")
+        else:
+            # Формируем новый список, добавляя контакт
+            updated_contacts = existing_contacts + [{'id': contact_id}]
+    
+            # Обновляем лид
+            self.update_lead(lead_id, {'_embedded': {'contacts': updated_contacts}})
+            logger.info(f"Контакт {contact_id} успешно прикреплён к лиду {lead_id}")

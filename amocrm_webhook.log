@@ -20,3 +20,17 @@
 [2024-12-28 23:47:15,715] DEBUG serviceapp.amocrm_client Creating contact in AmoCRM. URL: https://servicecentru.amocrm.ru/api/v4/contacts, Data: {'name': 'Тестовый контакт 4', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+79990000000', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': 'clientlogin1'}]}]}
 [2024-12-28 23:47:16,304] INFO serviceapp.amocrm_client Contact created in AmoCRM with ID: 29445321
 [2024-12-28 23:47:16,305] INFO serviceapp.serializers Создан новый контакт в AmoCRM (id=29445321) для пользователя id=1
+[2025-01-07 21:47:54,878] ERROR serviceapp.views Unexpected error: 'ServiceRequest' object has no attribute 'amocrm_lead_id'
+[2025-01-07 21:49:37,332] ERROR serviceapp.views Unexpected error: 'AmoCRMClient' object has no attribute 'headers'
+[2025-01-07 21:50:30,077] ERROR serviceapp.views Unexpected error: 'AmoCRMClient' object has no attribute 'headers'
+[2025-01-07 21:54:58,642] ERROR serviceapp.views Unexpected error: 'AmoCRMClient' object has no attribute 'headers'
+[2025-01-07 21:56:35,260] ERROR serviceapp.amocrm_client Failed to fetch lead 24761877: {"title":"Not Found","type":"https://httpstatus.es/404","status":404,"detail":"Cannot GET https://servicecentru.amocrm.ru/api/v4/leads/24761877!"}
+[2025-01-07 21:56:35,513] ERROR serviceapp.views Unexpected error: 404 Client Error: Not Found for url: https://servicecentru.amocrm.ru/api/v4/api/v4/leads/24761877
+[2025-01-07 21:58:30,394] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 21:58:30,394] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
+[2025-01-07 23:27:04,684] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:27:05,714] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:27:05,714] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
+[2025-01-07 23:41:13,860] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:41:14,960] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-07 23:41:14,961] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877

@@ -303,71 +303,109 @@ class AssignRequestView(APIView):
     )
     def post(self, request):
         data = request.data
-        telegram_id = data.get('telegram_id')  # Telegram ID мастера
-        request_id = data.get('request_id')    # ID заявки
+        telegram_id = data.get('telegram_id')
+        request_id = data.get('request_id')
 
         if not telegram_id or not request_id:
             return JsonResponse({'error': 'telegram_id and request_id are required'}, status=400)
 
         try:
             with transaction.atomic():
-                # Получаем пользователя-мастера
                 master_user = User.objects.select_for_update().get(telegram_id=telegram_id)
-                master = master_user.master_profile  # Предполагается, что связь OneToOneField
-                
-                # Получаем заявку
+                master = master_user.master_profile
+
                 service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
 
-                # Дополнительная проверка статуса (на случай, если статус изменился после валидации)
-                if service_request.status != 'Open':
+                # Запоминаем исходный статус до изменения
+                original_status = service_request.status
+
+                if original_status == 'Free':
+                    # 1) Выполняем привязку заявки к мастеру и переводим в In Progress
+                    service_request.master = master
+                    service_request.status = 'In Progress'
+                    service_request.save()
+
+                    # 2) Обновляем в amoCRM (статус и контакт)
+                    lead_id = service_request.amo_crm_lead_id
+                    master_contact_id = master_user.amo_crm_contact_id
+
+                    if not lead_id or not master_contact_id:
+                        return JsonResponse(
+                            {'error': 'AmoCRM IDs for request or master are missing'}, 
+                            status=400
+                        )
+
+                    amocrm_client = AmoCRMClient()
+
+                    # Ставим в amoCRM статус "In Progress" (63819782)
+                    amocrm_client.update_lead(
+                        lead_id,
+                        {"status_id": STATUS_MAPPING["In Progress"]}
+                    )
+                    # Прикрепляем контакт
+                    amocrm_client.attach_contact_to_lead(lead_id, master_contact_id)
+
+                    # -- Формируем расширенный ответ: несмотря на то,
+                    #    что в базе уже стал "In Progress",
+                    #    отдать в JSON именно "Free" + нужные поля.
+
+                    status_id = STATUS_MAPPING.get('Free', None)
+                    created_date_str = (service_request.created_at.strftime('%d.%m.%Y')
+                                        if service_request.created_at else None)
+
+                    # Город отдельно
+                    city_name = service_request.city_name or ""
+
+                    # Адрес: только первое слово
+                    raw_address = service_request.address or ""
+                    address_parts = raw_address.strip().split()
+                    short_address = address_parts[0] if address_parts else ""
+
+                    response_data = {
+                        "status_id": status_id,         # числовой ID статуса 'Free'
+                        "request_id": service_request.id,
+                        "request_date": created_date_str,
+                        "city_name": city_name,
+                        "address": short_address,
+                        "client_name": service_request.client.name,
+                        "client_phone": service_request.client.phone,
+                        "equipment_type": service_request.equipment_type,
+                        "equipment_brand": service_request.equipment_brand,
+                        "equipment_model": service_request.equipment_model,
+                        "comment": service_request.description
+                    }
+                    return JsonResponse(response_data, status=200)
+
+                elif original_status == 'In Progress':
+                    # Если заявка уже 'In Progress', ничего не меняем,
+                    # просто отвечаем status_id
+                    status_id = STATUS_MAPPING.get('In Progress', None)
+                    return JsonResponse({"status_id": status_id}, status=200)
+
+                else:
+                    # Если нужно, можно выбросить ошибку, 
+                    # или обрабатывать "Open"/"Cancelled" и т. д. особым образом
                     return JsonResponse(
-                        {"detail": "Заявка уже назначена или не может быть взята в работу."},
+                        {"detail": f"Заявка в статусе {original_status}, обработка не предусмотрена."},
                         status=400
                     )
 
-                # Присваиваем заявку мастеру и обновляем статус
-                service_request.master = master
-                service_request.status = 'In Progress'
-                service_request.save()
-
-                # Интеграция с AmoCRM
-                lead_id = service_request.amocrm_lead_id  # ID лида в AmoCRM
-                master_contact_id = master.amocrm_contact_id  # ID контакта мастера в AmoCRM
-
-                if not lead_id or not master_contact_id:
-                    return JsonResponse({'error': 'AmoCRM IDs for request or master are missing'}, status=400)
-
-                # Инициализируем клиент AmoCRM
-                amocrm_client = AmoCRMClient()
-
-                # Получаем текущий лид
-                lead = amocrm_client.get_lead(lead_id)
-
-                # Проверяем, не добавлен ли уже контакт мастера
-                existing_contacts = lead.get('_embedded', {}).get('contacts', [])
-                if any(contact['id'] == master_contact_id for contact in existing_contacts):
-                    logger.info(f"Master contact {master_contact_id} already attached to lead {lead_id}")
-                else:
-                    # Добавляем контакт мастера к массиву контактов
-                    updated_contacts = existing_contacts + [{'id': master_contact_id}]
-
-                    # Обновляем лид в AmoCRM
-                    amocrm_client.update_lead(lead_id, {'_embedded': {'contacts': updated_contacts}})
-
-                    # Логируем успешное обновление
-                    logger.info(f"Master contact {master_contact_id} successfully added to lead {lead_id}")
-
         except User.DoesNotExist:
-            return JsonResponse({"detail": "Пользователь с указанным telegram_id не найден."},
-                                status=404)
+            return JsonResponse(
+                {"detail": "Пользователь с указанным telegram_id не найден."},
+                status=404
+            )
         except ServiceRequest.DoesNotExist:
-            return JsonResponse({"detail": "Заявка с указанным ID не найдена."},
-                                status=404)
+            return JsonResponse(
+                {"detail": "Заявка с указанным ID не найдена."},
+                status=404
+            )
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
-            return JsonResponse({"detail": "Произошла ошибка при присвоении заявки."}, status=500)
-
-        return JsonResponse({"detail": "Заявка успешно взята в работу."}, status=200)
+            return JsonResponse(
+                {"detail": "Произошла ошибка при присвоении заявки."},
+                status=500
+            )
 
 
 
