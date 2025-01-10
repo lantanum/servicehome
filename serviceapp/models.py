@@ -47,7 +47,10 @@ class ServiceRequest(models.Model):
         ('Completed', 'Успешно реализовано'),
         ('Cancelled', 'Отказ от ремонта'),
         ('Free', 'Свободная заявка'),
+        ('AwaitingClosure', 'Ожидает закрытия'),  # <-- новый статус
+        ('Closed', 'Закрыто'),                   # <-- ещё один новый статус
     ]
+
 
     client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_requests')
     master = models.ForeignKey(Master, on_delete=models.SET_NULL, null=True, blank=True, related_name='master_requests')

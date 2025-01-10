@@ -337,10 +337,42 @@ class AssignRequestView(APIView):
 
                     amocrm_client = AmoCRMClient()
 
-                    # Ставим в amoCRM статус "In Progress" (63819782)
+                    category_service = master.service_name or ""
+                    equipment_type_value = master.equipment_type_name or ""
+                    # И т.д. для остальных полей...
+
+                    # Вызов обновления лида с добавлением кастомных полей
                     amocrm_client.update_lead(
                         lead_id,
-                        {"status_id": STATUS_MAPPING["In Progress"]}
+                        {
+                            "status_id": STATUS_MAPPING["In Progress"],
+                            "custom_fields_values": [
+                                { 
+                                    "field_id": 748205,  # категория услуг мастера
+                                    "values": [{"value": category_service}]
+                                },
+                                {
+                                    "field_id": 748207,  # тип оборудования мастера
+                                    "values": [{"value": equipment_type_value}]
+                                },
+                                {
+                                    "field_id": 748211,  # рейтинг компании мастера (системный рейтинг)
+                                    "values": [{"value": "test"}]
+                                },
+                                {
+                                    "field_id": 748209,  # рейтинг репутации от клиентов
+                                    "values": [{"value": "test"}]
+                                },
+                                {
+                                    "field_id": 744643,  # кол-во рефералов
+                                    "values": [{"value": "test"}]
+                                },
+                                {
+                                    "field_id": 748213,  # процент затрат с работ мастера
+                                    "values": [{"value": "test"}]
+                                }
+                            ]
+                        }
                     )
                     # Прикрепляем контакт
                     amocrm_client.attach_contact_to_lead(lead_id, master_contact_id)
@@ -610,14 +642,12 @@ def format_date(created_at):
     month = month_names.get(created_at.month, '')
     year = created_at.year
     return f"{day} {month} {year}"
-
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
     """
-
     def post(self, request):
-        # Логирование сырого тела запроса
+        # 1) Логируем и парсим данные (как у вас уже есть)
         try:
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
@@ -625,63 +655,87 @@ class AmoCRMWebhookView(APIView):
             logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Преобразование плоских данных в вложенный словарь
         nested_data = parse_nested_form_data(request.POST)
-
-        # Логирование преобразованных данных
         logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
 
-        # Валидация преобразованных данных с помощью сериализатора
         serializer = AmoCRMWebhookSerializer(data=nested_data)
         if not serializer.is_valid():
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Извлечение изменений статусов лидов
         embedded = serializer.validated_data.get('leads', {})
         status_changes = embedded.get('status', [])
 
+        # 2) Обрабатываем все статусы, пришедшие в webhook
         for lead in status_changes:
             try:
                 lead_id = lead.get('id')
-                status_id = lead.get('status_id')
+                new_status_id = lead.get('status_id')
 
-                # Проверяем, соответствует ли статус 'Free'
-                if status_id == STATUS_MAPPING.get('Free'):
-                    with transaction.atomic():
-                        # Получаем заявку по amo_crm_lead_id
-                        service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
+                with transaction.atomic():
+                    service_request = ServiceRequest.objects.select_for_update().get(
+                        amo_crm_lead_id=lead_id
+                    )
 
+                    # Сопоставляем числовой new_status_id со строковым ключом
+                    status_name = None
+                    for k, v in STATUS_MAPPING.items():
+                        if v == new_status_id:
+                            status_name = k
+                            break
+
+                    if not status_name:
+                        logger.warning(
+                            f"No matching status found in STATUS_MAPPING for status_id={new_status_id}"
+                        )
+                        continue
+
+                    # Теперь у нас есть статус в виде строки, например "AwaitingClosure" или "Closed".
+                    # Логика обновления:
+                    if status_name in ['AwaitingClosure', 'Closed', 'Completed']:
+                        previous_status = service_request.status
+                        service_request.status = status_name  # сохраняем в Django-модели (AwaitingClosure, Closed, etc.)
+                        service_request.amo_status_code = new_status_id  # полезно хранить исходный int-статус в amo
+                        service_request.save()
+
+                        logger.info(f"ServiceRequest {service_request.id}: status updated "
+                                    f"from {previous_status} to '{status_name}' "
+                                    f"(amoCRM ID={new_status_id}).")
+
+                    elif status_name == 'Free':
                         previous_status = service_request.status
                         service_request.status = 'Free'
+                        service_request.amo_status_code = new_status_id
                         service_request.save()
-                        logger.info(f"ServiceRequest {service_request.id} updated from {previous_status} to 'Free'.")
 
-                        # Подготавливаем данные для внешнего сервиса с использованием функций форматирования
+                        logger.info(f"ServiceRequest {service_request.id}: status updated "
+                                    f"from {previous_status} to 'Free'.")
+
+                        # тут ваша логика отправки на внешний сервис
                         payload = {
                             "id": service_request.id,
                             "город_заявки": service_request.city_name,
-                            "адрес": extract_street_name(service_request.address),  # Использование функции форматирования адреса
-                            "дата_заявки": format_date(service_request.created_at),  # Использование функции форматирования даты
+                            "адрес": extract_street_name(service_request.address),
+                            "дата_заявки": format_date(service_request.created_at),
                             "тип_оборудования": service_request.equipment_type,
                             "марка": service_request.equipment_brand,
                             "модель": service_request.equipment_model,
                             "комментарий": service_request.description or ""
                         }
 
-                        # Отправляем POST-запрос на внешний сервис
                         external_response = requests.post(
                             'https://sambot.ru/reactions/2890052/start',
                             json=payload,
-                            timeout=10  # Таймаут в секундах
+                            timeout=10
                         )
-
                         if external_response.status_code != 200:
                             logger.error(
                                 f"Failed to send data to external service for ServiceRequest {service_request.id}. "
                                 f"Status code: {external_response.status_code}, Response: {external_response.text}"
                             )
-                            # Опционально: Реализуйте повторные попытки или уведомления
+                    else:
+                        logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
+
             except ServiceRequest.DoesNotExist:
                 logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
                 continue
@@ -690,6 +744,7 @@ class AmoCRMWebhookView(APIView):
                 continue
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
+
     
 
 

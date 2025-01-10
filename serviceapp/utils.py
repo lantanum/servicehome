@@ -4,11 +4,13 @@ import re
 from collections import defaultdict
 
 STATUS_MAPPING = {
-    'Open': 65736946,          # Новая заявка
-    'In Progress': 63819782,   # Взяли в работу
-    'Cancelled': 63819786,     # Отказ от ремонта
-    'Completed': 142,          # Успешно реализовано
+    'Open': 65736946,           # Новая заявка
+    'In Progress': 63819782,    # Взяли в работу
+    'Cancelled': 63819786,      # Отказ от ремонта
+    'Completed': 142,           # Успешно реализовано
     'Free': 63819778,           # Свободная заявка
+    'AwaitingClosure': 72644046,# Ожидает закрытия (новый)
+    'Closed': 143               # Закрыто (новый)
 }
 
 REVERSE_STATUS_MAPPING = {v: k for k, v in STATUS_MAPPING.items()}
