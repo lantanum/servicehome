@@ -352,28 +352,33 @@ class AssignRequestView(APIView):
                                     "values": [{"value": category_service}]
                                 },
                                 {
-                                    "field_id": 748207,  # тип оборудования мастера
+                                    "field_id": 748321,  # тип оборудования мастера
                                     "values": [{"value": equipment_type_value}]
                                 },
                                 {
                                     "field_id": 748211,  # рейтинг компании мастера (системный рейтинг)
-                                    "values": [{"value": "test"}]
+                                    "values": [{"value": "подходящее значение"}]
                                 },
                                 {
                                     "field_id": 748209,  # рейтинг репутации от клиентов
-                                    "values": [{"value": "test"}]
+                                    "values": [{"value": "подходящее значение"}]
                                 },
                                 {
-                                    "field_id": 744643,  # кол-во рефералов
-                                    "values": [{"value": "test"}]
+                                    "field_id": 748327,  # кол-во рефералов
+                                    "values": [{"value": "подходящее значение"}]
                                 },
                                 {
                                     "field_id": 748213,  # процент затрат с работ мастера
-                                    "values": [{"value": "test"}]
+                                    "values": [{"value": "подходящее значение"}]
+                                },
+                                {
+                                    "field_id": 748329,  # баланс мастера
+                                    "values": [{"value": master.balance}]
                                 }
                             ]
                         }
                     )
+
                     # Прикрепляем контакт
                     amocrm_client.attach_contact_to_lead(lead_id, master_contact_id)
 
