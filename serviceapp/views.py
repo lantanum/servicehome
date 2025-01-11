@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 import re
 from django.conf import settings
@@ -356,14 +357,6 @@ class AssignRequestView(APIView):
                                     "values": [{"value": equipment_type_value}]
                                 },
                                 {
-                                    "field_id": 748211,  # рейтинг компании мастера (системный рейтинг)
-                                    "values": [{"value": "подходящее значение"}]
-                                },
-                                {
-                                    "field_id": 748209,  # рейтинг репутации от клиентов
-                                    "values": [{"value": "подходящее значение"}]
-                                },
-                                {
                                     "field_id": 748327,  # кол-во рефералов
                                     "values": [{"value": "подходящее значение"}]
                                 },
@@ -373,11 +366,13 @@ class AssignRequestView(APIView):
                                 },
                                 {
                                     "field_id": 748329,  # баланс мастера
-                                    "values": [{"value": master.balance}]
+                                    "values": [{"value": str(master.balance)}]
+
                                 }
                             ]
                         }
                     )
+
 
                     # Прикрепляем контакт
                     amocrm_client.attach_contact_to_lead(lead_id, master_contact_id)
@@ -820,3 +815,170 @@ class MasterStatisticsView(APIView):
             "balance": balance,
             "active_requests_count": active_requests_count
         }, status=status.HTTP_200_OK)
+    
+
+class FinishRequestView(APIView):
+    """
+    API-эндпоинт для того, чтобы мастер (или бот) мог завершить заявку,
+    переведя её в статус "Контроль качества".
+    """
+
+    @swagger_auto_schema(
+        operation_description="Закрытие заявки. Переводит заявку в статус 'Контроль качества' и обновляет данные в AmoCRM.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'request_id': openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки"),
+                'finalAnsw1': openapi.Schema(type=openapi.TYPE_STRING, description="Какие работы были выполнены"),
+                'finalAnsw2': openapi.Schema(type=openapi.TYPE_STRING, description="Гарантия"),
+                'finalAnsw3': openapi.Schema(type=openapi.TYPE_STRING, description="Итоговая цена (число)"),
+                'finalAnsw4': openapi.Schema(type=openapi.TYPE_STRING, description="Сумма, потраченная на запчасти"),
+            },
+            required=['request_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Заявка переведена в статус 'Контроль качества'",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном завершении')
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Заявка не найдена",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description="Внутренняя ошибка сервера",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+
+        # Считываем все входные данные как текст (строки)
+        finalAnsw1 = data.get('finalAnsw1', "")      # какие работы были выполнены
+        finalAnsw2 = data.get('finalAnsw2', "")      # гарантия
+        finalAnsw3 = data.get('finalAnsw3', "")      # итоговая цена
+        finalAnsw4 = data.get('finalAnsw4', "")      # сумма, потраченная на запчасти
+        finish_button_text = data.get('finish_button_text', "")  # "Сообщить о завершении 123123"
+
+        match = re.findall(r"\d+", finish_button_text)
+        if not match:
+            return JsonResponse({"error": "Не удалось извлечь ID из текста кнопки."}, status=400)
+
+        request_id_str = match[0]
+        try:
+            request_id = int(request_id_str)
+        except ValueError:
+            return JsonResponse({"error": "Извлеченный ID не является числом."}, status=400)
+
+        try:
+            with transaction.atomic():
+                service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
+
+                price_value = Decimal(finalAnsw3) if finalAnsw3 else Decimal("0")
+                spare_parts_value = Decimal(finalAnsw4) if finalAnsw4 else Decimal("0")
+
+                service_request.comment_after_finish = finalAnsw1
+                service_request.warranty = finalAnsw2
+                service_request.price = price_value
+                service_request.spare_parts_spent = spare_parts_value
+                service_request.status = 'QualityControl'
+                service_request.save()
+
+                commission_value = (price_value * Decimal("0.1"))  # 10%
+
+                master = service_request.master
+                if master:
+                    old_balance = master.balance
+                    new_balance = old_balance - commission_value
+                    master.balance = new_balance
+                    master.save()
+                else:
+                    new_balance = Decimal("0")
+                    master = None
+
+                lead_id = service_request.amo_crm_lead_id
+                if not lead_id:
+                    return JsonResponse({'error': 'AmoCRM lead_id is missing'}, status=400)
+
+                amocrm_client = AmoCRMClient()
+                custom_fields = [
+                    {
+                        "field_id": 735560,  # Сколько денег потрачено на запчасти
+                        "values": [{"value": finalAnsw4}]
+                    },
+                    {
+                        "field_id": 732020,  # Гарантия
+                        "values": [{"value": finalAnsw2}]
+                    },
+                    {
+                        "field_id": 743673,  # Какие работы были выполнены
+                        "values": [{"value": finalAnsw1}]
+                    }
+                ]
+                amocrm_client.update_lead(
+                    lead_id,
+                    {
+                        "status_id": STATUS_MAPPING["QualityControl"], 
+                        "price": int(price_value),   # !!! приводим к int
+                        "custom_fields_values": custom_fields
+                    }
+                )
+                
+
+            commission_str = str(int(commission_value))      # Преобразовали в int => без десятичной точки
+            balance_str = str(int(new_balance))              # Аналогично
+
+            rating_str = "5"  # заглушка без точки, например "5"
+            ref_count_level1_str = "3"
+            ref_count_level2_str = "1"
+            master_level_str = "2"
+
+            return JsonResponse(
+                {
+                    "detail": f"Заявка {request_id} успешно переведена в статус 'Контроль качества'.",
+                    "comission": commission_str,
+                    "balance": balance_str,
+                    "rating": rating_str,
+                    "ref_count_level1": ref_count_level1_str,
+                    "ref_count_level2": ref_count_level2_str,
+                    "master_level": master_level_str
+                },
+                status=200
+            )
+
+        except ServiceRequest.DoesNotExist:
+            return JsonResponse(
+                {"detail": f"Заявка с ID={request_id} не найдена."},
+                status=404
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in finish_request: {e}")
+            return JsonResponse(
+                {"detail": "Произошла ошибка при завершении заявки."},
+                status=500
+            )

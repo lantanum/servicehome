@@ -10,7 +10,9 @@ STATUS_MAPPING = {
     'Completed': 142,           # Успешно реализовано
     'Free': 63819778,           # Свободная заявка
     'AwaitingClosure': 72644046,# Ожидает закрытия (новый)
-    'Closed': 143               # Закрыто (новый)
+    'Closed': 143,               # Закрыто (новый)
+    'QualityControl': 67450158
+
 }
 
 REVERSE_STATUS_MAPPING = {v: k for k, v in STATUS_MAPPING.items()}
@@ -80,3 +82,20 @@ def parse_nested_form_data(form_data):
                 nested_data[key] = value
 
     return nested_data
+
+
+from decimal import Decimal
+
+def decimal_to_str_no_trailing_zeros(value: Decimal | None) -> str:
+    """
+    Преобразует Decimal в строку без лишних нулей. 
+    Если число целое - без десятичных знаков, 
+    иначе возвращает дробную часть.
+    """
+    if value is None:
+        return "0"
+    value = value.normalize()  # убираем trailing zeros
+    if value == value.to_integral():
+        # целое число
+        return str(value.to_integral())
+    return str(value)

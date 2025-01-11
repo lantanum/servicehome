@@ -75,6 +75,12 @@ class ServiceRequest(models.Model):
     amo_crm_lead_id = models.IntegerField(null=True, blank=True, unique=True, help_text="ID лида в AmoCRM")
     amo_status_code = models.IntegerField(null=True, blank=True, help_text="Внешний статус заявки (например, из AmoCRM)")
 
+    # Новые поля:
+    warranty = models.CharField(max_length=255, null=True, blank=True, help_text="Гарантия (например, 6 месяцев)")
+    spare_parts_spent = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                           help_text="Сумма, потраченная на запчасти")
+    comment_after_finish = models.TextField(null=True, blank=True, help_text="Комментарий мастера после завершения работ")
+
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
 

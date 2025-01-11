@@ -37,3 +37,19 @@
 [2025-01-07 23:58:55,788] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-07 23:58:56,906] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-07 23:58:56,907] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
+[2025-01-10 23:47:28,388] ERROR serviceapp.amocrm_client Failed to update lead 24761877: {"validation-errors":[{"request_id":"0","errors":[{"code":"NotSupportedChoice","path":"custom_fields_values.2.field_id","detail":"The value you selected is not a valid choice."}]}],"title":"Bad Request","type":"https://httpstatus.es/400","status":400,"detail":"Request validation failed"}
+[2025-01-10 23:47:28,634] ERROR serviceapp.views Unexpected error: 400 Client Error: Bad Request for url: https://servicecentru.amocrm.ru/api/v4/leads/24761877
+[2025-01-10 23:48:23,955] ERROR serviceapp.amocrm_client Failed to update lead 24761877: {"validation-errors":[{"request_id":"0","errors":[{"code":"NotSupportedChoice","path":"custom_fields_values.2.field_id","detail":"The value you selected is not a valid choice."}]}],"title":"Bad Request","type":"https://httpstatus.es/400","status":400,"detail":"Request validation failed"}
+[2025-01-10 23:48:24,201] ERROR serviceapp.views Unexpected error: 400 Client Error: Bad Request for url: https://servicecentru.amocrm.ru/api/v4/leads/24761877
+[2025-01-10 23:49:22,717] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-10 23:49:23,760] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-10 23:49:23,760] INFO serviceapp.amocrm_client Контакт 29451439 успешно прикреплён к лиду 24761877
+[2025-01-11 18:50:01,060] ERROR serviceapp.views Unexpected error in finish_request: column serviceapp_servicerequest.warranty does not exist
+LINE 1: ...", "serviceapp_servicerequest"."amo_status_code", "serviceap...
+                                                             ^
+[2025-01-11 18:56:41,143] ERROR serviceapp.views Unexpected error in finish_request: column serviceapp_servicerequest.warranty does not exist
+LINE 1: ...", "serviceapp_servicerequest"."amo_status_code", "serviceap...
+                                                             ^
+[2025-01-11 19:02:20,471] ERROR serviceapp.amocrm_client Failed to update lead 24761877: {"validation-errors":[{"request_id":"0","errors":[{"code":"InvalidType","path":"price","detail":"This value should be of type int."}]}],"title":"Bad Request","type":"https://httpstatus.es/400","status":400,"detail":"Request validation failed"}
+[2025-01-11 19:02:20,721] ERROR serviceapp.views Unexpected error in finish_request: 400 Client Error: Bad Request for url: https://servicecentru.amocrm.ru/api/v4/leads/24761877
+[2025-01-11 19:04:49,301] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
