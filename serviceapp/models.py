@@ -49,6 +49,7 @@ class ServiceRequest(models.Model):
         ('Free', 'Свободная заявка'),
         ('AwaitingClosure', 'Ожидает закрытия'),  # <-- новый статус
         ('Closed', 'Закрыто'),                   # <-- ещё один новый статус
+        ('QualityControl', 'Контроль качества'), 
     ]
 
 

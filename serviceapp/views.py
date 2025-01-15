@@ -172,8 +172,6 @@ class ServiceRequestHistoryView(APIView):
         # Сериализуем заявки
         sr_serializer = ServiceRequestSerializer(requests_qs, many=True)
         return Response(sr_serializer.data, status=status.HTTP_200_OK)
-
-
 class MasterActiveRequestsView(APIView):
     """
     API-эндпоинт для получения активных заявок мастера по telegram_id.
@@ -183,8 +181,17 @@ class MasterActiveRequestsView(APIView):
         request_body=MasterActiveRequestsSerializer,
         responses={
             200: openapi.Response(
-                description="Успешный ответ с активными заявками",
-                schema=ServiceRequestSerializer(many=True)
+                description="Успешный ответ с сообщениями об активных заявках",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "messages": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(type=openapi.TYPE_STRING),
+                            description="Список сообщений по заявкам"
+                        )
+                    }
+                )
             ),
             400: openapi.Response(
                 description="Некорректные данные",
@@ -236,17 +243,45 @@ class MasterActiveRequestsView(APIView):
 
         # Получение мастера, связанного с пользователем
         try:
-            master = user.master
+            master = user.master_profile  # или user.master, в зависимости от связи
         except AttributeError:
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
 
         # Получение активных заявок (со статусом 'In Progress')
-        active_requests = ServiceRequest.objects.filter(master=master, status='In Progress').order_by('-created_at')
+        active_requests = ServiceRequest.objects.filter(
+            master=master, 
+            status='In Progress'
+        ).order_by('-created_at')
 
-        # Сериализация заявок
-        requests_serializer = ServiceRequestSerializer(active_requests, many=True)
-        return Response(requests_serializer.data, status=status.HTTP_200_OK)
+        # Если заявок нет, возвращаем одно сообщение
+        if not active_requests.exists():
+            return Response({"messages": ["🥳Нет активных заявок!"]}, status=status.HTTP_200_OK)
+
+        # Иначе формируем список сообщений
+        messages = []
+        for req in active_requests:
+            date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
+            message_text = (
+                f"Заявка {req.id}\n"
+                f"Дата заявки: {date_str}\n"
+                f"Город: {req.city_name or ''}\n"
+                f"Адрес: {req.address or ''}\n"
+                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
+                f"Имя: {req.client.name}\n"
+                f"Тел.: {req.client.phone}\n"
+                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
+                f"Тип оборудования: {req.equipment_type or ''}\n"
+                f"Марка: {req.equipment_brand or ''}\n"
+                f"Модель: {req.equipment_model or ''}\n"
+                f"Комментарий: {req.description or ''}\n"
+                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
+                "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика только при оказании ремонта. "
+                "ВНИМАНИЕ! - В случае отказа от ремонта - Диагностика и выезд платные (Цену формирует мастер)."
+            )
+            messages.append(message_text)
+
+        return Response({"messages": messages}, status=status.HTTP_200_OK)
 
 
 class AssignRequestView(APIView):
@@ -909,7 +944,7 @@ class FinishRequestView(APIView):
                 service_request.status = 'QualityControl'
                 service_request.save()
 
-                commission_value = (price_value * Decimal("0.1"))  # 10%
+                commission_value = (price_value * Decimal("0.3"))  # 10%
 
                 master = service_request.master
                 if master:
@@ -948,7 +983,7 @@ class FinishRequestView(APIView):
                         "custom_fields_values": custom_fields
                     }
                 )
-                
+
 
             commission_str = str(int(commission_value))      # Преобразовали в int => без десятичной точки
             balance_str = str(int(new_balance))              # Аналогично

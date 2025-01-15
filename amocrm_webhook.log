@@ -53,3 +53,5 @@ LINE 1: ...", "serviceapp_servicerequest"."amo_status_code", "serviceap...
 [2025-01-11 19:02:20,471] ERROR serviceapp.amocrm_client Failed to update lead 24761877: {"validation-errors":[{"request_id":"0","errors":[{"code":"InvalidType","path":"price","detail":"This value should be of type int."}]}],"title":"Bad Request","type":"https://httpstatus.es/400","status":400,"detail":"Request validation failed"}
 [2025-01-11 19:02:20,721] ERROR serviceapp.views Unexpected error in finish_request: 400 Client Error: Bad Request for url: https://servicecentru.amocrm.ru/api/v4/leads/24761877
 [2025-01-11 19:04:49,301] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-11 19:14:19,888] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-01-11 19:16:10,934] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
