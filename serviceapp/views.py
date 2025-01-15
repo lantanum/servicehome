@@ -187,23 +187,14 @@ class MasterActiveRequestsView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        "messages": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Items(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    "message_text": openapi.Schema(
-                                        type=openapi.TYPE_STRING,
-                                        description="Многострочный текст заявки"
-                                    ),
-                                    "finish_button_text": openapi.Schema(
-                                        type=openapi.TYPE_STRING,
-                                        description="Текст кнопки для завершения заявки"
-                                    ),
-                                }
-                            ),
-                            description="Список объектов с данными по заявкам"
-                        )
+                        "request_1": openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                "message_text": openapi.Schema(type=openapi.TYPE_STRING),
+                                "finish_button_text": openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        ),
+                        # аналогично для request_2..request_10
                     }
                 )
             ),
@@ -258,32 +249,47 @@ class MasterActiveRequestsView(APIView):
             return Response({"detail": "Доступно только для пользователей с ролью 'Master'."}, 
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Получение мастера, связанного с пользователем
+        # Получаем master_profile (или user.master) — зависит от вашей модели
         try:
-            master = user.master_profile  # или user.master
+            master = user.master_profile
         except AttributeError:
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Получение активных заявок (со статусом 'In Progress')
+        # Получаем активные заявки в статусе 'In Progress' (сортируем по дате убыванию)
         active_requests = ServiceRequest.objects.filter(
             master=master, 
             status='In Progress'
         ).order_by('-created_at')
 
-        # Если заявок нет, возвращаем одно сообщение
-        if not active_requests.exists():
+        # Ограничиваем максимум 10
+        active_requests = active_requests[:10]
+
+        # Если нет активных заявок, вернём только request_1
+        if not active_requests:
             return Response(
-                {"messages": [{"message_text": "🥳Нет активных заявок!", "finish_button_text": ""}]},
+                {
+                    "request_1": {
+                        "message_text": "🥳Нет активных заявок!",
+                        "finish_button_text": ""
+                    }
+                },
                 status=status.HTTP_200_OK
             )
 
-        # Формируем список объектов с полями message_text и finish_button_text
-        messages = []
-        for req in active_requests:
+        # Собираем словарь вида:
+        # {
+        #   "request_1": { "message_text": "...", "finish_button_text": "..." },
+        #   "request_2": { ... },
+        #   ...
+        # }
+        result = {}
+        for i, req in enumerate(active_requests):
+            # Нумеруем с 1
+            field_name = f"request_{i+1}"
+            # Формируем date_str
             date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
-            
-            # Многострочный текст заявки
+            # Основной текст
             message_text = (
                 f"Заявка {req.id}\n"
                 f"Дата заявки: {date_str}\n"
@@ -301,16 +307,15 @@ class MasterActiveRequestsView(APIView):
                 "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика только при оказании ремонта. "
                 "ВНИМАНИЕ! - В случае отказа от ремонта - Диагностика и выезд платные (Цену формирует мастер)."
             )
-
-            # Текст кнопки — "Сообщить о завершении {req.id}"
+            # Кнопка
             finish_button_text = f"Сообщить о завершении {req.id}"
 
-            messages.append({
+            result[field_name] = {
                 "message_text": message_text,
                 "finish_button_text": finish_button_text
-            })
+            }
 
-        return Response({"messages": messages}, status=status.HTTP_200_OK)
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AssignRequestView(APIView):
