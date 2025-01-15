@@ -244,28 +244,25 @@ class MasterActiveRequestsView(APIView):
             return Response({"detail": "Пользователь с указанным telegram_id не найден."}, 
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Проверка, что пользователь является мастером
+        # Проверка роли
         if user.role != 'Master':
             return Response({"detail": "Доступно только для пользователей с ролью 'Master'."}, 
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Получаем master_profile (или user.master) — зависит от вашей модели
+        # Получаем профиль мастера
         try:
-            master = user.master_profile
+            master = user.master_profile  # или user.master
         except AttributeError:
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Получаем активные заявки в статусе 'In Progress' (сортируем по дате убыванию)
+        # Получаем заявки 'In Progress', максимум 10
         active_requests = ServiceRequest.objects.filter(
             master=master, 
             status='In Progress'
-        ).order_by('-created_at')
+        ).order_by('-created_at')[:10]
 
-        # Ограничиваем максимум 10
-        active_requests = active_requests[:10]
-
-        # Если нет активных заявок, вернём только request_1
+        # Если заявок нет
         if not active_requests:
             return Response(
                 {
@@ -277,37 +274,33 @@ class MasterActiveRequestsView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        # Собираем словарь вида:
-        # {
-        #   "request_1": { "message_text": "...", "finish_button_text": "..." },
-        #   "request_2": { ... },
-        #   ...
-        # }
+        # Собираем ответ в формате request_1, request_2, ...
         result = {}
         for i, req in enumerate(active_requests):
-            # Нумеруем с 1
             field_name = f"request_{i+1}"
-            # Формируем date_str
+
             date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
-            # Основной текст
+
+            # Формируем HTML-строку с <b>...</b>
             message_text = (
-                f"Заявка {req.id}\n"
-                f"Дата заявки: {date_str}\n"
-                f"Город: {req.city_name or ''}\n"
-                f"Адрес: {req.address or ''}\n"
-                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
-                f"Имя: {req.client.name}\n"
-                f"Тел.: {req.client.phone}\n"
-                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
-                f"Тип оборудования: {req.equipment_type or ''}\n"
-                f"Марка: {req.equipment_brand or ''}\n"
-                f"Модель: {req.equipment_model or ''}\n"
-                f"Комментарий: {req.description or ''}\n"
-                "🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️🔸️\n"
-                "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика только при оказании ремонта. "
-                "ВНИМАНИЕ! - В случае отказа от ремонта - Диагностика и выезд платные (Цену формирует мастер)."
+                f"<b>Заявка</b> {req.id}\n"
+                f"<b>Дата заявки:</b> {date_str} г.\n"
+                f"<b>Город:</b> {req.city_name or ''}\n"
+                f"<b>Адрес:</b> {req.address or ''}\n"
+                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                f"<b>Имя:</b> {req.client.name}\n"
+                f"<b>Телефон:</b> {req.client.phone}\n"
+                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
+                f"<b>Марка:</b> {req.equipment_brand or ''}\n"
+                f"<b>Модель:</b> {req.equipment_model or '-'}\n"
+                f"<b>Комментарий:</b> {req.description or ''}\n"
+                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика "
+                "только при оказании ремонта. ВНИМАНИЕ! - В случае отказа от ремонта "
+                "- Диагностика и выезд платные (Цену формирует мастер)."
             )
-            # Кнопка
+
             finish_button_text = f"Сообщить о завершении {req.id}"
 
             result[field_name] = {
@@ -1051,3 +1044,165 @@ class FinishRequestView(APIView):
                 {"detail": "Произошла ошибка при завершении заявки."},
                 status=500
             )
+
+
+
+class MasterFreeRequestsView(APIView):
+    """
+    API-эндпоинт для получения списка "свободных" заявок (status='Free'),
+    соответствующих городу и типу оборудования мастера, 
+    отсортированных по дате (ASC), максимум 10.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Получение свободных (статус 'Free') заявок, подходящих мастеру по городу и типу оборудования. "
+                              "Сортировка по дате (ASC), максимум 10. Подстрочное совпадение для city_name и equipment_type.",
+        request_body=MasterActiveRequestsSerializer,
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ со списком подходящих заявок. "
+                            "Возвращает объект, где ключи request_1..request_N (до 10) содержат инфо о заявке.",
+                # Используем additionalProperties, чтобыSwagger понимал, что может быть много ключей request_X
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    additionalProperties=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            "message_text": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description="Многострочный текст заявки с тегами <b> для жирного"
+                            ),
+                            "take_button_text": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description="Текст кнопки вида 'Взять заявку (ID)'"
+                            )
+                        }
+                    )
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'field_name': openapi.Schema(
+                            type=openapi.TYPE_ARRAY, 
+                            items=openapi.Items(type=openapi.TYPE_STRING)
+                        )
+                    }
+                )
+            ),
+            403: openapi.Response(
+                description="Доступ запрещен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+            # Если нужно, можно добавить описание для 500.
+        }
+    )
+    def post(self, request):
+        serializer = MasterActiveRequestsSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        telegram_id = serializer.validated_data['telegram_id']
+
+        # 1) Проверяем пользователя
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response({"detail": "Пользователь с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if user.role != 'Master':
+            return Response({"detail": "Доступно только для пользователей с ролью 'Master'."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # 2) Получаем master_profile
+        try:
+            master = user.master_profile  # или user.master
+        except AttributeError:
+            return Response({"detail": "Мастер не найден для данного пользователя."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Предполагаем, что у мастера в полях city_name / equipment_type_name может быть перечислено через запятую
+        master_cities_str = (master.city_name or "").lower()          
+        master_equip_str = (master.equipment_type_name or "").lower() 
+
+        # 3) Собираем заявки Free, сортируем по created_at (ASC)
+        free_requests = ServiceRequest.objects.filter(status='Free').order_by('created_at')
+
+        # 4) Фильтруем (если req.city_name и req.equipment_type входят в master'ские строки)
+        matched_requests = []
+        for req in free_requests:
+            req_city = (req.city_name or "").lower()
+            req_equip = (req.equipment_type or "").lower()
+            if req_city in master_cities_str and req_equip in master_equip_str:
+                matched_requests.append(req)
+
+        # Берём первые 10
+        matched_requests = matched_requests[:10]
+
+        # Если нет подходящих заявок
+        if not matched_requests:
+            return Response(
+                {
+                    "request_1": {
+                        "message_text": "🥳Нет свободных заявок!",
+                        "take_button_text": ""
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
+
+        # Формируем ответ { "request_1": {...}, "request_2": {...}, ... }
+        result = {}
+        for i, req in enumerate(matched_requests):
+            field_name = f"request_{i+1}"
+
+            # Форматированная дата
+            date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
+
+            # Берём только первое слово адреса
+            raw_address = (req.address or "").strip()
+            address_parts = raw_address.split()
+            short_address = address_parts[0] if address_parts else ""
+
+            # Формируем текст по образцу:
+            message_text = (
+                f"<b>Заявка </b> {req.id}\n"
+                f"<b>Дата заявки:</b> {date_str} г.\n"
+                f"<b>Город:</b> {req.city_name or ''}\n"
+                f"<b>Адрес: </b> {short_address}\n"
+                f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
+                f"<b>Модель:</b> {req.equipment_brand or '-'}\n"
+                f"<b>Марка:</b> {req.equipment_model or '-'}\n"
+                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                f"<b>Комментарий:</b> {req.description or ''}\n"
+                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                "<b>Бесплатный выезд и диагностика*</b> - Бесплатный выезд и диагностика "
+                "только при оказание ремонта. ВНИМАНИЕ! - В случае отказа от ремонта - "
+                "Диагностика и выезд платные берется с клиента (Цену формирует мастер)"
+            )
+
+            take_button_text = f"Взять заявку {req.id}"
+
+            result[field_name] = {
+                "message_text": message_text,
+                "take_button_text": take_button_text
+            }
+
+        return Response(result, status=status.HTTP_200_OK)

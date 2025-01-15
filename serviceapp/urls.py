@@ -1,11 +1,12 @@
 from django.urls import path
-from serviceapp.views import AmoCRMWebhookView, MasterStatisticsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
+from serviceapp.views import AmoCRMWebhookView, MasterFreeRequestsView, MasterStatisticsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user_registration'),
     path('create_request/', ServiceRequestCreateView.as_view(), name='create_request'),
     path('requests_history/', ServiceRequestHistoryView.as_view(), name='requests_history'),
     path('master_active_requests/', MasterActiveRequestsView.as_view(), name='master_active_requests'),
+    path('master_free_requests/', MasterFreeRequestsView.as_view(), name='master_free_requests'),
     path('assign_request/', AssignRequestView.as_view(), name='assign_request'),
     path('close_request/', CloseRequestView.as_view(), name='close_request'),
     path('finish_request/', FinishRequestView.as_view(), name='finish_request'),
