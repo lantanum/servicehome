@@ -172,6 +172,8 @@ class ServiceRequestHistoryView(APIView):
         # Сериализуем заявки
         sr_serializer = ServiceRequestSerializer(requests_qs, many=True)
         return Response(sr_serializer.data, status=status.HTTP_200_OK)
+
+
 class MasterActiveRequestsView(APIView):
     """
     API-эндпоинт для получения активных заявок мастера по telegram_id.
@@ -187,8 +189,20 @@ class MasterActiveRequestsView(APIView):
                     properties={
                         "messages": openapi.Schema(
                             type=openapi.TYPE_ARRAY,
-                            items=openapi.Items(type=openapi.TYPE_STRING),
-                            description="Список сообщений по заявкам"
+                            items=openapi.Items(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "message_text": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Многострочный текст заявки"
+                                    ),
+                                    "finish_button_text": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Текст кнопки для завершения заявки"
+                                    ),
+                                }
+                            ),
+                            description="Список объектов с данными по заявкам"
                         )
                     }
                 )
@@ -198,7 +212,10 @@ class MasterActiveRequestsView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
+                        'field_name': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Items(type=openapi.TYPE_STRING)
+                        )
                     }
                 )
             ),
@@ -243,7 +260,7 @@ class MasterActiveRequestsView(APIView):
 
         # Получение мастера, связанного с пользователем
         try:
-            master = user.master_profile  # или user.master, в зависимости от связи
+            master = user.master_profile  # или user.master
         except AttributeError:
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
@@ -256,12 +273,17 @@ class MasterActiveRequestsView(APIView):
 
         # Если заявок нет, возвращаем одно сообщение
         if not active_requests.exists():
-            return Response({"messages": ["🥳Нет активных заявок!"]}, status=status.HTTP_200_OK)
+            return Response(
+                {"messages": [{"message_text": "🥳Нет активных заявок!", "finish_button_text": ""}]},
+                status=status.HTTP_200_OK
+            )
 
-        # Иначе формируем список сообщений
+        # Формируем список объектов с полями message_text и finish_button_text
         messages = []
         for req in active_requests:
             date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
+            
+            # Многострочный текст заявки
             message_text = (
                 f"Заявка {req.id}\n"
                 f"Дата заявки: {date_str}\n"
@@ -279,7 +301,14 @@ class MasterActiveRequestsView(APIView):
                 "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика только при оказании ремонта. "
                 "ВНИМАНИЕ! - В случае отказа от ремонта - Диагностика и выезд платные (Цену формирует мастер)."
             )
-            messages.append(message_text)
+
+            # Текст кнопки — "Сообщить о завершении {req.id}"
+            finish_button_text = f"Сообщить о завершении {req.id}"
+
+            messages.append({
+                "message_text": message_text,
+                "finish_button_text": finish_button_text
+            })
 
         return Response({"messages": messages}, status=status.HTTP_200_OK)
 
