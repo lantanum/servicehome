@@ -10,6 +10,7 @@ from rest_framework import status
 from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from decimal import Decimal, ROUND_HALF_UP
 
 from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
@@ -1308,3 +1309,104 @@ class ClientRequestsView(APIView):
         buttons = [(req.amo_crm_lead_id) for req in client_requests if req.amo_crm_lead_id]
 
         return Response({"requests": final_text, "buttons": buttons}, status=status.HTTP_200_OK)
+
+class ClientRequestInfoView(APIView):
+    """
+    API-эндпоинт для получения детальной информации о заявке клиента.
+    """
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Получение детальной информации о заявке по request_id. "
+            "Если мастер не назначен или заявка не завершена, соответствующие поля остаются пустыми."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'request_id': openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки")
+            },
+            required=['request_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Информация о заявке клиента",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "text": openapi.Schema(type=openapi.TYPE_STRING, description="Детальная информация о заявке")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Заявка не найдена",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        request_id = request.data.get('request_id')
+
+        if not request_id:
+            return Response({"detail": "request_id обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Пытаемся получить заявку по amo_crm_lead_id, предполагая, что request_id совпадает с amo_crm_lead_id
+            req = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
+        except ServiceRequest.DoesNotExist:
+            return Response({"detail": "Заявка не найдена."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Получаем информацию из заявки
+        client_name = req.client.name if req.client else ""
+        order_id = req.amo_crm_lead_id
+        equipment = req.equipment_type or ""
+        date_created = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
+        status_display = req.get_status_display() if hasattr(req, 'get_status_display') else req.status
+
+        finished_statuses = ['Completed', 'AwaitingClosure', 'Closed', 'QualityControl']
+        if req.master and req.status in finished_statuses:
+            master_name = f"{req.master.user.name}" if req.master.user else ""
+            start_date = ""  # Нет данных о дате начала работ
+            end_date = ""    # Нет данных о дате окончания работ
+            warranty = req.warranty or ""
+            if req.price is not None:
+                # Округление стоимости до целого числа без дробной части
+                rounded_price = req.price.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                cost = str(rounded_price)
+            else:
+                cost = ""
+            description = req.description or ""
+        else:
+            master_name = ""
+            start_date = ""
+            end_date = ""
+            warranty = ""
+            cost = ""
+            description = ""
+
+        response_text = (
+            f"<b>Заказ</b>: {order_id}\n"
+            f"{equipment}\n"
+            f"<b>Дата заявки:</b> {date_created} г.\n"
+            "---------\n"
+            f"<b>Статус:</b> {status_display}\n"
+            f"<b>Мастер:</b> {master_name}\n"
+            f"<b>Дата начала работ:</b> {start_date}\n"
+            f"<b>Дата окончания работ:</b> {end_date}\n"
+            "----------\n"
+            f"<b>Гарантия:</b> {warranty}\n"
+            f"<b>Стоимость заказа:</b> {cost}\n"
+            "----------\n"
+            f"<b>Проделанные работы:</b> {description}"
+        )
+
+        return Response({"text": response_text}, status=status.HTTP_200_OK)
