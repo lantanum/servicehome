@@ -1208,3 +1208,104 @@ class MasterFreeRequestsView(APIView):
             }
 
         return Response(result, status=status.HTTP_200_OK)
+
+
+
+class ClientRequestsView(APIView):
+    """
+    API-эндпоинт для получения заявок клиента, сгруппированных по статусам.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Получение заявок клиента, сгруппированных по категориям: "
+                              "На проверке, В работе, Поиск мастера, Завершено.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(type=openapi.TYPE_STRING, description="Telegram ID клиента")
+            },
+            required=['telegram_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Сформированный текст с группировкой заявок",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "text": openapi.Schema(type=openapi.TYPE_STRING, description="HTML-текст с заявками")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Клиент не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        # Проверка и валидация входных данных
+        telegram_id = request.data.get('telegram_id')
+        if not telegram_id:
+            return Response({"detail": "telegram_id обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response({"detail": "Клиент с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Получаем все заявки клиента
+        client_requests = ServiceRequest.objects.filter(client=user).order_by('created_at')
+
+        # Группируем заявки по категориям
+        groups = {
+            "На проверке": [],
+            "В работе": [],
+            "Поиск мастера": [],
+            "Завершено": []
+        }
+
+        for req in client_requests:
+            status_value = req.status
+            if status_value == 'Open':
+                groups["На проверке"].append(req)
+            elif status_value == 'In Progress':
+                groups["В работе"].append(req)
+            elif status_value == 'Free':
+                groups["Поиск мастера"].append(req)
+            elif status_value in ['Completed', 'AwaitingClosure', 'Closed', 'QualityControl']:
+                groups["Завершено"].append(req)
+
+        # Формирование текста ответа
+        output_lines = []
+        for category in ["На проверке", "В работе", "Поиск мастера", "Завершено"]:
+            if groups[category]:
+                output_lines.append(f"<b>{category}</b>")
+                for req in groups[category]:
+                    name = req.equipment_type or ""
+                    output_lines.append(f"Заказ {req.amo_crm_lead_id}: {name}")
+                output_lines.append("")  # добавляем пустую строку для разделения групп
+
+        # Если нет ни одной заявки во всех категориях
+        if not output_lines:
+            output_lines.append("🥳Нет заявок!")
+
+        final_text = "\n".join(output_lines)
+        amo_ids = [str(req.amo_crm_lead_id) for req in client_requests if req.amo_crm_lead_id]
+        buttons = ",".join(amo_ids)
+
+        return Response({"requests": final_text, "buttons": buttons}, status=status.HTTP_200_OK)
