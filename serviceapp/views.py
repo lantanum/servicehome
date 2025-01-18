@@ -1,3 +1,4 @@
+from datetime import timezone
 from decimal import Decimal
 import logging
 import re
@@ -380,6 +381,8 @@ class AssignRequestView(APIView):
 
                 service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
 
+                
+
                 # Запоминаем исходный статус до изменения
                 original_status = service_request.status
 
@@ -387,6 +390,7 @@ class AssignRequestView(APIView):
                     # 1) Выполняем привязку заявки к мастеру и переводим в In Progress
                     service_request.master = master
                     service_request.status = 'In Progress'
+                    service_request.start_date = timezone.now() 
                     service_request.save()
 
                     # 2) Обновляем в amoCRM (статус и контакт)
@@ -972,6 +976,7 @@ class FinishRequestView(APIView):
                 service_request.price = price_value
                 service_request.spare_parts_spent = spare_parts_value
                 service_request.status = 'QualityControl'
+                service_request.end_date = timezone.now() 
                 service_request.save()
 
                 commission_value = (price_value * Decimal("0.3"))  # 10%
@@ -1384,14 +1389,14 @@ class ClientRequestInfoView(APIView):
                 cost = str(rounded_price)
             else:
                 cost = ""
-            description = req.description or ""
+            comment_after_finish = req.comment_after_finish or ""
         else:
             master_name = ""
             start_date = ""
             end_date = ""
             warranty = ""
             cost = ""
-            description = ""
+            comment_after_finish = ""
 
         response_text = (
             f"<b>Заказ</b>: {order_id}\n"
@@ -1406,7 +1411,7 @@ class ClientRequestInfoView(APIView):
             f"<b>Гарантия:</b> {warranty}\n"
             f"<b>Стоимость заказа:</b> {cost}\n"
             "----------\n"
-            f"<b>Проделанные работы:</b> {description}"
+            f"<b>Проделанные работы:</b> {comment_after_finish}"
         )
 
         return Response({"text": response_text}, status=status.HTTP_200_OK)

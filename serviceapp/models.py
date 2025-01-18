@@ -82,6 +82,9 @@ class ServiceRequest(models.Model):
                                            help_text="Сумма, потраченная на запчасти")
     comment_after_finish = models.TextField(null=True, blank=True, help_text="Комментарий мастера после завершения работ")
 
+    start_date = models.DateTimeField(null=True, blank=True, help_text="Дата начала работ")
+    end_date = models.DateTimeField(null=True, blank=True, help_text="Дата окончания работ")
+
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
 
