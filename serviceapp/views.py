@@ -1305,7 +1305,6 @@ class ClientRequestsView(APIView):
             output_lines.append("🥳Нет заявок!")
 
         final_text = "\n".join(output_lines)
-        amo_ids = [str(req.amo_crm_lead_id) for req in client_requests if req.amo_crm_lead_id]
-        buttons = ",".join(amo_ids)
+        buttons = [(req.amo_crm_lead_id) for req in client_requests if req.amo_crm_lead_id]
 
         return Response({"requests": final_text, "buttons": buttons}, status=status.HTTP_200_OK)
