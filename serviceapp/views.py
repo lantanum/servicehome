@@ -12,6 +12,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from decimal import Decimal, ROUND_HALF_UP
+from django.db.models import Sum
 
 from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
@@ -31,7 +32,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, ServiceRequest, ServiceType, User
+from .models import EquipmentType, Master, ServiceRequest, ServiceType, User
 
 logger = logging.getLogger(__name__)
 
@@ -1415,3 +1416,188 @@ class ClientRequestInfoView(APIView):
         )
 
         return Response({"text": response_text}, status=status.HTTP_200_OK)
+
+
+class MasterStatsView(APIView):
+    """
+    Возвращает JSON c рассчитанными полями статистики мастера (по telegram_id)
+    и текстовым представлением реального ТОП-10 мастеров, отсортированного по суммарному доходу.
+    """
+
+    @swagger_auto_schema(
+        operation_description="POST-запрос, возвращает статистику мастера и реальный ТОП-10 мастеров (строками).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(
+                    type=openapi.TYPE_STRING, 
+                    description="Telegram ID мастера"
+                )
+            },
+            required=['telegram_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Успешный ответ со статистикой мастера и ТОП-10 мастеров",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "fio": openapi.Schema(type=openapi.TYPE_STRING),
+                        "registration_date": openapi.Schema(type=openapi.TYPE_STRING),
+                        "rating": openapi.Schema(type=openapi.TYPE_STRING),
+                        "completed_orders": openapi.Schema(type=openapi.TYPE_INTEGER),
+                        "avg_time": openapi.Schema(type=openapi.TYPE_STRING),
+                        "total_income": openapi.Schema(type=openapi.TYPE_STRING),
+                        "quality_percent": openapi.Schema(type=openapi.TYPE_STRING),
+                        "balance_topup_speed": openapi.Schema(type=openapi.TYPE_STRING),
+                        "cost_percentage": openapi.Schema(type=openapi.TYPE_STRING),
+                        "current_status": openapi.Schema(type=openapi.TYPE_STRING),
+                        "rating_place": openapi.Schema(type=openapi.TYPE_STRING),
+                        "top_10": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Многострочный текст с ТОП-10 мастеров"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        """
+        Пример: POST /api/master_stats/
+        Тело запроса: { "telegram_id": "12345" }
+        Возвращает JSON-объект со статистикой мастера и текстовым полем top_10 мастеров.
+        """
+        data = request.data
+        telegram_id = data.get('telegram_id')
+
+        if not telegram_id:
+            return Response(
+                {"detail": "Поле telegram_id обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 1) Проверяем пользователя
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response({"detail": "Мастер с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Предполагаем, что у пользователя role='Master' и есть master_profile
+        master = getattr(user, 'master_profile', None)
+        if not master:
+            return Response({"detail": "Пользователь не является мастером."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # -----------------------------------
+        # Вычисляем статистику мастера
+        # -----------------------------------
+        finished_statuses = ['Completed', 'AwaitingClosure', 'Closed', 'QualityControl']
+        completed_qs = ServiceRequest.objects.filter(master=master, status__in=finished_statuses)
+
+        # Количество выполненных заявок
+        completed_orders_count = completed_qs.count()
+
+        # Сумма дохода
+        total_income_value = completed_qs.aggregate(sum_price=Sum('price'))['sum_price'] or Decimal("0")
+
+        # Рейтинг
+        master_rating = master.rating or Decimal("0.0")
+
+        # Среднее время (end_date - start_date)
+        avg_time_seconds = 0
+        count_for_avg = 0
+        for req in completed_qs:
+            if req.start_date and req.end_date:
+                delta = req.end_date - req.start_date
+                avg_time_seconds += delta.total_seconds()
+                count_for_avg += 1
+        if count_for_avg > 0:
+            avg_seconds = avg_time_seconds / count_for_avg
+        else:
+            avg_seconds = 0
+        avg_hours = int(avg_seconds // 3600)
+
+        # Остальные поля (заглушки или вычисления)
+        quality_percent_str = "95%"
+        balance_topup_speed_str = "12 часов"
+        cost_percentage_str = "15%"
+        current_status_str = "1-й круг"
+        rating_place_str = "—"
+
+        registration_date = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
+
+        data_for_master = {
+            "fio": user.name,
+            "registration_date": registration_date,
+            "rating": f"{master_rating}⭐️",
+            "completed_orders": completed_orders_count,
+            "avg_time": f"{avg_hours} часов",
+            "total_income": f"{int(total_income_value)} руб.",
+            "quality_percent": quality_percent_str,
+            "balance_topup_speed": balance_topup_speed_str,
+            "cost_percentage": cost_percentage_str,
+            "current_status": current_status_str,
+            "rating_place": rating_place_str,
+        }
+
+        # -----------------------------------
+        # Реальный ТОП-10 мастеров (доход по завершённым заявкам)
+        # -----------------------------------
+        all_masters = Master.objects.all()
+        stats_list = []
+
+        for m in all_masters:
+            m_finished_qs = ServiceRequest.objects.filter(master=m, status__in=finished_statuses)
+            m_income = m_finished_qs.aggregate(sum_price=Sum('price'))['sum_price'] or Decimal("0")
+            m_rating = m.rating or Decimal("0.0")
+            m_cities = m.city_name or ""
+            stats_list.append((m, m_income, m_rating, m_cities))
+
+        # Сортируем по доходу убыванием
+        stats_list.sort(key=lambda x: x[1], reverse=True)
+
+        # Найдём место запрашиваемого мастера
+        for idx, item in enumerate(stats_list, start=1):
+            if item[0].id == master.id:
+                data_for_master["rating_place"] = f"{idx} место"
+                break
+
+        # Берём первые 10
+        top_10_data = stats_list[:10]
+
+        # Формируем одну многострочную строку
+        lines = []
+        for idx, (m, inc, rat, cts) in enumerate(top_10_data, start=1):
+            # Пример формата: 
+            # 1.| Чеблаков Алексей Юрьевич| Ульяновск димитровград новоульяновск| 159240 руб.| 5⭐️
+            line = f"{idx}.| {m.user.name}| {cts}| {int(inc)} руб.| {rat}⭐️"
+            lines.append(line)
+
+        top_10_str = "\n\n".join(lines)  # можно сделать "\n".join(lines) если нужен перенос без пустой строки
+
+        # -----------------------------------
+        # Формируем общий ответ
+        # -----------------------------------
+        result = {**data_for_master, "top_10": top_10_str}
+
+        return Response(result, status=status.HTTP_200_OK)

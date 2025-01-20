@@ -1,5 +1,5 @@
 from django.urls import path
-from serviceapp.views import AmoCRMWebhookView, ClientRequestInfoView, ClientRequestsView, MasterFreeRequestsView, MasterStatisticsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
+from serviceapp.views import AmoCRMWebhookView, ClientRequestInfoView, ClientRequestsView, MasterFreeRequestsView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user_registration'),
@@ -15,5 +15,6 @@ urlpatterns = [
     path('amocrm-webhook/', AmoCRMWebhookView.as_view(), name='amocrm_webhook'),
     path('master_statistics/', MasterStatisticsView.as_view(), name='master_statistics'),
     path('client_requests/', ClientRequestsView.as_view(), name='client_requests'),
-    path('client_request_info/', ClientRequestInfoView.as_view(), name = 'client_request_info')
+    path('client_request_info/', ClientRequestInfoView.as_view(), name = 'client_request_info'),
+    path('master_stats/', MasterStatsView.as_view(), name='master_stats')
 ]
