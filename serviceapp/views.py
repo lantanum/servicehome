@@ -32,7 +32,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, Master, ServiceRequest, ServiceType, User
+from .models import EquipmentType, Master, ServiceRequest, ServiceType, Transaction, User
 
 logger = logging.getLogger(__name__)
 
@@ -1601,3 +1601,120 @@ class MasterStatsView(APIView):
         result = {**data_for_master, "top_10": top_10_str}
 
         return Response(result, status=status.HTTP_200_OK)
+
+
+
+class BalanceDepositView(APIView):
+    """
+    Эндпоинт для пополнения баланса мастера по telegram_id и сумме.
+    """
+
+    @swagger_auto_schema(
+        operation_description="ПОПОЛНЕНИЕ баланса мастера. Принимает telegram_id и amount, увеличивает баланс мастера, записывает Transaction.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID мастера"
+                ),
+                'amount': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Сумма для пополнения (можно передавать в виде строки, потом конвертируем в Decimal)"
+                )
+            },
+            required=['telegram_id', 'amount']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Баланс успешно пополнен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение о пополнении"),
+                        "new_balance": openapi.Schema(type=openapi.TYPE_STRING, description="Новый баланс мастера")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get('telegram_id')
+        amount_str = data.get('amount')
+
+        if not telegram_id or not amount_str:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'amount' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Пробуем преобразовать amount к Decimal
+        try:
+            amount = Decimal(amount_str)
+            if amount <= 0:
+                return Response(
+                    {"detail": "Сумма пополнения должна быть больше нуля."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except:
+            return Response(
+                {"detail": "Некорректный формат суммы."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Ищем пользователя по telegram_id
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь с указанным telegram_id не найден."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Проверяем, является ли пользователь мастером
+        master = getattr(user, 'master_profile', None)
+        if not master:
+            return Response(
+                {"detail": "Пользователь не является мастером."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Проводим транзакцию в БД
+        with transaction.atomic():
+            # 1. Создаём запись в Transaction
+            Transaction.objects.create(
+                user=user,
+                amount=amount,
+                transaction_type='Deposit',
+                reason="Баланс пополнен через API"
+            )
+            # 2. Увеличиваем баланс мастера
+            master.balance += amount
+            master.save()
+
+        return Response(
+            {
+                "detail": "Баланс успешно пополнен.",
+                "new_balance": str(master.balance)
+            },
+            status=status.HTTP_200_OK
+        )
