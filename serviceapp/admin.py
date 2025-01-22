@@ -1,12 +1,13 @@
 from django.contrib import admin
 
-from .models import EquipmentType, ServiceType, User, ServiceRequest, Master
+from .models import EquipmentType, ServiceType, Transaction, User, ServiceRequest, Master
 
 # Register your models here.
 
 admin.site.register(User)
 admin.site.register(ServiceRequest)
 admin.site.register(Master)
+admin.site.register(Transaction)
 
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):

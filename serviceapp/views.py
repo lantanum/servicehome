@@ -1831,7 +1831,8 @@ class BalanceDepositConfirmView(APIView):
         return Response(
             {
                 "detail": "Транзакция подтверждена, баланс успешно обновлён.",
-                "new_balance": new_balance_str
+                "new_balance": new_balance_str,
+                "telegram_id": user.telegram_id
             },
             status=status.HTTP_200_OK
         )
