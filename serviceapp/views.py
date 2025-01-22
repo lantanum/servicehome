@@ -1606,38 +1606,40 @@ class MasterStatsView(APIView):
 
 class BalanceDepositView(APIView):
     """
-    Эндпоинт для пополнения баланса мастера по telegram_id и сумме.
+    1. Создаёт транзакцию со статусом 'Pending' для пополнения баланса.
+    2. Не изменяет баланс мастера сразу.
+    3. Возвращает ID созданной транзакции (transaction_id).
     """
 
     @swagger_auto_schema(
-        operation_description="ПОПОЛНЕНИЕ баланса мастера. Принимает telegram_id и amount, увеличивает баланс мастера, записывает Transaction.",
+        operation_description="Создаёт транзакцию (статус='Pending') для пополнения баланса мастера. Возвращает ID транзакции.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 'telegram_id': openapi.Schema(
-                    type=openapi.TYPE_STRING,
+                    type=openapi.TYPE_STRING, 
                     description="Telegram ID мастера"
                 ),
                 'amount': openapi.Schema(
                     type=openapi.TYPE_STRING,
-                    description="Сумма для пополнения (можно передавать в виде строки, потом конвертируем в Decimal)"
+                    description="Сумма для пополнения в виде строки (например '100.50')"
                 )
             },
             required=['telegram_id', 'amount']
         ),
         responses={
             200: openapi.Response(
-                description="Баланс успешно пополнен",
+                description="Транзакция создана (статус 'Pending').",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение о пополнении"),
-                        "new_balance": openapi.Schema(type=openapi.TYPE_STRING, description="Новый баланс мастера")
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING),
+                        "transaction_id": openapi.Schema(type=openapi.TYPE_INTEGER)
                     }
                 )
             ),
             400: openapi.Response(
-                description="Некорректные данные",
+                description="Некорректные данные (telegram_id или amount не указаны / неверный формат)",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -1646,7 +1648,7 @@ class BalanceDepositView(APIView):
                 )
             ),
             404: openapi.Response(
-                description="Мастер не найден",
+                description="Мастер не найден / пользователь не является мастером",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -1667,7 +1669,7 @@ class BalanceDepositView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Пробуем преобразовать amount к Decimal
+        # Пробуем конвертировать amount в Decimal
         try:
             amount = Decimal(amount_str)
             if amount <= 0:
@@ -1681,12 +1683,12 @@ class BalanceDepositView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Ищем пользователя по telegram_id
+        # Ищем пользователя
         try:
             user = User.objects.get(telegram_id=telegram_id)
         except User.DoesNotExist:
             return Response(
-                {"detail": "Пользователь с указанным telegram_id не найден."}, 
+                {"detail": "Пользователь с указанным telegram_id не найден."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -1698,23 +1700,138 @@ class BalanceDepositView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Проводим транзакцию в БД
+        # Создаём транзакцию со статусом 'Pending'
         with transaction.atomic():
-            # 1. Создаём запись в Transaction
-            Transaction.objects.create(
+            new_tx = Transaction.objects.create(
                 user=user,
                 amount=amount,
                 transaction_type='Deposit',
-                reason="Баланс пополнен через API"
+                status='Pending',  # можно не указывать, если в модели стоит default='Pending'
+                reason="Пополнение (ожидает подтверждения)"
             )
-            # 2. Увеличиваем баланс мастера
-            master.balance += amount
-            master.save()
 
         return Response(
             {
-                "detail": "Баланс успешно пополнен.",
-                "new_balance": str(master.balance)
+                "detail": "Транзакция на пополнение создана (статус 'Pending').",
+                "transaction_id": new_tx.id
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+class BalanceDepositConfirmView(APIView):
+    """
+    2. Подтверждает транзакцию пополнения (по transaction_id),
+       переводит её в статус 'Confirmed' и увеличивает баланс мастера.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Подтверждает ранее созданную транзакцию (transaction_id), меняет её статус на 'Confirmed' и увеличивает баланс мастера.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'transaction_id': openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    description="ID транзакции на пополнение (статус 'Pending')"
+                )
+            },
+            required=['transaction_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Транзакция подтверждена, баланс мастера обновлён.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING),
+                        "new_balance": openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные (transaction_id не указан / неверный формат / транзакция уже подтверждена)",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Транзакция не найдена / пользователь не является мастером",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        tx_id = data.get('transaction_id')
+
+        if not tx_id:
+            return Response(
+                {"detail": "Поле 'transaction_id' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Пробуем привести к int
+        try:
+            tx_id = int(tx_id)
+        except ValueError:
+            return Response(
+                {"detail": "transaction_id должно быть целым числом."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            # Находим транзакцию
+            try:
+                tx = Transaction.objects.select_for_update().get(id=tx_id)
+            except Transaction.DoesNotExist:
+                return Response(
+                    {"detail": "Транзакция не найдена."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Проверяем, что транзакция Pending
+            if tx.status == 'Confirmed':
+                return Response(
+                    {"detail": "Транзакция уже подтверждена."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Проверяем, что это Deposit
+            if tx.transaction_type != 'Deposit':
+                return Response(
+                    {"detail": "Транзакция не является пополнением (Deposit)."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Переводим транзакцию в статус 'Confirmed'
+            tx.status = 'Confirmed'
+            tx.save()
+
+            # Обновляем баланс мастера
+            user = tx.user
+            master = getattr(user, 'master_profile', None)
+            if not master:
+                return Response(
+                    {"detail": "Пользователь не является мастером."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            master.balance += tx.amount
+            master.save()
+
+            new_balance_str = str(master.balance)
+
+        return Response(
+            {
+                "detail": "Транзакция подтверждена, баланс успешно обновлён.",
+                "new_balance": new_balance_str
             },
             status=status.HTTP_200_OK
         )
