@@ -712,6 +712,8 @@ def format_date(created_at):
     month = month_names.get(created_at.month, '')
     year = created_at.year
     return f"{day} {month} {year}"
+
+
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -793,6 +795,36 @@ class AmoCRMWebhookView(APIView):
                                         )
                                 except Exception as ex:
                                     logger.error(f"Error sending data to sambot: {ex}")
+                        elif status_name == 'Completed':
+                            # Отправляем нужные поля на https://sambot.ru/reactions/2939784/start
+                            # айди сделки (lead_id), айди мастера, сообщение о штрафе (пустая строка), 
+                            # сумма сделки (service_request.price), прошлый статус
+                            master_id = service_request.master.id if service_request.master else ""
+                            deal_amount = str(service_request.price or "0")
+                            penalty_message = ""  # Пустое поле
+
+                            payload = {
+                                "request_id": lead_id,
+                                "telegram_id": master_id,
+                                "penalty_message": penalty_message,
+                                "request_amount": deal_amount,
+                                "previous_status": previous_status
+                            }
+
+                            try:
+                                response_sambot = requests.post(
+                                    'https://sambot.ru/reactions/2939784/start',
+                                    json=payload,
+                                    timeout=10
+                                )
+                                if response_sambot.status_code != 200:
+                                    logger.error(
+                                        f"Failed to send data (Completed) for Request {service_request.id}. "
+                                        f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
+                                    )
+                            except Exception as ex:
+                                logger.error(f"Error sending data (Completed) to sambot: {ex}")
+
 
                     elif status_name == 'Free':
                         previous_status = service_request.status
