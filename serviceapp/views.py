@@ -262,7 +262,7 @@ class MasterActiveRequestsView(APIView):
         # Получаем заявки 'In Progress', максимум 10
         active_requests = ServiceRequest.objects.filter(
             master=master, 
-            status='In Progress'
+            status__in=['In Progress', 'AwaitingClosure']
         ).order_by('-created_at')[:10]
 
         # Если заявок нет
@@ -769,6 +769,28 @@ class AmoCRMWebhookView(APIView):
                         logger.info(f"ServiceRequest {service_request.id}: status updated "
                                     f"from {previous_status} to '{status_name}' "
                                     f"(amoCRM ID={new_status_id}).")
+                        if status_name == 'AwaitingClosure':
+                            # Предположим, что заявка должна иметь назначенного мастера
+                            if service_request.master and service_request.master.user.telegram_id:
+                                telegram_id_master = service_request.master.user.telegram_id
+                                # Отправляем POST-запрос на sambot
+                                payload = {
+                                    "telegram_id": telegram_id_master,
+                                    "request_id": str(lead_id)
+                                }
+                                try:
+                                    response_sambot = requests.post(
+                                        'https://sambot.ru/reactions/2939774/start',
+                                        json=payload,
+                                        timeout=10
+                                    )
+                                    if response_sambot.status_code != 200:
+                                        logger.error(
+                                            f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. "
+                                            f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
+                                        )
+                                except Exception as ex:
+                                    logger.error(f"Error sending data to sambot: {ex}")
 
                     elif status_name == 'Free':
                         previous_status = service_request.status
