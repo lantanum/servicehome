@@ -1054,20 +1054,8 @@ class FinishRequestView(APIView):
                 service_request.price = price_value
                 service_request.spare_parts_spent = spare_parts_value
                 service_request.status = 'QualityControl'
-                service_request.end_date = timezone.now() 
+                service_request.end_date = timezone.now()
                 service_request.save()
-
-                commission_value = (price_value * Decimal("0.3"))  # 10%
-
-                master = service_request.master
-                if master:
-                    old_balance = master.balance
-                    new_balance = old_balance - commission_value
-                    master.balance = new_balance
-                    master.save()
-                else:
-                    new_balance = Decimal("0")
-                    master = None
 
                 lead_id = service_request.amo_crm_lead_id
                 if not lead_id:
@@ -1097,24 +1085,9 @@ class FinishRequestView(APIView):
                     }
                 )
 
-
-            commission_str = str(int(commission_value))      # Преобразовали в int => без десятичной точки
-            balance_str = str(int(new_balance))              # Аналогично
-
-            rating_str = "5"  # заглушка без точки, например "5"
-            ref_count_level1_str = "3"
-            ref_count_level2_str = "1"
-            master_level_str = "2"
-
             return JsonResponse(
                 {
                     "detail": f"Заявка {request_id} успешно переведена в статус 'Контроль качества'.",
-                    "comission": commission_str,
-                    "balance": balance_str,
-                    "rating": rating_str,
-                    "ref_count_level1": ref_count_level1_str,
-                    "ref_count_level2": ref_count_level2_str,
-                    "master_level": master_level_str
                 },
                 status=200
             )
