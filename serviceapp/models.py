@@ -153,3 +153,15 @@ class EquipmentType(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Settings(models.Model):
+    comission = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.0,
+        help_text="Процент комиссии, который будет списываться с суммы сделки."
+    )
+
+    def __str__(self):
+        return f"Настройки системы (Комиссия: {self.comission}%)"

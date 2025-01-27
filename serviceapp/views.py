@@ -34,7 +34,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, Master, ServiceRequest, ServiceType, Transaction, User
+from .models import EquipmentType, Master, ServiceRequest, ServiceType, Settings, Transaction, User
 
 logger = logging.getLogger(__name__)
 
@@ -724,8 +724,8 @@ class AmoCRMWebhookView(APIView):
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
     """
     def post(self, request):
-        # 1) Логируем и парсим данные
         try:
+            # 1) Логируем и парсим данные
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
         except Exception as e:
@@ -808,16 +808,27 @@ class AmoCRMWebhookView(APIView):
                                     logger.error(f"Error sending data to sambot: {ex}")
 
                         elif status_name == 'Completed':
-                            master_id = service_request.master.user.telegram_id if service_request.master else ""
-                            deal_amount = (service_request.price or 0)
+                            # Рассчитываем комиссию
+                            deal_amount = service_request.price or 0
+                            settings = Settings.objects.first()
+                            if settings:
+                                comission_percentage = settings.comission
+                            else:
+                                comission_percentage = 0.0  # По умолчанию комиссия 0%
+
+                            comission_amount = deal_amount * comission_percentage / 100
+                            if service_request.master and service_request.master.user:
+                                service_request.master.user.balance -= comission_amount
+                                service_request.master.user.save()
 
                             payload = {
                                 "request_id": lead_id,
-                                "telegram_id": master_id,
+                                "telegram_id": service_request.master.user.telegram_id if service_request.master else "",
                                 "penalty_message": "",
                                 "request_amount": deal_amount,
+                                "comission_amount": comission_amount,
                                 "previous_status": previous_status,
-                                "crm_operator_comment": operator_comment  # Добавляем комментарий в payload
+                                "crm_operator_comment": operator_comment
                             }
 
                             try:
@@ -880,7 +891,6 @@ class AmoCRMWebhookView(APIView):
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
 
-    
 
 
 class MasterStatisticsView(APIView):

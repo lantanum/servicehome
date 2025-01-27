@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EquipmentType, ServiceType, Transaction, User, ServiceRequest, Master
+from .models import EquipmentType, ServiceType, Transaction, User, ServiceRequest, Master, Settings
 
 # Register your models here.
 
@@ -18,3 +18,8 @@ class ServiceTypeAdmin(admin.ModelAdmin):
 class EquipmentTypeAdmin(admin.ModelAdmin):
     list_display = ['id', 'name']
     search_fields = ['name']
+
+
+@admin.register(Settings)
+class SettingsAdmin(admin.ModelAdmin):
+    list_display = ('comission',)
