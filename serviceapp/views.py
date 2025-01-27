@@ -199,7 +199,6 @@ class MasterActiveRequestsView(APIView):
                                 "finish_button_text": openapi.Schema(type=openapi.TYPE_STRING)
                             }
                         ),
-                        # аналогично для request_2..request_10
                     }
                 )
             ),
@@ -261,10 +260,10 @@ class MasterActiveRequestsView(APIView):
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Получаем заявки 'In Progress', максимум 10
+        # Получаем активные заявки, включая QualityControl
         active_requests = ServiceRequest.objects.filter(
-            master=master, 
-            status__in=['In Progress', 'AwaitingClosure']
+            master=master,
+            status__in=['In Progress', 'AwaitingClosure', 'QualityControl']
         ).order_by('-created_at')[:10]
 
         # Если заявок нет
@@ -284,29 +283,35 @@ class MasterActiveRequestsView(APIView):
         for i, req in enumerate(active_requests):
             field_name = f"request_{i+1}"
 
-            date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
-
-            # Формируем HTML-строку с <b>...</b>
-            message_text = (
-                f"<b>Заявка</b> {req.id}\n"
-                f"<b>Дата заявки:</b> {date_str} г.\n"
-                f"<b>Город:</b> {req.city_name or ''}\n"
-                f"<b>Адрес:</b> {req.address or ''}\n"
-                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-                f"<b>Имя:</b> {req.client.name}\n"
-                f"<b>Телефон:</b> {req.client.phone}\n"
-                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-                f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
-                f"<b>Марка:</b> {req.equipment_brand or ''}\n"
-                f"<b>Модель:</b> {req.equipment_model or '-'}\n"
-                f"<b>Комментарий:</b> {req.description or ''}\n"
-                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-                "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика "
-                "только при оказании ремонта. ВНИМАНИЕ! - В случае отказа от ремонта "
-                "- Диагностика и выезд платные (Цену формирует мастер)."
-            )
-
-            finish_button_text = f"Сообщить о завершении {req.id}"
+            if req.status == 'QualityControl':
+                # Текст для заявок со статусом QualityControl
+                message_text = (
+                    f"Заявка под номером {req.amo_crm_lead_id or req.id} находится на стадии проверки "
+                    f"у службы контроля качества."
+                )
+                finish_button_text = ""  # Для этого статуса кнопка не требуется
+            else:
+                # Текст для остальных заявок
+                date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
+                message_text = (
+                    f"<b>Заявка</b> {req.id}\n"
+                    f"<b>Дата заявки:</b> {date_str} г.\n"
+                    f"<b>Город:</b> {req.city_name or ''}\n"
+                    f"<b>Адрес:</b> {req.address or ''}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Имя:</b> {req.client.name}\n"
+                    f"<b>Телефон:</b> {req.client.phone}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
+                    f"<b>Марка:</b> {req.equipment_brand or ''}\n"
+                    f"<b>Модель:</b> {req.equipment_model or '-'}\n"
+                    f"<b>Комментарий:</b> {req.description or ''}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика "
+                    "только при оказании ремонта. ВНИМАНИЕ! - В случае отказа от ремонта "
+                    "- Диагностика и выезд платные (Цену формирует мастер)."
+                )
+                finish_button_text = f"Сообщить о завершении {req.id}"
 
             result[field_name] = {
                 "message_text": message_text,
