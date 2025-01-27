@@ -719,7 +719,7 @@ class AmoCRMWebhookView(APIView):
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
     """
     def post(self, request):
-        # 1) Логируем и парсим данные (как у вас уже есть)
+        # 1) Логируем и парсим данные
         try:
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
@@ -741,13 +741,21 @@ class AmoCRMWebhookView(APIView):
         # 2) Обрабатываем все статусы, пришедшие в webhook
         for lead in status_changes:
             try:
-                lead_id = lead.get('id')
-                new_status_id = lead.get('status_id')
+                lead_id = lead.get('id')  # ID лида из AmoCRM
+                new_status_id = lead.get('status_id')  # Новый статус лида
+
+                # Достаем комментарий оператора по ID поля 748437
+                operator_comment = lead.get('748437', "")
 
                 with transaction.atomic():
+                    # Получаем связанную заявку в нашей базе данных
                     service_request = ServiceRequest.objects.select_for_update().get(
                         amo_crm_lead_id=lead_id
                     )
+
+                    # Сохраняем комментарий оператора в заявку
+                    service_request.crm_operator_comment = operator_comment
+                    service_request.save()
 
                     # Сопоставляем числовой new_status_id со строковым ключом
                     status_name = None
@@ -762,22 +770,20 @@ class AmoCRMWebhookView(APIView):
                         )
                         continue
 
-                    # Теперь у нас есть статус в виде строки, например "AwaitingClosure" или "Closed".
-                    # Логика обновления:
+                    # Логика обновления статусов
                     if status_name in ['AwaitingClosure', 'Closed', 'Completed']:
                         previous_status = service_request.status
-                        service_request.status = status_name  # сохраняем в Django-модели (AwaitingClosure, Closed, etc.)
-                        service_request.amo_status_code = new_status_id  # полезно хранить исходный int-статус в amo
+                        service_request.status = status_name
+                        service_request.amo_status_code = new_status_id
                         service_request.save()
 
                         logger.info(f"ServiceRequest {service_request.id}: status updated "
                                     f"from {previous_status} to '{status_name}' "
                                     f"(amoCRM ID={new_status_id}).")
+
                         if status_name == 'AwaitingClosure':
-                            # Предположим, что заявка должна иметь назначенного мастера
                             if service_request.master and service_request.master.user.telegram_id:
                                 telegram_id_master = service_request.master.user.telegram_id
-                                # Отправляем POST-запрос на sambot
                                 payload = {
                                     "telegram_id": telegram_id_master,
                                     "request_id": str(lead_id)
@@ -795,20 +801,18 @@ class AmoCRMWebhookView(APIView):
                                         )
                                 except Exception as ex:
                                     logger.error(f"Error sending data to sambot: {ex}")
+
                         elif status_name == 'Completed':
-                            # Отправляем нужные поля на https://sambot.ru/reactions/2939784/start
-                            # айди сделки (lead_id), айди мастера, сообщение о штрафе (пустая строка), 
-                            # сумма сделки (service_request.price), прошлый статус
-                            master_id = service_request.master.id if service_request.master else ""
-                            deal_amount = str(service_request.price or "0")
-                            penalty_message = ""  # Пустое поле
+                            master_id = service_request.master.user.telegram_id if service_request.master else ""
+                            deal_amount = (service_request.price or 0)
 
                             payload = {
                                 "request_id": lead_id,
                                 "telegram_id": master_id,
-                                "penalty_message": penalty_message,
+                                "penalty_message": "",
                                 "request_amount": deal_amount,
-                                "previous_status": previous_status
+                                "previous_status": previous_status,
+                                "crm_operator_comment": operator_comment  # Добавляем комментарий в payload
                             }
 
                             try:
@@ -825,7 +829,6 @@ class AmoCRMWebhookView(APIView):
                             except Exception as ex:
                                 logger.error(f"Error sending data (Completed) to sambot: {ex}")
 
-
                     elif status_name == 'Free':
                         previous_status = service_request.status
                         service_request.status = 'Free'
@@ -835,7 +838,6 @@ class AmoCRMWebhookView(APIView):
                         logger.info(f"ServiceRequest {service_request.id}: status updated "
                                     f"from {previous_status} to 'Free'.")
 
-                        # тут ваша логика отправки на внешний сервис
                         payload = {
                             "id": service_request.id,
                             "город_заявки": service_request.city_name,
@@ -847,16 +849,20 @@ class AmoCRMWebhookView(APIView):
                             "комментарий": service_request.description or ""
                         }
 
-                        external_response = requests.post(
-                            'https://sambot.ru/reactions/2890052/start',
-                            json=payload,
-                            timeout=10
-                        )
-                        if external_response.status_code != 200:
-                            logger.error(
-                                f"Failed to send data to external service for ServiceRequest {service_request.id}. "
-                                f"Status code: {external_response.status_code}, Response: {external_response.text}"
+                        try:
+                            external_response = requests.post(
+                                'https://sambot.ru/reactions/2890052/start',
+                                json=payload,
+                                timeout=10
                             )
+                            if external_response.status_code != 200:
+                                logger.error(
+                                    f"Failed to send data to external service for ServiceRequest {service_request.id}. "
+                                    f"Status code: {external_response.status_code}, Response: {external_response.text}"
+                                )
+                        except Exception as ex:
+                            logger.error(f"Error sending data to external service: {ex}")
+
                     else:
                         logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
 

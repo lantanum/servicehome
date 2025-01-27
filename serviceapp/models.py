@@ -84,6 +84,7 @@ class ServiceRequest(models.Model):
 
     start_date = models.DateTimeField(null=True, blank=True, help_text="Дата начала работ")
     end_date = models.DateTimeField(null=True, blank=True, help_text="Дата окончания работ")
+    crm_operator_comment = models.TextField(null=True, blank=True, help_text="Комментарий оператора из AmoCRM")
 
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
