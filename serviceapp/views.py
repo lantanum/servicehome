@@ -661,7 +661,7 @@ class UserProfileView(APIView):
             "city": user.city_name or "",
             "name": user.name or "",
             "phone": user.phone or "",
-            "balance": str(user.balance),
+            "balance": str(int(user.balance)),
             "daily_income": "0",   # заглушка, поменяйте под логику
             "level": "1",          # заглушка
             "referral_count": total_referrals,
