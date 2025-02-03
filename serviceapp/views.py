@@ -34,7 +34,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, Master, ServiceRequest, ServiceType, Settings, Transaction, User
+from .models import EquipmentType, Master, ReferralLink, ServiceRequest, ServiceType, Settings, Transaction, User
 
 logger = logging.getLogger(__name__)
 
@@ -1768,15 +1768,16 @@ class BalanceDepositView(APIView):
             status=status.HTTP_200_OK
         )
 
-
 class BalanceDepositConfirmView(APIView):
     """
-    2. Подтверждает транзакцию пополнения (по transaction_id),
-       переводит её в статус 'Confirmed' и увеличивает баланс мастера.
+    Подтверждает транзакцию пополнения (по transaction_id),
+    переводит её в статус 'Confirmed' и увеличивает баланс мастера.
+    Также начисляет бонусы реферальной системы, но только при первом пополнении.
     """
 
     @swagger_auto_schema(
-        operation_description="Подтверждает ранее созданную транзакцию (transaction_id), меняет её статус на 'Confirmed' и увеличивает баланс мастера.",
+        operation_description="Подтверждает транзакцию пополнения (transaction_id), переводит её в статус 'Confirmed', "
+                              "увеличивает баланс мастера и начисляет реферальные бонусы (ТОЛЬКО ПРИ ПЕРВОМ ПОПОЛНЕНИИ).",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -1789,7 +1790,7 @@ class BalanceDepositConfirmView(APIView):
         ),
         responses={
             200: openapi.Response(
-                description="Транзакция подтверждена, баланс мастера обновлён.",
+                description="Транзакция подтверждена, баланс мастера обновлён, бонусы начислены (если первое пополнение).",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -1799,7 +1800,7 @@ class BalanceDepositConfirmView(APIView):
                 )
             ),
             400: openapi.Response(
-                description="Некорректные данные (transaction_id не указан / неверный формат / транзакция уже подтверждена)",
+                description="Некорректные данные или транзакция уже подтверждена.",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -1808,7 +1809,7 @@ class BalanceDepositConfirmView(APIView):
                 )
             ),
             404: openapi.Response(
-                description="Транзакция не найдена / пользователь не является мастером",
+                description="Транзакция или мастер не найдены.",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -1823,66 +1824,57 @@ class BalanceDepositConfirmView(APIView):
         tx_id = data.get('transaction_id')
 
         if not tx_id:
-            return Response(
-                {"detail": "Поле 'transaction_id' обязательно."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"detail": "Поле 'transaction_id' обязательно."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Пробуем привести к int
         try:
             tx_id = int(tx_id)
         except ValueError:
-            return Response(
-                {"detail": "transaction_id должно быть целым числом."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"detail": "transaction_id должно быть целым числом."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # Находим транзакцию
             try:
                 tx = Transaction.objects.select_for_update().get(id=tx_id)
             except Transaction.DoesNotExist:
-                return Response(
-                    {"detail": "Транзакция не найдена."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+                return Response({"detail": "Транзакция не найдена."}, status=status.HTTP_404_NOT_FOUND)
 
-            # Проверяем, что транзакция Pending
             if tx.status == 'Confirmed':
-                return Response(
-                    {"detail": "Транзакция уже подтверждена."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            # Проверяем, что это Deposit
-            if tx.transaction_type != 'Deposit':
-                return Response(
-                    {"detail": "Транзакция не является пополнением (Deposit)."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"detail": "Транзакция уже подтверждена."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Переводим транзакцию в статус 'Confirmed'
+            if tx.transaction_type != 'Deposit':
+                return Response({"detail": "Транзакция не является пополнением (Deposit)."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Подтверждаем транзакцию
             tx.status = 'Confirmed'
             tx.save()
 
-            # Обновляем баланс мастера
+            # Увеличиваем баланс мастера
             user = tx.user
             master = getattr(user, 'master_profile', None)
             if not master:
-                return Response(
-                    {"detail": "Пользователь не является мастером."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+                return Response({"detail": "Пользователь не является мастером."}, status=status.HTTP_404_NOT_FOUND)
 
             master.balance += tx.amount
             master.save()
 
-            new_balance_str = str(master.balance)
+            # Проверяем, является ли это первое пополнение
+            first_deposit = not Transaction.objects.filter(user=user, transaction_type='Deposit', status='Confirmed').exclude(id=tx.id).exists()
 
-        return Response(
-            {
-                "detail": "Транзакция подтверждена, баланс успешно обновлён.",
-                "new_balance": new_balance_str,
+            # Если это **первое пополнение**, начисляем бонус
+            if first_deposit:
+                ref_1 = user.referrer  # первая линия
+                if ref_1 and ref_1.role == 'Master':
+                    ref_1.master_profile.balance += Decimal(500)
+                    ref_1.master_profile.save()
+
+                    # проверяем вторую линию
+                    ref_2 = ref_1.referrer
+                    if ref_2 and ref_2.role == 'Master':
+                        ref_2.master_profile.balance += Decimal(250)
+                        ref_2.master_profile.save()
+
+            return Response({
+                "detail": "Транзакция подтверждена, баланс мастера обновлён. "
+                          f"{'Бонусы начислены.' if first_deposit else 'Бонусы НЕ начислены (не первое пополнение).' }",
+                "new_balance": str(master.balance),
                 "telegram_id": user.telegram_id
-            },
-            status=status.HTTP_200_OK
-        )
+            }, status=status.HTTP_200_OK)

@@ -52,13 +52,17 @@ class UserRegistrationSerializer(serializers.Serializer):
         Извлекает из "ref226882363_kl" -> '226882363'.
         Возвращает None, если формат не подходит.
         """
-        text = referral_link.strip()  # "ref226882363_kl"
+        text = referral_link.strip()  # например, "ref226882363_kl"
         match = re.match(r"^ref(\d+)_", text)
         if match:
             return match.group(1)  # "226882363"
         return None
 
     def validate(self, attrs):
+        """
+        Валидация полей для Мастера (city_name, service_name и т.д.)
+        и Клиента (обязательно city_name).
+        """
         role = attrs.get('role', 'Client')
         errors = {}
 
@@ -67,9 +71,6 @@ class UserRegistrationSerializer(serializers.Serializer):
             for field in required_fields:
                 if not attrs.get(field):
                     errors[field] = f"Необходимо указать {field.replace('_', ' ')} для мастера."
-
-            # Если необходимо, можно добавить дополнительные проверки для `equipment_type_name`
-            # Например, ограничить длину или разрешенные символы
         elif role == 'Client':
             if not attrs.get('city_name'):
                 errors['city_name'] = "Необходимо указать город для клиента."
@@ -80,12 +81,16 @@ class UserRegistrationSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """
-        1. Ищем пользователя по phone (User.objects.filter(phone=...)). 
-        2. Если нет -> create, иначе -> update.
-        3. Если role=Master, create/update Master.
-        4. Реферальная логика (referral_link -> referral_link, referrer).
-        5. Интеграция с AmoCRM: всегда создаём новый контакт.
+        1) Ищем/создаём/обновляем пользователя по phone.
+        2) Если role=Master, создаём/обновляем MasterProfile.
+        3) Реферальная логика:
+           - Если пользователь новый (is_new) и есть referrer:
+             a) Мастер сразу получает +500 самому себе;
+             b) Клиент сразу получает +500 себе и +500 рефереру, +250 дедушке.
+        4) Интеграция с AmoCRM: создаём контакт.
         """
+        from decimal import Decimal
+
         phone = validated_data['phone']
         name = validated_data['name']
         telegram_id = validated_data.get('telegram_id')
@@ -95,9 +100,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         referral_link = validated_data.pop('referral_link', '')
         service_name = validated_data.pop('service_name', '')
         address = validated_data.pop('address', '')
-        equipment_type_name = validated_data.pop('equipment_type_name', '')  # Получаем тип оборудования
+        equipment_type_name = validated_data.pop('equipment_type_name', '')
 
-        # Парсим реферера
+        # Парсим реферальную строку, чтобы найти telegram_id реферера
         telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
@@ -106,8 +111,7 @@ class UserRegistrationSerializer(serializers.Serializer):
             is_new = (user is None)
 
             if is_new:
-                # Создаём
-                logger.info(f"No user with phone={phone}, creating new.")
+                # Создаём нового
                 user = User.objects.create(
                     phone=phone,
                     name=name,
@@ -117,8 +121,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     city_name=city_name
                 )
             else:
-                # Обновляем
-                logger.info(f"User with phone={phone} found (id={user.id}), updating data.")
+                # Обновляем существующего
                 user.name = name
                 user.telegram_id = telegram_id
                 user.telegram_login = telegram_login
@@ -129,7 +132,7 @@ class UserRegistrationSerializer(serializers.Serializer):
             # Сохраняем сырую реферальную строку
             user.referral_link = referral_link
 
-            # Если есть telegram_ref_id -> ищем реферера
+            # 2) Если есть телеграм-айди реферера -> указываем user.referrer
             if telegram_ref_id:
                 try:
                     referrer_user = User.objects.get(telegram_id=telegram_ref_id)
@@ -138,31 +141,49 @@ class UserRegistrationSerializer(serializers.Serializer):
                     logger.warning(f"Referrer user with telegram_id={telegram_ref_id} not found.")
             user.save()
 
-            # Если role=Master, создаём/обновляем Master
+            # 3) Если роль = Master, создаём/обновляем MasterProfile
             if role == 'Master':
-                # Проверяем, есть ли уже master_profile
                 if not hasattr(user, 'master_profile'):
-                    logger.info(f"Creating Master for user={user.id}")
                     Master.objects.create(
                         user=user,
                         city_name=city_name,
                         service_name=service_name,
                         address=address,
-                        equipment_type_name=equipment_type_name  # Сохраняем тип оборудования как строку
+                        equipment_type_name=equipment_type_name
                     )
                 else:
-                    master = user.master_profile
-                    master.city_name = city_name
-                    master.service_name = service_name
-                    master.address = address
-                    master.equipment_type_name = equipment_type_name  # Обновляем тип оборудования как строку
-                    master.save()
-            else:
-                # Если пользователь был мастером, а теперь стал клиентом
-                # Логика зависит от бизнес-требований
-                pass
+                    master_prof = user.master_profile
+                    master_prof.city_name = city_name
+                    master_prof.service_name = service_name
+                    master_prof.address = address
+                    master_prof.equipment_type_name = equipment_type_name
+                    master_prof.save()
 
-            # Интеграция с AmoCRM: всегда создаём новый контакт
+            # *** РЕФЕРАЛЬНАЯ ЛОГИКА при регистрации ***
+            if is_new and user.referrer:
+                # 1) Ищем 1-ю и 2-ю линию
+                sponsor_1 = user.referrer
+                sponsor_2 = sponsor_1.referrer if sponsor_1 else None
+
+                if role == 'Master':
+                    # Тот, кого пригласили (мастер), получает сразу 500
+                    user.master_profile.balance += Decimal(500)
+                    user.master_profile.save()
+                    # Спонсор 1 и 2 НИЧЕГО сейчас не получают (получат при пополнении)
+                else:
+                    # role = 'Client'
+                    # Тот, кого пригласили (клиент), получает 500
+                    user.balance += Decimal(500)
+                    user.save()
+                    # Спонсор 1 (любого role) получает 500
+                    sponsor_1.balance += Decimal(500)
+                    sponsor_1.save()
+                    # Спонсор 2 (если есть) получает 250
+                    if sponsor_2:
+                        sponsor_2.balance += Decimal(250)
+                        sponsor_2.save()
+
+            # 4) Интеграция с AmoCRM: создаём контакт
             amo_client = AmoCRMClient()
 
             contact_data = {
@@ -180,43 +201,45 @@ class UserRegistrationSerializer(serializers.Serializer):
             # Добавляем Telegram ID
             if user.telegram_id:
                 contact_data["custom_fields_values"].append({
-                    "field_id": 744499,  # ID кастомного поля Telegram ID в AmoCRM
+                    "field_id": 744499,  # кастомное поле Telegram ID в amoCRM
                     "values": [{"value": user.telegram_id}]
                 })
 
             # Добавляем роль
             if user.role:
                 contact_data["custom_fields_values"].append({
-                    "field_id": 744523,  # ID кастомного поля Роль в AmoCRM
+                    "field_id": 744523,  # кастомное поле Роль в amoCRM
                     "values": [{"value": user.role}]
                 })
 
             if service_name:
                 contact_data["custom_fields_values"].append({
-                    "field_id": 744503,  # ID кастомного поля Тип услуги в AmoCRM
+                    "field_id": 744503,  # кастомное поле Услуга
                     "values": [{"value": service_name}]
                 })
-            
+
             if equipment_type_name:
                 contact_data["custom_fields_values"].append({
-                    "field_id": 744495,  # ID кастомного поля Тип оборудования в AmoCRM
+                    "field_id": 744495,
                     "values": [{"value": equipment_type_name}]
                 })
 
+            # Поле "Баланс"
             contact_data["custom_fields_values"].append({
-                "field_id": 744509,  # ID кастомного поля Баланс в AmoCRM
+                "field_id": 744509,  # ID поля Баланс в amoCRM
                 "values": [{"value": 0}]
             })
 
+            # Поле "Рейтинг"
             contact_data["custom_fields_values"].append({
-                "field_id": 744521,  # ID кастомного поля Рейтинг в AmoCRM
+                "field_id": 744521,
                 "values": [{"value": 5}]
             })
 
-            # Добавляем город
+            # Город
             if user.city_name:
                 contact_data["custom_fields_values"].append({
-                    "field_id": 744219,  # ID кастомного поля Город в AmoCRM
+                    "field_id": 744219,
                     "values": [{"value": user.city_name}]
                 })
 
@@ -224,12 +247,13 @@ class UserRegistrationSerializer(serializers.Serializer):
                 created_contact = amo_client.create_contact(contact_data)
                 user.amo_crm_contact_id = created_contact['id']
                 user.save()
-                logger.info(f"Создан новый контакт в AmoCRM (id={created_contact['id']}) для пользователя id={user.id}")
+                logger.info(f"Создан новый контакт в amoCRM (id={created_contact['id']}) для user_id={user.id}")
             except Exception as e:
                 logger.error("Ошибка при создании контакта в AmoCRM: %s", e, exc_info=True)
                 raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
 
         return user
+
 
 class ServiceRequestCreateSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")
