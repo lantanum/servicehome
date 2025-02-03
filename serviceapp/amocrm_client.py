@@ -4,6 +4,7 @@ import json
 import requests
 import logging
 from django.conf import settings
+from serviceapp.utils import get_amocrm_bearer_token
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class AmoCRMClient:
         """
         Предполагаем, что токен задан в settings.py или в переменных окружения.
         """
-        self.bearer_token = settings.AMOCRM_BEARER_TOKEN  # В settings.py хранится ваш Bearer-токен
+        self.bearer_token = get_amocrm_bearer_token()  # В settings.py хранится ваш Bearer-токен
         self.subdomain = settings.AMOCRM_SUBDOMAIN        # Например, "servicecentru"
         self.base_url = f'https://{self.subdomain}.amocrm.ru/api/v4'  # или api-b.amocrm.ru, если нужно
 

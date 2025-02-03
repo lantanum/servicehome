@@ -582,6 +582,30 @@ class CloseRequestView(APIView):
             status=status.HTTP_200_OK
         )
         
+
+def get_referral_count_1_line(user: User) -> int:
+    """
+    Количество рефералов, которых пригласил текущий user напрямую.
+    Т.е. count() всех ReferralLink, у которых referrer_user == user.
+    """
+    return user.referrer_links.count()
+def get_referral_count_2_line(user: User) -> int:
+    """
+    Количество "внуков" – тех, у кого referrer_user == (кто-то из 1-й линии).
+    """
+    count_2_line = 0
+    # Все прямые рефералы (1-я линия)
+    first_line = user.referrer_links.all()  # QuerySet ReferralLink, где referrer_user=user
+
+    # Для каждого ReferralLink из first_line, возьмём referred_user
+    # и посмотрим, сколько у него есть "referrer_links" (т. е. 1-я линия для него).
+    for link in first_line:
+        child_user = link.referred_user
+        count_2_line += child_user.referrer_links.count()
+    return count_2_line
+
+
+
 class UserProfileView(APIView):
     """
     API-эндпоинт для получения профиля пользователя по telegram_id.
@@ -592,7 +616,6 @@ class UserProfileView(APIView):
         responses={
             200: openapi.Response(
                 description="Успешный ответ с данными профиля пользователя",
-                schema=UserProfileSerializer
             ),
             400: openapi.Response(
                 description="Некорректные данные",
@@ -615,25 +638,39 @@ class UserProfileView(APIView):
         }
     )
     def post(self, request):
-        # Валидируем входные данные
         serializer = UserProfileRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         telegram_id = serializer.validated_data['telegram_id']
         
-        # Пытаемся найти пользователя по telegram_id с предзагрузкой рефералов
         try:
-            user = User.objects.select_related('master').prefetch_related('referral_links_received', 'referral_links_given').get(telegram_id=telegram_id)
+            # Просто находим пользователя (клиента или мастера) по telegram_id
+            user = User.objects.get(telegram_id=telegram_id)
         except User.DoesNotExist:
-            return Response(
-                {"detail": "Пользователь с указанным telegram_id не найден."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Сериализуем данные профиля пользователя
-        profile_serializer = UserProfileSerializer(user)
-        return Response(profile_serializer.data, status=status.HTTP_200_OK)
+            return Response({"detail": "Пользователь с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Подсчёт рефералов
+        count_1_line = get_referral_count_1_line(user)
+        count_2_line = get_referral_count_2_line(user)
+        total_referrals = count_1_line + count_2_line
+
+        # Формируем ответ (city, name, phone, balance, daily_income, level и т.д.)
+        response_data = {
+            "city": user.city_name or "",
+            "name": user.name or "",
+            "phone": user.phone or "",
+            "balance": str(user.balance),
+            "daily_income": "0",   # заглушка, поменяйте под логику
+            "level": "1",          # заглушка
+            "referral_count": total_referrals,
+            "referral_count_1_line": count_1_line,
+            "referral_count_2_line": count_2_line
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
 
 

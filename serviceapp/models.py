@@ -165,5 +165,10 @@ class Settings(models.Model):
         help_text="Процент комиссии, который будет списываться с суммы сделки."
     )
 
+    amocrm_bearer_token = models.TextField(
+        help_text="Токен для аутентификации в AmoCRM",
+        default=''
+    )
+
     def __str__(self):
         return f"Настройки системы (Комиссия: {self.comission}%)"

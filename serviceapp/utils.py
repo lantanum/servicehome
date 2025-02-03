@@ -99,3 +99,15 @@ def decimal_to_str_no_trailing_zeros(value: Decimal | None) -> str:
         # целое число
         return str(value.to_integral())
     return str(value)
+
+
+
+from serviceapp.models import Settings
+
+def get_amocrm_bearer_token():
+    """
+    Получает актуальный токен AmoCRM из базы данных.
+    Если токена нет, возвращает пустую строку.
+    """
+    settings = Settings.objects.first()
+    return settings.amocrm_bearer_token if settings else ''
