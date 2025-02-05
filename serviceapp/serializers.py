@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class UserRegistrationSerializer(serializers.Serializer):
     """
-    Сериализатор для регистрации/обновления пользователя (Client или Master) по номеру телефона.
+    Сериализатор для регистрации/обновления пользователя по номеру телефона.
     Всегда создаёт новый контакт в AmoCRM, если пользователь новый.
     Принимает referral_link (содержимое команды /start ref...).
     """
@@ -42,7 +42,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default='Client')
     city_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
-    referral_link = serializers.CharField(required=False, allow_blank=True, help_text="Содержимое команды /start (реф. строка)")
+    referral_link = serializers.CharField(required=False, allow_blank=True, help_text="Содержимое команды /start (ref...)")
     service_name = serializers.CharField(required=False, allow_blank=True, help_text="Услуга мастера")
     address = serializers.CharField(required=False, allow_blank=True, help_text="Адрес мастера")
     equipment_type_name = serializers.CharField(required=False, allow_blank=True, help_text="Тип оборудования мастера")
@@ -53,19 +53,13 @@ class UserRegistrationSerializer(serializers.Serializer):
         либо из "ref844860156_kl" -> '844860156'.
         """
         text = referral_link.strip()
-    
         # Регулярка учитывает, что может быть "/start " в начале
         match = re.match(r"^(/start\s+)?ref(\d+)_", text)
         if match:
             return match.group(2)  # вторая группа — это \d+
         return None
 
-
     def validate(self, attrs):
-        """
-        Валидация полей для Мастера (city_name, service_name, address, equipment_type_name)
-        и для Клиента (требуем city_name).
-        """
         role = attrs.get('role', 'Client')
         errors = {}
 
@@ -115,7 +109,6 @@ class UserRegistrationSerializer(serializers.Serializer):
                     city_name=city_name
                 )
             else:
-                # Обновляем существующего
                 logger.info(f"User with phone={phone} found (id={user.id}), updating.")
                 user.name = name
                 user.telegram_id = telegram_id
@@ -136,8 +129,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     user.referrer = referrer_user
                     user.save()
 
-                    # Создаём (или находим) запись в ReferralLink - связь между user и referrer
-                    # Если не хотите дубли - используйте get_or_create
+                    # Создаём запись в ReferralLink
                     ReferralLink.objects.create(
                         referred_user=user,
                         referrer_user=referrer_user
@@ -163,35 +155,32 @@ class UserRegistrationSerializer(serializers.Serializer):
                     master_prof.address = address
                     master_prof.equipment_type_name = equipment_type_name
                     master_prof.save()
-            else:
-                # Если пользователь был мастером, а теперь клиент... (зависит от бизнес-логики)
-                pass
 
             # 3) Реферальные бонусы (только если пользователь новый)
             if is_new and referrer_user:
-                # Ищем "дедушку" 2-й линии
                 sponsor_1 = referrer_user
                 sponsor_2 = sponsor_1.referrer if sponsor_1 else None
 
                 if role == 'Master':
                     # Мастер сразу получает +500
                     if hasattr(user, 'master_profile'):
-                        user.master_profile.balance += Decimal('500')
+                        # используем Decimal
+                        user.master_profile.balance = user.master_profile.balance + Decimal('500')
                         user.master_profile.save()
                     # Рефереры пока ничего не получают (по условию: при пополнении)
                 else:
                     # role = 'Client'
-                    # Клиенту +500
-                    user.balance += Decimal('500')
+                    # Клиенту +500 (Decimal)
+                    user.balance = user.balance + Decimal('500')
                     user.save()
 
                     # Рефереру (1-я линия) +500
-                    sponsor_1.balance += Decimal('500')
+                    sponsor_1.balance = sponsor_1.balance + Decimal('500')
                     sponsor_1.save()
 
                     # 2-я линия +250
                     if sponsor_2:
-                        sponsor_2.balance += Decimal('250')
+                        sponsor_2.balance = sponsor_2.balance + Decimal('250')
                         sponsor_2.save()
 
             # 4) Интеграция с AmoCRM: создаём контакт
@@ -256,6 +245,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
 
         return user
+
 
 
 

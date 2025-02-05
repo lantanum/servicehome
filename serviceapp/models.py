@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 class User(models.Model):
     ROLE_CHOICES = [
@@ -22,7 +23,12 @@ class User(models.Model):
 
     # Ссылка на реферера, если нужно хранить, кто пригласил
     referrer = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, help_text="Кто пригласил пользователя")
-    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, help_text="Баланс клиента")
+    balance = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=Decimal('0.00'),  # <-- Так лучше
+        help_text="Баланс клиента"
+    )
 
 
     def __str__(self):
