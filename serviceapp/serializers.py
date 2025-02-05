@@ -49,14 +49,17 @@ class UserRegistrationSerializer(serializers.Serializer):
 
     def parse_referral(self, referral_link: str) -> str:
         """
-        Извлекает из "ref226882363_kl" -> '226882363'.
-        Возвращает None, если формат не подходит.
+        Извлекает из "/start ref844860156_kl" -> '844860156',
+        либо из "ref844860156_kl" -> '844860156'.
         """
         text = referral_link.strip()
-        match = re.match(r"^ref(\d+)_", text)
+    
+        # Регулярка учитывает, что может быть "/start " в начале
+        match = re.match(r"^(/start\s+)?ref(\d+)_", text)
         if match:
-            return match.group(1)  # "226882363"
+            return match.group(2)  # вторая группа — это \d+
         return None
+
 
     def validate(self, attrs):
         """

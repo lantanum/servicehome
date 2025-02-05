@@ -55,3 +55,33 @@ LINE 1: ...", "serviceapp_servicerequest"."amo_status_code", "serviceap...
 [2025-01-11 19:04:49,301] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-11 19:14:19,888] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
 [2025-01-11 19:16:10,934] INFO serviceapp.amocrm_client Lead 24761877 updated successfully
+[2025-02-05 23:50:44,448] INFO serviceapp.serializers No user with phone=+77057190585, creating new.
+[2025-02-05 23:50:45,232] DEBUG serviceapp.amocrm_client Creating contact in AmoCRM. URL: https://servicecentru.amocrm.ru/api/v4/contacts, Data: {'name': 'Тестов Тест Тестович', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+77057190585', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': '517608026'}]}, {'field_id': 744523, 'values': [{'value': 'Client'}]}, {'field_id': 744509, 'values': [{'value': 0}]}, {'field_id': 744521, 'values': [{'value': 5}]}, {'field_id': 744219, 'values': [{'value': 'Москва'}]}]}
+[2025-02-05 23:50:47,000] ERROR serviceapp.amocrm_client Failed to create contact in AmoCRM. Status code: 401, Response text: {"title":"Unauthorized","type":"https://httpstatus.es/401","status":401,"detail":"Неверный логин или пароль"}, Tried data: {'name': 'Тестов Тест Тестович', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+77057190585', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': '517608026'}]}, {'field_id': 744523, 'values': [{'value': 'Client'}]}, {'field_id': 744509, 'values': [{'value': 0}]}, {'field_id': 744521, 'values': [{'value': 5}]}, {'field_id': 744219, 'values': [{'value': 'Москва'}]}]}
+[2025-02-05 23:50:47,001] ERROR serviceapp.serializers Ошибка при создании контакта в AmoCRM: 401 Client Error: Unauthorized for url: https://servicecentru.amocrm.ru/api/v4/contacts
+Traceback (most recent call last):
+  File "C:\Users\akbar\OneDrive\Рабочий стол\Home Service Bot\myproject\serviceapp\serializers.py", line 247, in create
+    created_contact = amo_client.create_contact(contact_data)
+  File "C:\Users\akbar\OneDrive\Рабочий стол\Home Service Bot\myproject\serviceapp\amocrm_client.py", line 59, in create_contact
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\akbar\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://servicecentru.amocrm.ru/api/v4/contacts
+[2025-02-05 23:52:46,659] INFO serviceapp.serializers No user with phone=+77057190585, creating new.
+[2025-02-05 23:52:47,416] DEBUG serviceapp.amocrm_client Creating contact in AmoCRM. URL: https://servicecentru.amocrm.ru/api/v4/contacts, Data: {'name': 'Тестов Тест Тестович', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+77057190585', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': '517608026'}]}, {'field_id': 744523, 'values': [{'value': 'Client'}]}, {'field_id': 744509, 'values': [{'value': 0}]}, {'field_id': 744521, 'values': [{'value': 5}]}, {'field_id': 744219, 'values': [{'value': 'Москва'}]}]}
+[2025-02-05 23:52:47,896] ERROR serviceapp.amocrm_client Failed to create contact in AmoCRM. Status code: 401, Response text: {"title":"Unauthorized","type":"https://httpstatus.es/401","status":401,"detail":"Неверный логин или пароль"}, Tried data: {'name': 'Тестов Тест Тестович', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+77057190585', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': '517608026'}]}, {'field_id': 744523, 'values': [{'value': 'Client'}]}, {'field_id': 744509, 'values': [{'value': 0}]}, {'field_id': 744521, 'values': [{'value': 5}]}, {'field_id': 744219, 'values': [{'value': 'Москва'}]}]}
+[2025-02-05 23:52:47,897] ERROR serviceapp.serializers Ошибка при создании контакта в AmoCRM: 401 Client Error: Unauthorized for url: https://servicecentru.amocrm.ru/api/v4/contacts
+Traceback (most recent call last):
+  File "C:\Users\akbar\OneDrive\Рабочий стол\Home Service Bot\myproject\serviceapp\serializers.py", line 247, in create
+    created_contact = amo_client.create_contact(contact_data)
+  File "C:\Users\akbar\OneDrive\Рабочий стол\Home Service Bot\myproject\serviceapp\amocrm_client.py", line 59, in create_contact
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\akbar\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://servicecentru.amocrm.ru/api/v4/contacts
+[2025-02-05 23:55:19,974] INFO serviceapp.serializers No user with phone=+77057190585, creating new.
+[2025-02-05 23:55:20,724] DEBUG serviceapp.amocrm_client Creating contact in AmoCRM. URL: https://servicecentru.amocrm.ru/api/v4/contacts, Data: {'name': 'Тестов Тест Тестович', 'custom_fields_values': [{'field_code': 'PHONE', 'values': [{'value': '+77057190585', 'enum_code': 'WORK'}]}, {'field_id': 744499, 'values': [{'value': '517608026'}]}, {'field_id': 744523, 'values': [{'value': 'Client'}]}, {'field_id': 744509, 'values': [{'value': 0}]}, {'field_id': 744521, 'values': [{'value': 5}]}, {'field_id': 744219, 'values': [{'value': 'Москва'}]}]}
+[2025-02-05 23:55:21,709] INFO serviceapp.amocrm_client Contact created in AmoCRM with ID: 29504614
+[2025-02-05 23:55:21,959] INFO serviceapp.serializers Created contact in AmoCRM (id=29504614) for user_id=3
