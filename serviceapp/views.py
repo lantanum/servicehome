@@ -331,7 +331,7 @@ class AssignRequestView(APIView):
             type=openapi.TYPE_OBJECT,
             properties={
                 'telegram_id': openapi.Schema(type=openapi.TYPE_STRING, description="Telegram ID мастера"),
-                'request_id': openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки")
+                'request_id': openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки (внутренний)"),
             },
             required=['telegram_id', 'request_id']
         ),
@@ -341,36 +341,20 @@ class AssignRequestView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном присвоении заявки')
+                        'message_for_master': openapi.Schema(type=openapi.TYPE_STRING),
+                        'message_for_admin': openapi.Schema(type=openapi.TYPE_STRING),
+                        'finish_button_text': openapi.Schema(type=openapi.TYPE_STRING),
                     }
                 )
             ),
             400: openapi.Response(
-                description="Некорректные данные или заявка уже назначена",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
+                description="Некорректные данные или заявка уже назначена (детали в поле detail).",
             ),
             404: openapi.Response(
                 description="Пользователь или заявка не найдены",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
             ),
             500: openapi.Response(
                 description="Внутренняя ошибка сервера",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
             )
         }
     )
@@ -384,120 +368,165 @@ class AssignRequestView(APIView):
 
         try:
             with transaction.atomic():
+                # 1) Ищем мастера
                 master_user = User.objects.select_for_update().get(telegram_id=telegram_id)
                 master = master_user.master_profile
 
-                service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
-
-                
-
-                # Запоминаем исходный статус до изменения
-                original_status = service_request.status
-
-                if original_status == 'Free':
-                    # 1) Выполняем привязку заявки к мастеру и переводим в In Progress
-                    service_request.master = master
-                    service_request.status = 'In Progress'
-                    service_request.start_date = timezone.now() 
-                    service_request.save()
-
-                    # 2) Обновляем в amoCRM (статус и контакт)
-                    lead_id = service_request.amo_crm_lead_id
-                    master_contact_id = master_user.amo_crm_contact_id
-
-                    if not lead_id or not master_contact_id:
-                        return JsonResponse(
-                            {'error': 'AmoCRM IDs for request or master are missing'}, 
-                            status=400
-                        )
-
-                    amocrm_client = AmoCRMClient()
-
-                    category_service = master.service_name or ""
-                    equipment_type_value = master.equipment_type_name or ""
-                    # И т.д. для остальных полей...
-
-                    # Вызов обновления лида с добавлением кастомных полей
-                    amocrm_client.update_lead(
-                        lead_id,
-                        {
-                            "status_id": STATUS_MAPPING["In Progress"],
-                            "custom_fields_values": [
-                                { 
-                                    "field_id": 748205,  # категория услуг мастера
-                                    "values": [{"value": category_service}]
-                                },
-                                {
-                                    "field_id": 748321,  # тип оборудования мастера
-                                    "values": [{"value": equipment_type_value}]
-                                },
-                                {
-                                    "field_id": 748327,  # кол-во рефералов
-                                    "values": [{"value": "подходящее значение"}]
-                                },
-                                {
-                                    "field_id": 748213,  # процент затрат с работ мастера
-                                    "values": [{"value": "подходящее значение"}]
-                                },
-                                {
-                                    "field_id": 748329,  # баланс мастера
-                                    "values": [{"value": str(master.balance)}]
-
-                                }
-                            ]
-                        }
-                    )
-
-
-                    # Прикрепляем контакт
-                    amocrm_client.attach_contact_to_lead(lead_id, master_contact_id)
-
-                    # -- Формируем расширенный ответ: несмотря на то,
-                    #    что в базе уже стал "In Progress",
-                    #    отдать в JSON именно "Free" + нужные поля.
-
-                    status_id = STATUS_MAPPING.get('Free', None)
-                    created_date_str = (service_request.created_at.strftime('%d.%m.%Y')
-                                        if service_request.created_at else None)
-
-                    # Город отдельно
-                    city_name = service_request.city_name or ""
-
-                    # Адрес: только первое слово
-                    raw_address = service_request.address or ""
-                    address_parts = raw_address.strip().split()
-                    short_address = address_parts[0] if address_parts else ""
-
-                    response_data = {
-                        "status_id": status_id,         # числовой ID статуса 'Free'
-                        "request_id": service_request.id,
-                        "request_date": created_date_str,
-                        "city_name": city_name,
-                        "address": raw_address,
-                        "short_address": short_address,
-                        "client_telegram_id": service_request.client.telegram_id,
-                        "client_name": service_request.client.name,
-                        "client_phone": service_request.client.phone,
-                        "equipment_type": service_request.equipment_type,
-                        "equipment_brand": service_request.equipment_brand,
-                        "equipment_model": service_request.equipment_model,
-                        "comment": service_request.description,
-                    }
-                    return JsonResponse(response_data, status=200)
-
-                elif original_status == 'In Progress':
-                    # Если заявка уже 'In Progress', ничего не меняем,
-                    # просто отвечаем status_id
-                    status_id = STATUS_MAPPING.get('In Progress', None)
-                    return JsonResponse({"status_id": status_id}, status=200)
-
-                else:
-                    # Если нужно, можно выбросить ошибку, 
-                    # или обрабатывать "Open"/"Cancelled" и т. д. особым образом
+                # (1) Проверка баланса
+                if master_user.balance < 0:
                     return JsonResponse(
-                        {"detail": f"Заявка в статусе {original_status}, обработка не предусмотрена."},
+                        {"detail": "У вас отрицательный баланс, пополните баланс, чтобы продолжить получать заявки"},
                         status=400
                     )
+
+                # 2) Получаем настройки (лимиты заявок)
+                settings_obj = Settings.objects.first()
+                if not settings_obj:
+                    max_req_l1, max_req_l2, max_req_l3 = 1, 3, 5
+                else:
+                    max_req_l1 = settings_obj.max_requests_level1
+                    max_req_l2 = settings_obj.max_requests_level2
+                    max_req_l3 = settings_obj.max_requests_level3
+
+                level = master.level or 1
+                if level == 1:
+                    max_requests = max_req_l1
+                elif level == 2:
+                    max_requests = max_req_l2
+                elif level == 3:
+                    max_requests = max_req_l3
+                else:
+                    max_requests = 9999
+
+                # (2) Проверка лимита заявок (In Progress)
+                active_count = ServiceRequest.objects.filter(
+                    master=master,
+                    status__in=['In Progress', 'AwaitingClosure', 'QualityControl']
+                ).count()
+                if active_count >= max_requests:
+                    return JsonResponse(
+                        {
+                            "detail": (
+                                "У вас уже есть активные заявки, сначала завершите их.\n"
+                                "Чтобы увидеть заявки в работе, нажмите кнопку «Заявки в работе»."
+                            )
+                        },
+                        status=400
+                    )
+
+                # 3) Находим заявку
+                service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
+                original_status = service_request.status
+
+                # (3) Проверка, свободна ли заявка
+                if original_status != 'Free':
+                    return JsonResponse(
+                        {"detail": "Данную заявку уже выполняет другой мастер"},
+                        status=400
+                    )
+
+                # ---- Если все проверки пройдены, переводим заявку в работу ----
+                service_request.master = master
+                service_request.status = 'In Progress'
+                service_request.start_date = timezone.now()
+                service_request.save()
+
+                # Обновляем сделку в amoCRM
+                lead_id = service_request.amo_crm_lead_id
+                if not lead_id or not master_user.amo_crm_contact_id:
+                    return JsonResponse(
+                        {'error': 'AmoCRM IDs for request or master are missing'},
+                        status=400
+                    )
+                amocrm_client = AmoCRMClient()
+                category_service = master.service_name or ""
+                equipment_type_value = master.equipment_type_name or ""
+
+                amocrm_client.update_lead(
+                    lead_id,
+                    {
+                        "status_id": STATUS_MAPPING["In Progress"],
+                        "custom_fields_values": [
+                            {
+                                "field_id": 748205,
+                                "values": [{"value": category_service}]
+                            },
+                            {
+                                "field_id": 748321,
+                                "values": [{"value": equipment_type_value}]
+                            },
+                            {
+                                "field_id": 748327,
+                                "values": [{"value": "подходящее значение"}]
+                            },
+                            {
+                                "field_id": 748213,
+                                "values": [{"value": "подходящее значение"}]
+                            },
+                            {
+                                "field_id": 748329,
+                                "values": [{"value": str(master.balance)}]
+                            }
+                        ]
+                    }
+                )
+                amocrm_client.attach_contact_to_lead(lead_id, master_user.amo_crm_contact_id)
+
+                # Формируем три нужных поля: два сообщения и текст кнопки
+                created_date_str = (
+                    service_request.created_at.strftime('%d.%m.%Y')
+                    if service_request.created_at
+                    else None
+                )
+                city_name = service_request.city_name or ""
+                raw_address = service_request.address or ""
+                client_user = service_request.client
+                amo_id = lead_id or service_request.id
+
+                message_for_master = (
+                    f"<b>Заявка</b> {amo_id}\n"
+                    f"<b>Дата заявки:</b> {created_date_str}\n"
+                    f"<b>Город:</b> {city_name}\n"
+                    f"<b>Адрес:</b> {raw_address}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Имя:</b> {client_user.name}\n"
+                    f"<b>Тел.:</b> {client_user.phone}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Тип оборудования:</b> {service_request.equipment_type or ''}\n"
+                    f"<b>Марка:</b> {service_request.equipment_brand or ''}\n"
+                    f"<b>Модель:</b> {service_request.equipment_model or ''}\n"
+                    f"<b>Комментарий:</b> {service_request.description or ''}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    "Бесплатный выезд и диагностика* - Бесплатный выезд и диагностика "
+                    "только при оказании ремонта. ВНИМАНИЕ! - В случае отказа от ремонта "
+                    "- Диагностика и выезд платные (Цену формирует мастер)."
+                )
+
+                message_for_admin = (
+                    f"<b>Заявка</b> {service_request.id}\n"
+                    f"<b>Дата заявки:</b> {created_date_str}\n"
+                    f"<b>Город:</b> {city_name}\n"
+                    f"<b>Адрес:</b> {raw_address}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Имя:</b> {client_user.name}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Тип оборудования:</b> {service_request.equipment_type or ''}\n"
+                    f"<b>Комментарий:</b> {service_request.description or ''}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n\n"
+                    f"<b>Взял мастер</b> {master_user.name}\n"
+                    f"{master_user.phone}\n"
+                    f"<b>ID</b> = {master_user.id}"
+                )
+
+                finish_button_text = f"Сообщить о завершении {amo_id}"
+
+                # Отдаём три поля в JSON
+                response_data = {
+                    "message_for_master": message_for_master,
+                    "message_for_admin": message_for_admin,
+                    "finish_button_text": finish_button_text
+                }
+                return JsonResponse(response_data, status=200)
 
         except User.DoesNotExist:
             return JsonResponse(
@@ -515,7 +544,6 @@ class AssignRequestView(APIView):
                 {"detail": "Произошла ошибка при присвоении заявки."},
                 status=500
             )
-
 
 
 class CloseRequestView(APIView):
@@ -762,7 +790,6 @@ class AmoCRMWebhookView(APIView):
     """
     def post(self, request):
         try:
-            # 1) Логируем и парсим данные
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
         except Exception as e:
@@ -780,26 +807,21 @@ class AmoCRMWebhookView(APIView):
         embedded = serializer.validated_data.get('leads', {})
         status_changes = embedded.get('status', [])
 
-        # 2) Обрабатываем все статусы, пришедшие в webhook
         for lead in status_changes:
             try:
-                lead_id = lead.get('id')  # ID лида из AmoCRM
-                new_status_id = lead.get('status_id')  # Новый статус лида
-
-                # Достаем комментарий оператора по ID поля 748437
+                lead_id = lead.get('id')
+                new_status_id = lead.get('status_id')
                 operator_comment = lead.get('748437', "")
 
                 with transaction.atomic():
-                    # Получаем связанную заявку в нашей базе данных
                     service_request = ServiceRequest.objects.select_for_update().get(
                         amo_crm_lead_id=lead_id
                     )
 
-                    # Сохраняем комментарий оператора в заявку
                     service_request.crm_operator_comment = operator_comment
                     service_request.save()
 
-                    # Сопоставляем числовой new_status_id со строковым ключом
+                    # Ищем статус-строку
                     status_name = None
                     for k, v in STATUS_MAPPING.items():
                         if v == new_status_id:
@@ -812,7 +834,6 @@ class AmoCRMWebhookView(APIView):
                         )
                         continue
 
-                    # Логика обновления статусов
                     if status_name in ['AwaitingClosure', 'Closed', 'Completed']:
                         previous_status = service_request.status
                         service_request.status = status_name
@@ -845,42 +866,13 @@ class AmoCRMWebhookView(APIView):
                                     logger.error(f"Error sending data to sambot: {ex}")
 
                         elif status_name == 'Completed':
-                            # Рассчитываем комиссию
-                            deal_amount = service_request.price or 0
-                            settings = Settings.objects.first()
-                            if settings:
-                                comission_percentage = settings.comission
-                            else:
-                                comission_percentage = 0.0  # По умолчанию комиссия 0%
-
-                            comission_amount = deal_amount * comission_percentage / 100
-                            if service_request.master and service_request.master.user:
-                                service_request.master.user.balance -= comission_amount
-                                service_request.master.user.save()
-
-                            payload = {
-                                "request_id": lead_id,
-                                "telegram_id": service_request.master.user.telegram_id if service_request.master else "",
-                                "penalty_message": "",
-                                "request_amount": deal_amount,
-                                "comission_amount": comission_amount,
-                                "previous_status": previous_status,
-                                "crm_operator_comment": operator_comment
-                            }
-
-                            try:
-                                response_sambot = requests.post(
-                                    'https://sambot.ru/reactions/2939784/start',
-                                    json=payload,
-                                    timeout=10
-                                )
-                                if response_sambot.status_code != 200:
-                                    logger.error(
-                                        f"Failed to send data (Completed) for Request {service_request.id}. "
-                                        f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
-                                    )
-                            except Exception as ex:
-                                logger.error(f"Error sending data (Completed) to sambot: {ex}")
+                           handle_completed_deal(
+                               service_request=service_request,
+                               operator_comment=operator_comment,
+                               previous_status=previous_status,
+                               lead_id=lead_id
+                           )
+                        
 
                     elif status_name == 'Free':
                         previous_status = service_request.status
@@ -928,6 +920,160 @@ class AmoCRMWebhookView(APIView):
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
 
+
+
+def handle_completed_deal(service_request, operator_comment, previous_status, lead_id):
+    """
+    Обработка сделки со статусом 'Completed':
+    1) Считаем комиссию
+    2) Списываем комиссию
+    3) Отправляем POST на sambot
+    4) Пересчитываем уровень мастера (повышение / понижение)
+    """
+    from decimal import Decimal
+
+    # Сумма сделки
+    deal_amount = service_request.price or Decimal('0.00')
+
+    # Получаем Master (если нет мастера - пропускаем)
+    master_profile = service_request.master
+    if not master_profile:
+        logger.warning("ServiceRequest %s: no master assigned, skipping commission", service_request.id)
+        return
+
+    # Текущий уровень
+    master_level = master_profile.level
+
+    # 1) Комиссия из Settings
+    settings_obj = Settings.objects.first()
+    if not settings_obj:
+        logger.warning("No Settings found! Commission = 0 by default.")
+        commission_percentage = Decimal('0.0')
+    else:
+        if master_level == 1:
+            commission_percentage = settings_obj.commission_level1
+        elif master_level == 2:
+            commission_percentage = settings_obj.commission_level2
+        elif master_level == 3:
+            commission_percentage = settings_obj.commission_level3
+        else:
+            commission_percentage = Decimal('0.0')
+
+    # 2) Считаем комиссию
+    from decimal import Decimal
+    commission_amount = deal_amount * commission_percentage / Decimal('100')
+
+    # 3) Списываем с баланса (профиль мастера → user)
+    if master_profile.user:
+        master_profile.user.balance -= commission_amount
+        master_profile.user.save()
+
+    # 4) Отправляем POST на sambot
+    payload = {
+        "request_id": lead_id,
+        "telegram_id": master_profile.user.telegram_id if master_profile else "",
+        "penalty_message": "",
+        "request_amount": deal_amount,
+        "comission_amount": commission_amount,
+        "previous_status": previous_status,
+        "crm_operator_comment": operator_comment
+    }
+    try:
+        response_sambot = requests.post(
+            'https://sambot.ru/reactions/2939784/start',
+            json=payload,
+            timeout=10
+        )
+        if response_sambot.status_code != 200:
+            logger.error(
+                f"Failed to send data (Completed) for Request {service_request.id}. "
+                f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
+            )
+    except Exception as ex:
+        logger.error(f"Error sending data (Completed) to sambot: {ex}")
+
+    # 5) Пересчитываем уровень мастера после сделки
+    recalc_master_level(master_profile)
+
+
+
+def recalc_master_level(master_profile):
+    """
+    Пересчитывает уровень мастера на основе:
+    1) (Completed - Closed) заявок
+    2) Сколько мастер пригласил мастеров, у которых есть хотя бы один Confirmed депозит.
+    3) Правила повышения/понижения уровня (1->2->3)
+    """
+
+    user = master_profile.user
+    current_level = master_profile.level
+
+    # 1) Подсчёт заявок
+    completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
+    closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+    difference = completed_count - closed_count
+
+    # 2) Подсчёт, сколько мастер пригласил Мастеров, имеющих хотя бы 1 пополнение
+    invited_with_deposit = count_invited_masters_with_deposit(user)
+
+    # Условия для уровней:
+    #   Уровень 2: difference >= 10, invited_with_deposit >= 1
+    #   Уровень 3: difference >= 30, invited_with_deposit >= 3
+    #
+    # Для понижения: если текущий уровень 2, но difference < 8 (80% от 10)
+    #                или invited_with_deposit < 1, => падаем на 1
+    #
+    #               если текущий уровень 3, но difference < 24 (80% от 30)
+    #                или invited_with_deposit < 3 => пробуем условия уровня 2,
+    #                если тоже не подходит => уровень 1.
+
+    new_level = current_level  # по умолчанию оставляем
+
+    # === Проверяем повышение ===
+    # Сначала проверяем возможность достичь 3
+    if difference >= 30 and invited_with_deposit >= 3:
+        new_level = 3
+    # иначе пробуем достичь 2
+    elif difference >= 10 and invited_with_deposit >= 1:
+        new_level = 2
+    else:
+        new_level = 1
+
+    # === Проверяем «не дотягивает» ли до текущего уровня (понижение) ===
+    # Если мастер уже 3, но difference <24 или invited_with_deposit<3 => пробуем уровень 2, если не выйдет ->1
+    if current_level == 3:
+        if difference < 24 or invited_with_deposit < 3:
+            # пытаемся удержаться на уровне 2
+            if difference >= 10 and invited_with_deposit >= 1:
+                new_level = 2
+            else:
+                new_level = 1
+    # Если мастер 2, но difference <8 или invited_with_deposit <1 => уровень 1
+    elif current_level == 2:
+        if difference < 8 or invited_with_deposit < 1:
+            new_level = 1
+
+    # Сохраняем, если изменилось
+    if new_level != current_level:
+        master_profile.level = new_level
+        master_profile.save()
+        logger.info(f"Master {master_profile.id} level changed from {current_level} to {new_level}.")
+
+def count_invited_masters_with_deposit(user: User) -> int:
+    """
+    Считает, сколько Мастеров (role='Master'), приглашённых данным user,
+    имеют хотя бы один Confirmed Deposit.
+    """
+    # 1) Находим всех рефералов user с ролью 'Master'
+    invited_masters = User.objects.filter(referrer=user, role='Master')
+
+    # 2) Оставляем только тех, у кого есть хотя бы одна транзакция Deposit в статусе Confirmed
+    invited_with_deposit = invited_masters.filter(
+        transaction__transaction_type='Deposit',
+        transaction__status='Confirmed'
+    ).distinct()
+
+    return invited_with_deposit.count()
 
 
 class MasterStatisticsView(APIView):

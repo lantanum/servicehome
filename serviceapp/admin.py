@@ -9,6 +9,7 @@ admin.site.register(ServiceRequest)
 admin.site.register(Master)
 admin.site.register(Transaction)
 admin.site.register(ReferralLink)
+admin.site.register(Settings)
 
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
@@ -20,7 +21,3 @@ class EquipmentTypeAdmin(admin.ModelAdmin):
     list_display = ['id', 'name']
     search_fields = ['name']
 
-
-@admin.register(Settings)
-class SettingsAdmin(admin.ModelAdmin):
-    list_display = ('comission',)

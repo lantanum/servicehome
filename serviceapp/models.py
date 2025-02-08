@@ -38,6 +38,7 @@ class User(models.Model):
 class Master(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='master_profile')
     address = models.TextField(null=True, blank=True)
+    level = models.IntegerField(default=1, help_text="Уровень мастера")
     rating = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     city_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название города")
@@ -162,13 +163,38 @@ class EquipmentType(models.Model):
     def __str__(self):
         return self.name
 
-
 class Settings(models.Model):
-    comission = models.DecimalField(
+    commission_level1 = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0.0,
-        help_text="Процент комиссии, который будет списываться с суммы сделки."
+        help_text="Процент комиссии для уровня 1"
+    )
+    commission_level2 = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.0,
+        help_text="Процент комиссии для уровня 2"
+    )
+    commission_level3 = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.0,
+        help_text="Процент комиссии для уровня 3"
+    )
+
+    # Новые поля
+    max_requests_level1 = models.PositiveIntegerField(
+        default=1,
+        help_text="Максимальное число заявок в работе для уровня 1"
+    )
+    max_requests_level2 = models.PositiveIntegerField(
+        default=3,
+        help_text="Максимальное число заявок в работе для уровня 2"
+    )
+    max_requests_level3 = models.PositiveIntegerField(
+        default=5,
+        help_text="Максимальное число заявок в работе для уровня 3"
     )
 
     amocrm_bearer_token = models.TextField(
@@ -177,4 +203,10 @@ class Settings(models.Model):
     )
 
     def __str__(self):
-        return f"Настройки системы (Комиссия: {self.comission}%)"
+        return (
+            f"Настройки системы:\n"
+            f"Комиссия L1: {self.commission_level1}%, L2: {self.commission_level2}%, L3: {self.commission_level3}%\n"
+            f"Макс. заявки L1: {self.max_requests_level1}, "
+            f"L2: {self.max_requests_level2}, "
+            f"L3: {self.max_requests_level3}"
+        )
