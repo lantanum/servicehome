@@ -109,7 +109,7 @@ class ServiceRequestCreateView(APIView):
             service_request = serializer.save()
             return Response({
                 "detail": "Заявка успешно создана",
-                "request_id": service_request.id
+                "request_id": service_request.amo_crm_lead_id
             }, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -294,7 +294,7 @@ class MasterActiveRequestsView(APIView):
                 # Текст для остальных заявок
                 date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
                 message_text = (
-                    f"<b>Заявка</b> {req.id}\n"
+                    f"<b>Заявка</b> {req.amo_crm_lead_id}\n"
                     f"<b>Дата заявки:</b> {date_str} г.\n"
                     f"<b>Город:</b> {req.city_name or ''}\n"
                     f"<b>Адрес:</b> {req.address or ''}\n"
@@ -415,7 +415,7 @@ class AssignRequestView(APIView):
                     )
 
                 # 3) Находим заявку
-                service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
+                service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=request_id)
                 original_status = service_request.status
 
                 # (3) Проверка, свободна ли заявка
@@ -1229,7 +1229,7 @@ class FinishRequestView(APIView):
 
         try:
             with transaction.atomic():
-                service_request = ServiceRequest.objects.select_for_update().get(id=request_id)
+                service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=request_id)
 
                 price_value = Decimal(finalAnsw3) if finalAnsw3 else Decimal("0")
                 spare_parts_value = Decimal(finalAnsw4) if finalAnsw4 else Decimal("0")
