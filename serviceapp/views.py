@@ -375,8 +375,8 @@ class AssignRequestView(APIView):
                 # (1) Проверка баланса
                 if master_user.balance < 0:
                     return JsonResponse(
-                        {"detail": "У вас отрицательный баланс, пополните баланс, чтобы продолжить получать заявки"},
-                        status=400
+                        {"message_for_master": "У вас отрицательный баланс, пополните баланс, чтобы продолжить получать заявки"},
+                        status=200
                     )
 
                 # 2) Получаем настройки (лимиты заявок)
@@ -406,12 +406,12 @@ class AssignRequestView(APIView):
                 if active_count >= max_requests:
                     return JsonResponse(
                         {
-                            "detail": (
+                            "message_for_master": (
                                 "У вас уже есть активные заявки, сначала завершите их.\n"
                                 "Чтобы увидеть заявки в работе, нажмите кнопку «Заявки в работе»."
                             )
                         },
-                        status=400
+                        status=200
                     )
 
                 # 3) Находим заявку
@@ -421,8 +421,8 @@ class AssignRequestView(APIView):
                 # (3) Проверка, свободна ли заявка
                 if original_status != 'Free':
                     return JsonResponse(
-                        {"detail": "Данную заявку уже выполняет другой мастер"},
-                        status=400
+                        {"message_for_master": "Данную заявку уже выполняет другой мастер"},
+                        status=200
                     )
 
                 # ---- Если все проверки пройдены, переводим заявку в работу ----
