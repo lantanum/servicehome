@@ -503,7 +503,7 @@ class AssignRequestView(APIView):
                 )
 
                 message_for_admin = (
-                    f"<b>Заявка</b> {service_request.id}\n"
+                    f"<b>Заявка</b> {service_request.amo_crm_lead_id}\n"
                     f"<b>Дата заявки:</b> {created_date_str}\n"
                     f"<b>Город:</b> {city_name}\n"
                     f"<b>Адрес:</b> {raw_address}\n"
@@ -524,7 +524,9 @@ class AssignRequestView(APIView):
                 response_data = {
                     "message_for_master": message_for_master,
                     "message_for_admin": message_for_admin,
-                    "finish_button_text": finish_button_text
+                    "finish_button_text": finish_button_text,
+                    "client_telegram_id": client_user.telegram_id,
+                    "request_id": service_request.amo_crm_lead_id
                 }
                 return JsonResponse(response_data, status=200)
 
@@ -1425,7 +1427,7 @@ class MasterFreeRequestsView(APIView):
 
             # Формируем текст по образцу:
             message_text = (
-                f"<b>Заявка </b> {req.id}\n"
+                f"<b>Заявка </b> {req.amo_crm_lead_id}\n"
                 f"<b>Дата заявки:</b> {date_str} г.\n"
                 f"<b>Город:</b> {req.city_name or ''}\n"
                 f"<b>Адрес: </b> {short_address}\n"
@@ -1440,7 +1442,7 @@ class MasterFreeRequestsView(APIView):
                 "Диагностика и выезд платные берется с клиента (Цену формирует мастер)"
             )
 
-            take_button_text = f"Взять заявку {req.id}"
+            take_button_text = f"Взять заявку {req.amo_crm_lead_id}"
 
             result[field_name] = {
                 "message_text": message_text,
