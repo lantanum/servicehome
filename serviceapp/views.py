@@ -915,7 +915,7 @@ def handle_free_status(service_request, previous_status, new_status_id):
     logger.info(f"[ServiceRequest {service_request.id}] Запуск 1-го круга рассылки.")
     masters_round_1 = find_suitable_masters(service_request.id, round_num=1)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters_round_1)} мастеров для 1-го круга.")
-    send_request_to_sambot(service_request, masters_round_1, is_first_round=True)
+    send_request_to_sambot(service_request, masters_round_1, round_num=1)
 
     # 2-й круг (через 10 минут) — без сообщения для админов
     threading.Timer(60, send_request_to_sambot_with_logging, [service_request.id, 2]).start()
@@ -934,14 +934,14 @@ def send_request_to_sambot_with_logging(service_request_id, round_num):
     masters = find_suitable_masters(service_request.id, round_num)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters)} мастеров для {round_num}-го круга.")
 
-    send_request_to_sambot(service_request, masters, is_first_round=False)  # Без сообщения для админов
+    send_request_to_sambot(service_request, masters, round_num)  # Без сообщения для админов
 
 
-def send_request_to_sambot(service_request, masters_telegram_ids, is_first_round):
+def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
     """
     Отправляет данные на Sambot.
     """
-    if not masters_telegram_ids and is_first_round==False:
+    if not masters_telegram_ids and round_num != 1:
         logger.info(f"[ServiceRequest {service_request.id}] Нет мастеров для отправки в этом круге.")
         return
     
@@ -952,11 +952,12 @@ def send_request_to_sambot(service_request, masters_telegram_ids, is_first_round
     payload = {
         "message_for_masters": result["message_for_masters"],
         "finish_button_text": result["finish_button_text"],
-        "masters_telegram_ids": masters_telegram_ids
+        "masters_telegram_ids": masters_telegram_ids,
+        "round_num": round_num
     }
 
     # Только в первом круге добавляем сообщение для админов
-    if is_first_round:
+    if round_num == 1:
         payload["message_for_admin"] = result["message_for_admin"]
 
     try:
