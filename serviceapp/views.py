@@ -517,7 +517,7 @@ class AssignRequestView(APIView):
                     "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n\n"
                     f"<b>Взял мастер</b> {master_user.name}\n"
                     f"{master_user.phone}\n"
-                    f"<b>ID</b> = {master_user.id}"
+                    f"<b>ID</b> = {telegram_id}"
                 )
 
                 finish_button_text = f"Сообщить о завершении {amo_id}"
@@ -911,31 +911,30 @@ def handle_free_status(service_request, previous_status, new_status_id):
     logger.info(f"[ServiceRequest {service_request.id}] Статус обновлён "
                 f"с {previous_status} на 'Free'.")
 
-    # 1-й круг (отправляется сразу) — с сообщением для админов
+    # 1-й круг (отправляется сразу)
     logger.info(f"[ServiceRequest {service_request.id}] Запуск 1-го круга рассылки.")
     masters_round_1 = find_suitable_masters(service_request.id, round_num=1)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters_round_1)} мастеров для 1-го круга.")
     send_request_to_sambot(service_request, masters_round_1, round_num=1)
 
-    # 2-й круг (через 10 минут) — без сообщения для админов
-    threading.Timer(60, send_request_to_sambot_with_logging, [service_request.id, 2]).start()
-
-    # 3-й круг (через 20 минут) — без сообщения для админов
-    threading.Timer(120, send_request_to_sambot_with_logging, [service_request.id, 3]).start()
-
+    delay_2 = 60 if masters_round_1 else 0  # Если нет мастеров, сразу запускаем 2-й круг
+    threading.Timer(delay_2, send_request_to_sambot_with_logging, [service_request.id, 2]).start()
 
 def send_request_to_sambot_with_logging(service_request_id, round_num):
     """
     Функция-обертка для логирования перед отправкой запроса.
     """
-    service_request = ServiceRequest.objects.get(id=service_request_id)  # Загружаем заново
+    service_request = ServiceRequest.objects.get(id=service_request_id)
 
     logger.info(f"[ServiceRequest {service_request.id}] Запуск {round_num}-го круга рассылки.")
     masters = find_suitable_masters(service_request.id, round_num)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters)} мастеров для {round_num}-го круга.")
 
-    send_request_to_sambot(service_request, masters, round_num)  # Без сообщения для админов
+    send_request_to_sambot(service_request, masters, round_num)
 
+    if round_num == 2:
+        delay_3 = 60 if masters else 0  # Если нет мастеров во 2-м круге, сразу запускаем 3-й
+        threading.Timer(delay_3, send_request_to_sambot_with_logging, [service_request.id, 3]).start()
 
 def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
     """
@@ -945,8 +944,6 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
         logger.info(f"[ServiceRequest {service_request.id}] Нет мастеров для отправки в этом круге.")
         return
     
-
-    # Генерация сообщений
     result = generate_free_status_data(service_request)
 
     payload = {
@@ -956,7 +953,6 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
         "round_num": round_num
     }
 
-    # Только в первом круге добавляем сообщение для админов
     if round_num == 1:
         payload["message_for_admin"] = result["message_for_admin"]
 
@@ -978,7 +974,7 @@ def find_suitable_masters(service_request_id, round_num):
     """
     Подбирает мастеров в зависимости от круга рассылки.
     """
-    service_request = ServiceRequest.objects.get(id=service_request_id)  # Загружаем заново
+    service_request = ServiceRequest.objects.get(id=service_request_id)
 
     city_name = service_request.city_name.lower()
     equipment_type = (service_request.equipment_type or "").lower()
