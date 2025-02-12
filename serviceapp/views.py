@@ -918,10 +918,10 @@ def handle_free_status(service_request, previous_status, new_status_id):
     send_request_to_sambot(service_request, masters_round_1)
 
     # 2-й круг (через 10 минут)
-    threading.Timer(600, send_request_to_sambot_with_logging, [service_request, 2]).start()
+    threading.Timer(60, send_request_to_sambot_with_logging, [service_request, 2]).start()
 
     # 3-й круг (через 20 минут)
-    threading.Timer(1200, send_request_to_sambot_with_logging, [service_request, 3]).start()
+    threading.Timer(120, send_request_to_sambot_with_logging, [service_request, 3]).start()
 
 def send_request_to_sambot_with_logging(service_request, round_num):
     """
