@@ -313,7 +313,7 @@ class MasterActiveRequestsView(APIView):
                     "только при оказании ремонта. ВНИМАНИЕ! - В случае отказа от ремонта "
                     "- Диагностика и выезд платные (Цену формирует мастер)."
                 )
-                finish_button_text = f"Сообщить о завершении {req.id}"
+                finish_button_text = f"Сообщить о завершении {req.amo_crm_lead_id}"
 
             result[field_name] = {
                 "message_text": message_text,
