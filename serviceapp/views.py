@@ -941,9 +941,10 @@ def send_request_to_sambot(service_request, masters_telegram_ids, is_first_round
     """
     Отправляет данные на Sambot.
     """
-    if not masters_telegram_ids:
+    if not masters_telegram_ids and is_first_round==False:
         logger.info(f"[ServiceRequest {service_request.id}] Нет мастеров для отправки в этом круге.")
         return
+    
 
     # Генерация сообщений
     result = generate_free_status_data(service_request)
@@ -1070,14 +1071,10 @@ def generate_free_status_data(service_request):
     amo_id = service_request.amo_crm_lead_id or service_request.id
     finish_button_text = f"Взять заявку {amo_id}"
 
-    # Поиск мастеров по критериям
-    masters_telegram_ids = find_suitable_masters(city_name, service_request.equipment_type)
-
     return {
         "message_for_masters": message_for_masters,
         "message_for_admin": message_for_admin,
-        "finish_button_text": finish_button_text,
-        "masters_telegram_ids": masters_telegram_ids
+        "finish_button_text": finish_button_text
     }
 
 
