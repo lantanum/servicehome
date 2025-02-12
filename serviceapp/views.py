@@ -1000,10 +1000,10 @@ def get_master_statistics(master):
     - cost_ratio: доля затрат от всех заказов
     - last_deposit: время последнего пополнения
     """
-    total_orders = master.orders.count()
-    successful_orders = master.orders.filter(status="Успешная сделка (Выполнено)").count()
-    total_cost = sum(order.cost for order in master.orders.all())
-    total_earnings = sum(order.earnings for order in master.orders.all())
+    total_orders = master.master_requests.count()
+    successful_orders = master.master_requests.filter(deal_success="Успешная сделка (Выполнено)").count()
+    total_cost = sum(request.spare_parts_spent or 0 for request in master.master_requests.all())
+    total_earnings = sum(request.price or 0 for request in master.master_requests.all())
 
     success_ratio = successful_orders / total_orders if total_orders > 0 else 0
     cost_ratio = total_cost / total_earnings if total_earnings > 0 else 0
@@ -1015,6 +1015,7 @@ def get_master_statistics(master):
     last_deposit = last_transaction.created_at if last_transaction else now() - timedelta(days=365)
 
     return success_ratio, cost_ratio, last_deposit
+
 
 def generate_free_status_data(service_request):
     """

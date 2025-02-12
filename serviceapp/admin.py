@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EquipmentType, ReferralLink, ServiceType, Transaction, User, ServiceRequest, Master, Settings
+from .models import EquipmentType, InteractionLog, ReferralLink, ServiceType, Transaction, User, ServiceRequest, Master, Settings
 
 # Register your models here.
 
@@ -10,6 +10,7 @@ admin.site.register(Master)
 admin.site.register(Transaction)
 admin.site.register(ReferralLink)
 admin.site.register(Settings)
+admin.site.register(InteractionLog)
 
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
