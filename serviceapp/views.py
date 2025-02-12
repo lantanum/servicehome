@@ -908,25 +908,36 @@ def handle_free_status(service_request, previous_status, new_status_id):
     service_request.amo_status_code = new_status_id
     service_request.save()
 
-    logger.info(f"ServiceRequest {service_request.id}: статус обновлён "
+    logger.info(f"[ServiceRequest {service_request.id}] Статус обновлён "
                 f"с {previous_status} на 'Free'.")
 
     # 1-й круг (отправляется сразу)
+    logger.info(f"[ServiceRequest {service_request.id}] Запуск 1-го круга рассылки.")
     masters_round_1 = find_suitable_masters(service_request, round_num=1)
+    logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters_round_1)} мастеров для 1-го круга.")
     send_request_to_sambot(service_request, masters_round_1)
 
     # 2-й круг (через 10 минут)
-    threading.Timer(600, send_request_to_sambot, [service_request, find_suitable_masters(service_request, 2)]).start()
+    threading.Timer(600, send_request_to_sambot_with_logging, [service_request, 2]).start()
 
     # 3-й круг (через 20 минут)
-    threading.Timer(1200, send_request_to_sambot, [service_request, find_suitable_masters(service_request, 3)]).start()
+    threading.Timer(1200, send_request_to_sambot_with_logging, [service_request, 3]).start()
+
+def send_request_to_sambot_with_logging(service_request, round_num):
+    """
+    Функция-обертка для логирования перед отправкой запроса.
+    """
+    logger.info(f"[ServiceRequest {service_request.id}] Запуск {round_num}-го круга рассылки.")
+    masters = find_suitable_masters(service_request, round_num)
+    logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters)} мастеров для {round_num}-го круга.")
+    send_request_to_sambot(service_request, masters)
 
 def send_request_to_sambot(service_request, masters_telegram_ids):
     """
     Отправляет данные на Sambot.
     """
     if not masters_telegram_ids:
-        logger.info(f"ServiceRequest {service_request.id}: Нет мастеров для отправки.")
+        logger.info(f"[ServiceRequest {service_request.id}] Нет мастеров для отправки в этом круге.")
         return
 
     # Генерация сообщений
@@ -945,13 +956,13 @@ def send_request_to_sambot(service_request, masters_telegram_ids):
             json=payload,
             timeout=10
         )
-        if response.status_code != 200:
-            logger.error(
-                f"Ошибка отправки данных в Sambot для ServiceRequest {service_request.id}. "
-                f"Статус код: {response.status_code}, Ответ: {response.text}"
-            )
+        if response.status_code == 200:
+            logger.info(f"[ServiceRequest {service_request.id}] Успешно отправлено в Sambot.")
+        else:
+            logger.error(f"[ServiceRequest {service_request.id}] Ошибка при отправке данных в Sambot. "
+                         f"Статус код: {response.status_code}, Ответ: {response.text}")
     except Exception as ex:
-        logger.error(f"Ошибка отправки данных в Sambot: {ex}")
+        logger.error(f"[ServiceRequest {service_request.id}] Ошибка при отправке данных в Sambot: {ex}")
 
 def find_suitable_masters(service_request, round_num):
     """
@@ -1023,25 +1034,25 @@ def generate_free_status_data(service_request):
 
     # Сообщение для мастеров
     message_for_masters = (
-        f"Город: {city_name}\n"
-        f"Адрес: {short_address}\n"
-        f"Дата заявки: {created_date_str}\n"
-        f"Тип оборудования: {service_request.equipment_type or ''}\n"
-        f"Марка: {service_request.equipment_brand or ''}\n"
-        f"Модель: {service_request.equipment_model or ''}\n"
+        f"<b>Город:</b> {city_name}\n"
+        f"<b>Адрес:</b> {short_address}\n"
+        f"<b>Дата заявки:</b> {created_date_str}\n"
+        f"<b>Тип оборудования:</b> {service_request.equipment_type or ''}\n"
+        f"<b>Марка:</b> {service_request.equipment_brand or ''}\n"
+        f"<b>Модель:</b> {service_request.equipment_model or ''}\n"
         "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-        f"Комментарий: {service_request.description or ''}"
+        f"<b>Комментарий:</b> {service_request.description or ''}"
     )
 
     # Сообщение для администраторов
     message_for_admin = (
-        f"Заявка {service_request.amo_crm_lead_id}\n"
-        f"Дата заявки: {created_date_str}\n"
-        f"Город: {city_name}\n"
-        f"Адрес: {raw_address}\n"
-        f"Тип оборудования: {service_request.equipment_type or ''}\n"
+        f"<b>Заявка</b> {service_request.amo_crm_lead_id}\n"
+        f"<b>Дата заявки:</b> {created_date_str}\n"
+        f"<b>Город:</b> {city_name}\n"
+        f"<b>Адрес:</b> {raw_address}\n"
+        f"<b>Тип оборудования:</b> {service_request.equipment_type or ''}\n"
         "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-        f"Комментарий: {service_request.description or ''}"
+        f"<b>Комментарий:</b> {service_request.description or ''}"
     )
 
     # Текст кнопки
