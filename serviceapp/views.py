@@ -950,11 +950,9 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
         "message_for_masters": result["message_for_masters"],
         "finish_button_text": result["finish_button_text"],
         "masters_telegram_ids": masters_telegram_ids,
-        "round_num": round_num
+        "round_num": round_num,
+        "message_for_admin": result["message_for_admin"] if round_num == 1 else ""
     }
-
-    if round_num == 1:
-        payload["message_for_admin"] = result["message_for_admin"]
 
     try:
         response = requests.post(
