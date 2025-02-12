@@ -1,7 +1,9 @@
 from datetime import timezone
+from django.utils.timezone import now, timedelta
 from decimal import Decimal
 import logging
 import re
+import threading
 from django.conf import settings
 from django.http import JsonResponse
 import requests
@@ -792,6 +794,7 @@ class AmoCRMWebhookView(APIView):
     """
     def post(self, request):
         try:
+            # 1) Логируем и парсим данные
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
         except Exception as e:
@@ -814,13 +817,16 @@ class AmoCRMWebhookView(APIView):
                 lead_id = lead.get('id')
                 new_status_id = lead.get('status_id')
                 operator_comment = lead.get('748437', "")
+                deal_success = lead.get('748715', "")
 
                 with transaction.atomic():
                     service_request = ServiceRequest.objects.select_for_update().get(
                         amo_crm_lead_id=lead_id
                     )
 
+                    # Сохраняем комментарий оператора
                     service_request.crm_operator_comment = operator_comment
+                    service_request.deal_success = deal_success
                     service_request.save()
 
                     # Ищем статус-строку
@@ -868,47 +874,17 @@ class AmoCRMWebhookView(APIView):
                                     logger.error(f"Error sending data to sambot: {ex}")
 
                         elif status_name == 'Completed':
-                           handle_completed_deal(
-                               service_request=service_request,
-                               operator_comment=operator_comment,
-                               previous_status=previous_status,
-                               lead_id=lead_id
-                           )
-                        
+                            handle_completed_deal(
+                                service_request=service_request,
+                                operator_comment=operator_comment,
+                                previous_status=previous_status,
+                                lead_id=lead_id
+                            )
 
                     elif status_name == 'Free':
                         previous_status = service_request.status
-                        service_request.status = 'Free'
-                        service_request.amo_status_code = new_status_id
-                        service_request.save()
+                        handle_free_status(service_request, previous_status, new_status_id)
 
-                        logger.info(f"ServiceRequest {service_request.id}: status updated "
-                                    f"from {previous_status} to 'Free'.")
-
-                        payload = {
-                            "id": service_request.id,
-                            "город_заявки": service_request.city_name,
-                            "адрес": extract_street_name(service_request.address),
-                            "дата_заявки": format_date(service_request.created_at),
-                            "тип_оборудования": service_request.equipment_type,
-                            "марка": service_request.equipment_brand,
-                            "модель": service_request.equipment_model,
-                            "комментарий": service_request.description or ""
-                        }
-
-                        try:
-                            external_response = requests.post(
-                                'https://sambot.ru/reactions/2890052/start',
-                                json=payload,
-                                timeout=10
-                            )
-                            if external_response.status_code != 200:
-                                logger.error(
-                                    f"Failed to send data to external service for ServiceRequest {service_request.id}. "
-                                    f"Status code: {external_response.status_code}, Response: {external_response.text}"
-                                )
-                        except Exception as ex:
-                            logger.error(f"Error sending data to external service: {ex}")
 
                     else:
                         logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
@@ -922,6 +898,165 @@ class AmoCRMWebhookView(APIView):
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
 
+
+
+def handle_free_status(service_request, previous_status, new_status_id):
+    """
+    Обработка статуса 'Free' с 3-мя кругами рассылки.
+    """
+    service_request.status = 'Free'
+    service_request.amo_status_code = new_status_id
+    service_request.save()
+
+    logger.info(f"ServiceRequest {service_request.id}: статус обновлён "
+                f"с {previous_status} на 'Free'.")
+
+    # 1-й круг (отправляется сразу)
+    masters_round_1 = find_suitable_masters(service_request, round_num=1)
+    send_request_to_sambot(service_request, masters_round_1)
+
+    # 2-й круг (через 10 минут)
+    threading.Timer(600, send_request_to_sambot, [service_request, find_suitable_masters(service_request, 2)]).start()
+
+    # 3-й круг (через 20 минут)
+    threading.Timer(1200, send_request_to_sambot, [service_request, find_suitable_masters(service_request, 3)]).start()
+
+def send_request_to_sambot(service_request, masters_telegram_ids):
+    """
+    Отправляет данные на Sambot.
+    """
+    if not masters_telegram_ids:
+        logger.info(f"ServiceRequest {service_request.id}: Нет мастеров для отправки.")
+        return
+
+    # Генерация сообщений
+    result = generate_free_status_data(service_request)
+
+    payload = {
+        "message_for_masters": result["message_for_masters"],
+        "message_for_admin": result["message_for_admin"],
+        "finish_button_text": result["finish_button_text"],
+        "masters_telegram_ids": masters_telegram_ids
+    }
+
+    try:
+        response = requests.post(
+            'https://sambot.ru/reactions/2890052/start',
+            json=payload,
+            timeout=10
+        )
+        if response.status_code != 200:
+            logger.error(
+                f"Ошибка отправки данных в Sambot для ServiceRequest {service_request.id}. "
+                f"Статус код: {response.status_code}, Ответ: {response.text}"
+            )
+    except Exception as ex:
+        logger.error(f"Ошибка отправки данных в Sambot: {ex}")
+
+def find_suitable_masters(service_request, round_num):
+    """
+    Подбирает мастеров в зависимости от круга рассылки.
+    """
+    city_name = service_request.city_name.lower()
+    equipment_type = (service_request.equipment_type or "").lower()
+
+    masters = Master.objects.select_related('user').all()
+    selected_masters = []
+
+    now_time = now()
+    last_24_hours = now_time - timedelta(hours=24)
+
+    for master in masters:
+        master_cities = (master.city_name or "").lower()
+        master_equips = (master.equipment_type_name or "").lower()
+
+        if city_name in master_cities and equipment_type in master_equips:
+            success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
+
+            if round_num == 1 and success_ratio >= 0.8 and cost_ratio <= 0.3 and last_deposit >= last_24_hours:
+                selected_masters.append(master.user.telegram_id)
+            elif round_num == 2 and success_ratio >= 0.8 and 0.3 < cost_ratio <= 0.5:
+                selected_masters.append(master.user.telegram_id)
+            elif round_num == 3:
+                selected_masters.append(master.user.telegram_id)
+
+    return selected_masters
+
+def get_master_statistics(master):
+    """
+    Возвращает статистику мастера:
+    - success_ratio: доля успешных заявок
+    - cost_ratio: доля затрат от всех заказов
+    - last_deposit: время последнего пополнения
+    """
+    total_orders = master.orders.count()
+    successful_orders = master.orders.filter(status="Успешная сделка (Выполнено)").count()
+    total_cost = sum(order.cost for order in master.orders.all())
+    total_earnings = sum(order.earnings for order in master.orders.all())
+
+    success_ratio = successful_orders / total_orders if total_orders > 0 else 0
+    cost_ratio = total_cost / total_earnings if total_earnings > 0 else 0
+
+    last_transaction = Transaction.objects.filter(
+        user=master.user, transaction_type="Deposit", status="Confirmed"
+    ).order_by("-created_at").first()
+
+    last_deposit = last_transaction.created_at if last_transaction else now() - timedelta(days=365)
+
+    return success_ratio, cost_ratio, last_deposit
+
+def generate_free_status_data(service_request):
+    """
+    Генерирует данные (сообщения и список мастеров) для статуса 'Free'.
+    """
+    city_name = service_request.city_name or ""
+    raw_address = service_request.address or ""
+    created_date_str = (
+        service_request.created_at.strftime('%d.%m.%Y')
+        if service_request.created_at
+        else ""
+    )
+
+    # Короткий адрес (первое слово из адреса)
+    address_parts = raw_address.strip().split()
+    short_address = address_parts[0] if address_parts else ""
+
+    # Сообщение для мастеров
+    message_for_masters = (
+        f"Город: {city_name}\n"
+        f"Адрес: {short_address}\n"
+        f"Дата заявки: {created_date_str}\n"
+        f"Тип оборудования: {service_request.equipment_type or ''}\n"
+        f"Марка: {service_request.equipment_brand or ''}\n"
+        f"Модель: {service_request.equipment_model or ''}\n"
+        "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+        f"Комментарий: {service_request.description or ''}"
+    )
+
+    # Сообщение для администраторов
+    message_for_admin = (
+        f"Заявка {service_request.amo_crm_lead_id}\n"
+        f"Дата заявки: {created_date_str}\n"
+        f"Город: {city_name}\n"
+        f"Адрес: {raw_address}\n"
+        f"Тип оборудования: {service_request.equipment_type or ''}\n"
+        "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+        f"Комментарий: {service_request.description or ''}"
+    )
+
+    # Текст кнопки
+    amo_id = service_request.amo_crm_lead_id or service_request.id
+    finish_button_text = f"Взять заявку {amo_id}"
+
+    # Поиск мастеров по критериям
+    masters_telegram_ids = find_suitable_masters(city_name, service_request.equipment_type)
+
+    return {
+        "message_for_masters": message_for_masters,
+        "message_for_admin": message_for_admin,
+        "finish_button_text": finish_button_text,
+        "masters_telegram_ids": masters_telegram_ids
+    }
 
 
 def handle_completed_deal(service_request, operator_comment, previous_status, lead_id):
