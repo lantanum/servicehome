@@ -913,24 +913,28 @@ def handle_free_status(service_request, previous_status, new_status_id):
 
     # 1-й круг (отправляется сразу)
     logger.info(f"[ServiceRequest {service_request.id}] Запуск 1-го круга рассылки.")
-    masters_round_1 = find_suitable_masters(service_request, round_num=1)
+    masters_round_1 = find_suitable_masters(service_request.id, round_num=1)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters_round_1)} мастеров для 1-го круга.")
     send_request_to_sambot(service_request, masters_round_1)
 
     # 2-й круг (через 10 минут)
-    threading.Timer(60, send_request_to_sambot_with_logging, [service_request, 2]).start()
+    threading.Timer(60, send_request_to_sambot_with_logging, [service_request.id, 2]).start()
 
     # 3-й круг (через 20 минут)
-    threading.Timer(120, send_request_to_sambot_with_logging, [service_request, 3]).start()
+    threading.Timer(120, send_request_to_sambot_with_logging, [service_request.id, 3]).start()
 
-def send_request_to_sambot_with_logging(service_request, round_num):
+
+def send_request_to_sambot_with_logging(service_request_id, round_num):
     """
     Функция-обертка для логирования перед отправкой запроса.
     """
+    service_request = ServiceRequest.objects.get(id=service_request_id)  # Загружаем заново
+
     logger.info(f"[ServiceRequest {service_request.id}] Запуск {round_num}-го круга рассылки.")
-    masters = find_suitable_masters(service_request, round_num)
+    masters = find_suitable_masters(service_request.id, round_num)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters)} мастеров для {round_num}-го круга.")
     send_request_to_sambot(service_request, masters)
+
 
 def send_request_to_sambot(service_request, masters_telegram_ids):
     """
@@ -964,10 +968,12 @@ def send_request_to_sambot(service_request, masters_telegram_ids):
     except Exception as ex:
         logger.error(f"[ServiceRequest {service_request.id}] Ошибка при отправке данных в Sambot: {ex}")
 
-def find_suitable_masters(service_request, round_num):
+def find_suitable_masters(service_request_id, round_num):
     """
     Подбирает мастеров в зависимости от круга рассылки.
     """
+    service_request = ServiceRequest.objects.get(id=service_request_id)  # Загружаем заново
+
     city_name = service_request.city_name.lower()
     equipment_type = (service_request.equipment_type or "").lower()
 
