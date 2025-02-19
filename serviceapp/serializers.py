@@ -555,17 +555,26 @@ class CheckUserByPhoneSerializer(serializers.Serializer):
         return value
     
 
+
 class ServiceTypeSerializer(serializers.ModelSerializer):
+    """
+    Сериализатор для типа сервиса.
+    Оставляем только 'name' + делаем массив строк для equipment_types.
+    """
+    equipment_types = serializers.SerializerMethodField()
+
     class Meta:
         model = ServiceType
-        fields = ['id', 'name']
+        fields = ('name', 'equipment_types')
 
-class EquipmentTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EquipmentType
-        fields = ['id', 'name']
-
-
+    def get_equipment_types(self, obj):
+        """
+        Возвращаем массив (list) с названиями связанного оборудования.
+        """
+        # Берём все связанные EquipmentType (через related_name='equipment_types')
+        # и вытаскиваем из них поле 'name'
+        return list(obj.equipment_types.values_list('name', flat=True))
+    
 class StatusChangeSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=True, help_text="ID лида в AmoCRM")
     status_id = serializers.IntegerField(required=True, help_text="ID статуса лида")

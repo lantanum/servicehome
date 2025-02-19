@@ -22,7 +22,6 @@ from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
 from .serializers import (
     AmoCRMWebhookSerializer,
-    EquipmentTypeSerializer,
     MasterStatisticsRequestSerializer,
     MasterStatisticsResponseSerializer,
     ServiceTypeSerializer,
@@ -706,31 +705,48 @@ class UserProfileView(APIView):
 
 
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 class ServiceEquipmentTypesView(APIView):
     """
-    API-эндпоинт для получения списка типов сервисов и типов оборудования.
+    API-эндпоинт для получения списка типов сервисов и их вложенных типов оборудования.
     """
     @swagger_auto_schema(
-        operation_description="Получение списка типов сервисов и типов оборудования.",
+        operation_description="Получение списка типов сервисов, внутри каждого - его типы оборудования.",
         responses={
             200: openapi.Response(
-                description="Список типов сервисов и оборудования",
+                description="Список типов сервисов со вложенными типами оборудования",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
                         "service_types": openapi.Schema(
                             type=openapi.TYPE_ARRAY,
-                            items=openapi.Items(type=openapi.TYPE_OBJECT, properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER, description="ID типа сервиса"),
-                                "name": openapi.Schema(type=openapi.TYPE_STRING, description="Название типа сервиса")
-                            })
-                        ),
-                        "equipment_types": openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Items(type=openapi.TYPE_OBJECT, properties={
-                                "id": openapi.Schema(type=openapi.TYPE_INTEGER, description="ID типа оборудования"),
-                                "name": openapi.Schema(type=openapi.TYPE_STRING, description="Название типа оборудования")
-                            })
+                            items=openapi.Items(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    
+                                    "name": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        description="Название типа сервиса"
+                                    ),
+                                    "equipment_types": openapi.Schema(
+                                        type=openapi.TYPE_ARRAY,
+                                        items=openapi.Items(
+                                            type=openapi.TYPE_OBJECT,
+                                            properties={
+                                                "name": openapi.Schema(
+                                                    type=openapi.TYPE_STRING,
+                                                    description="Название типа оборудования"
+                                                )
+                                            }
+                                        )
+                                    )
+                                }
+                            )
                         )
                     }
                 )
@@ -739,15 +755,15 @@ class ServiceEquipmentTypesView(APIView):
     )
     def post(self, request):
         service_types = ServiceType.objects.all()
-        equipment_types = EquipmentType.objects.all()
         
-        service_serializer = ServiceTypeSerializer(service_types, many=True)
-        equipment_serializer = EquipmentTypeSerializer(equipment_types, many=True)
-        
+        # Используем уже созданный сериализатор
+        serializer = ServiceTypeSerializer(service_types, many=True)
+
+        # Возвращаем в формате {"service_types": [{...}, {...}]}
         return Response({
-            "service_types": service_serializer.data,
-            "equipment_types": equipment_serializer.data
+            "service_types": serializer.data
         }, status=status.HTTP_200_OK)
+
     
 
 def extract_street_name(address):
@@ -1076,50 +1092,67 @@ def generate_free_status_data(service_request):
 def handle_completed_deal(service_request, operator_comment, previous_status, lead_id):
     """
     Обработка сделки со статусом 'Completed':
-    1) Считаем комиссию
+    1) Считаем комиссию из ServiceType по имени
     2) Списываем комиссию
     3) Отправляем POST на sambot
     4) Пересчитываем уровень мастера (повышение / понижение)
     """
     from decimal import Decimal
+    import requests
+    import logging
+    
+    logger = logging.getLogger(__name__)
 
-    # Сумма сделки
+    # 1) Получаем сумму сделки
     deal_amount = service_request.price or Decimal('0.00')
 
     # Получаем Master (если нет мастера - пропускаем)
     master_profile = service_request.master
     if not master_profile:
-        logger.warning("ServiceRequest %s: no master assigned, skipping commission", service_request.id)
+        logger.warning(
+            "ServiceRequest %s: no master assigned, skipping commission",
+            service_request.id
+        )
         return
 
-    # Текущий уровень
+    # Текущий уровень мастера (1, 2 или 3)
     master_level = master_profile.level
 
-    # 1) Комиссия из Settings
-    settings_obj = Settings.objects.first()
-    if not settings_obj:
-        logger.warning("No Settings found! Commission = 0 by default.")
+    
+    service_type_name = service_request.service_name  # Текстовое поле, содержащее имя сервиса
+    service_type = None
+
+    if service_type_name:
+        service_type = ServiceType.objects.filter(name=service_type_name).first()
+
+    # 3) Определяем процент комиссии, если нашли нужный ServiceType
+    if not service_type:
+        logger.warning(
+            "ServiceRequest %s: ServiceType with name='%s' not found. Commission = 0 by default.",
+            service_request.id,
+            service_type_name
+        )
         commission_percentage = Decimal('0.0')
     else:
+        # Из модели ServiceType берём поля commission_level_1, commission_level_2, commission_level_3
         if master_level == 1:
-            commission_percentage = settings_obj.commission_level1
+            commission_percentage = service_type.commission_level_1 or Decimal('0.0')
         elif master_level == 2:
-            commission_percentage = settings_obj.commission_level2
+            commission_percentage = service_type.commission_level_2 or Decimal('0.0')
         elif master_level == 3:
-            commission_percentage = settings_obj.commission_level3
+            commission_percentage = service_type.commission_level_3 or Decimal('0.0')
         else:
             commission_percentage = Decimal('0.0')
 
-    # 2) Считаем комиссию
-    from decimal import Decimal
+    # 4) Рассчитываем сумму комиссии
     commission_amount = deal_amount * commission_percentage / Decimal('100')
 
-    # 3) Списываем с баланса (профиль мастера → user)
+    # 5) Списываем комиссию с баланса мастера
     if master_profile.user:
         master_profile.user.balance -= commission_amount
         master_profile.user.save()
 
-    # 4) Отправляем POST на sambot
+    # 6) Отправляем POST на sambot
     payload = {
         "request_id": lead_id,
         "telegram_id": master_profile.user.telegram_id if master_profile else "",
@@ -1143,9 +1176,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     except Exception as ex:
         logger.error(f"Error sending data (Completed) to sambot: {ex}")
 
-    # 5) Пересчитываем уровень мастера после сделки
     recalc_master_level(master_profile)
-
 
 
 def recalc_master_level(master_profile):

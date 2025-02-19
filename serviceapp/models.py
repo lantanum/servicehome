@@ -153,16 +153,58 @@ class InteractionLog(models.Model):
 
 
 class ServiceType(models.Model):
-    name = models.CharField(max_length=255, unique=True, help_text="Название типа сервиса")
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Название типа сервиса"
+    )
+    # Три новых поля для комиссий
+    commission_level_1 = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True, 
+        blank=True,
+        verbose_name="Комиссия 1-го уровня",
+        help_text="Комиссия 1-го уровня (в условных единицах, например, в рублях или процентах)",
+    )
+    commission_level_2 = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True, 
+        blank=True,
+        verbose_name="Комиссия 2-го уровня",
+        help_text="Комиссия 2-го уровня (в условных единицах, например, в рублях или процентах)",
+    )
+    commission_level_3 = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True, 
+        blank=True,
+        verbose_name="Комиссия 3-го уровня",
+        help_text="Комиссия 3-го уровня (в условных единицах, например, в рублях или процентах)",
+    )
 
     def __str__(self):
         return self.name
+
 
 class EquipmentType(models.Model):
-    name = models.CharField(max_length=255, unique=True, help_text="Название типа оборудования")
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Название типа оборудования"
+    )
+    service_type = models.ForeignKey(
+        ServiceType,
+        on_delete=models.CASCADE,
+        related_name='equipment_types',
+        default=1  # <-- нужный ID или метод
+    )
+    
 
     def __str__(self):
         return self.name
+
 
 class Settings(models.Model):
     commission_level1 = models.DecimalField(
