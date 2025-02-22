@@ -986,14 +986,16 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
 
 def find_suitable_masters(service_request_id, round_num):
     """
-    Подбирает мастеров в зависимости от круга рассылки.
+    Подбирает мастеров в зависимости от круга рассылки,
+    исключая неактивных мастеров.
     """
     service_request = ServiceRequest.objects.get(id=service_request_id)
 
     city_name = service_request.city_name.lower()
     equipment_type = (service_request.equipment_type or "").lower()
 
-    masters = Master.objects.select_related('user').all()
+    # Выбираем мастеров, у которых пользователь активен
+    masters = Master.objects.select_related('user').filter(user__is_active=True)
     selected_masters = []
 
     now_time = now()
@@ -1014,6 +1016,7 @@ def find_suitable_masters(service_request_id, round_num):
                 selected_masters.append(master.user.telegram_id)
 
     return selected_masters
+
 
 def get_master_statistics(master):
     """
@@ -2320,11 +2323,6 @@ class DeactivateUserView(APIView):
             {"detail": f"Пользователь {user.name} (telegram_id={telegram_id}) деактивирован."},
             status=status.HTTP_200_OK
         )
-    from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 class ActivateUserView(APIView):
     """
