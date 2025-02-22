@@ -9,8 +9,8 @@ class User(models.Model):
 
     name = models.CharField(max_length=255, help_text="Имя пользователя")
     phone = models.CharField(max_length=255, null=True, blank=True, help_text="Телефон")
-    telegram_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Telegram ID пользователя")
-    telegram_login = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Telegram логин пользователя")
+    telegram_id = models.CharField(max_length=255, null=True, blank=True, help_text="Telegram ID пользователя")
+    telegram_login = models.CharField(max_length=255, null=True, blank=True, help_text="Telegram логин пользователя")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Client', help_text="Роль пользователя (Client/Master/Admin)")
     city_name = models.CharField(max_length=255, null=True, blank=True, help_text="Город пользователя")
     created_at = models.DateTimeField(auto_now_add=True)
