@@ -94,12 +94,13 @@ class UserRegistrationSerializer(serializers.Serializer):
         telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
-            # 1) Ищем пользователя по телефону
-            user = User.objects.filter(phone=phone).first()
+            # 1) Ищем пользователя по сочетанию телефона и роли.
+            # Это позволяет одному номеру/telegram_id иметь две записи — для клиента и мастера.
+            user = User.objects.filter(phone=phone, role=role).first()
             is_new = (user is None)
 
             if is_new:
-                logger.info(f"No user with phone={phone}, creating new.")
+                logger.info(f"No user with phone={phone} and role={role}, creating new.")
                 user = User.objects.create(
                     phone=phone,
                     name=name,
@@ -109,7 +110,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     city_name=city_name
                 )
             else:
-                logger.info(f"User with phone={phone} found (id={user.id}), updating.")
+                logger.info(f"User with phone={phone} and role={role} found (id={user.id}), updating.")
                 user.name = name
                 user.telegram_id = telegram_id
                 user.telegram_login = telegram_login
@@ -137,7 +138,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                 except User.DoesNotExist:
                     logger.warning(f"Referrer user with telegram_id={telegram_ref_id} not found.")
 
-            # 2) Если роль=Master, создаём/обновляем Master
+            # 2) Если роль=Master, создаём/обновляем профиль мастера
             if role == 'Master':
                 if not hasattr(user, 'master_profile'):
                     logger.info(f"Creating Master profile for user={user.id}")
@@ -164,7 +165,6 @@ class UserRegistrationSerializer(serializers.Serializer):
                 if role == 'Master':
                     # Мастер сразу получает +500
                     if hasattr(user, 'master_profile'):
-                        # используем Decimal
                         user.master_profile.balance = user.master_profile.balance + Decimal('500')
                         user.master_profile.save()
                     # Рефереры пока ничего не получают (по условию: при пополнении)
@@ -245,6 +245,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
 
         return user
+
 
 
 
