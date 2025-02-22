@@ -2243,3 +2243,161 @@ class BalanceDepositConfirmView(APIView):
                 "new_balance": str(master.balance),
                 "telegram_id": user.telegram_id
             }, status=status.HTTP_200_OK)
+
+
+class DeactivateUserView(APIView):
+    """
+    Деактивирует пользователя (is_active = False) по указанному telegram_id.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Деактивировать пользователя по telegram_id",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID пользователя, которого нужно деактивировать"
+                )
+            },
+            required=['telegram_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Пользователь успешно деактивирован",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Неправильные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get('telegram_id')
+
+        if not telegram_id:
+            return Response(
+                {"detail": "Поле 'telegram_id' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from .models import User  # Или где у вас лежит модель
+
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь с таким telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Деактивируем
+        user.is_active = False
+        user.save()
+
+        return Response(
+            {"detail": f"Пользователь {user.name} (telegram_id={telegram_id}) деактивирован."},
+            status=status.HTTP_200_OK
+        )
+    from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
+class ActivateUserView(APIView):
+    """
+    Активирует пользователя (is_active = True) по указанному telegram_id.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Активировать пользователя по telegram_id",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'telegram_id': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID пользователя, которого нужно активировать"
+                )
+            },
+            required=['telegram_id']
+        ),
+        responses={
+            200: openapi.Response(
+                description="Пользователь успешно активирован",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Неправильные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Пользователь не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get('telegram_id')
+
+        if not telegram_id:
+            return Response(
+                {"detail": "Поле 'telegram_id' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from .models import User  # Импорт модели User
+
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь с таким telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Активируем пользователя
+        user.is_active = True
+        user.save()
+
+        return Response(
+            {"detail": f"Пользователь {user.name} (telegram_id={telegram_id}) активирован."},
+            status=status.HTTP_200_OK
+        )

@@ -29,7 +29,7 @@ class User(models.Model):
         default=Decimal('0.00'),  # <-- Так лучше
         help_text="Баланс клиента"
     )
-
+    is_active = models.BooleanField(default=True, help_text="Активен ли пользователь")
 
     def __str__(self):
         return f"{self.name} ({self.role})"
