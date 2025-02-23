@@ -2549,7 +2549,7 @@ class MasterProfileView(APIView):
             f"⭐️ Рейтинг: {master.rating}\n"
             f"💬 Отзывы: {reviews_count}\n\n"
             f"🎖 Уровень: {level_name}\n"
-            f"🚀 Прогресс до следующего уровня: {progress_percent}%\n\n"
+            f"🚀 Прогресс: {progress_percent}%\n\n"
             f"<b>Награды и привилегии на вашем уровне:</b>\n"
             f"💸 Комиссия: {settings['current_commission']}\n"
             f"🔨 Брать {settings['current_max_requests']} заявку в работу\n\n"
@@ -2730,5 +2730,160 @@ class MasterEquipmentUpdateView(APIView):
         master.save()
         return Response(
             {"detail": f"Список оборудований мастера обновлён на '{new_equipment}'."},
+            status=status.HTTP_200_OK
+        )
+    
+
+
+class MasterPhoneUpdateView(APIView):
+    """
+    API‑точка для обновления номера телефона мастера.
+    Во входных данных ожидаются:
+      - telegram_id: Telegram ID мастера
+      - name: новый номер телефона мастера
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет номер телефона мастера. Принимает telegram_id и name (новый номер).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID мастера"
+                ),
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новый номер телефона мастера"
+                )
+            },
+            required=["telegram_id", "name"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Номер телефона мастера обновлён",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер с данным telegram_id не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        new_phone = request.data.get("name")
+        if not telegram_id or not new_phone:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'phone' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Ищем именно мастера по telegram_id
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Мастер с данным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем номер телефона мастера
+        user.phone = new_phone
+        user.save()
+        return Response(
+            {"detail": f"Номер телефона мастера обновлён на '{new_phone}'."},
+            status=status.HTTP_200_OK
+        )
+
+
+class MasterNameUpdateView(APIView):
+    """
+    API‑точка для обновления имени мастера.
+    Во входных данных ожидаются:
+      - telegram_id: Telegram ID мастера
+      - name: новое имя мастера
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет имя мастера. Принимает telegram_id и name (новое имя).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID мастера"
+                ),
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новое имя мастера"
+                )
+            },
+            required=["telegram_id", "name"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Имя мастера обновлено",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер с данным telegram_id не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        new_name = request.data.get("name")
+        if not telegram_id or not new_name:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'name' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Ищем мастера по telegram_id
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Мастер с данным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем имя мастера
+        user.name = new_name
+        user.save()
+        return Response(
+            {"detail": f"Имя мастера обновлено на '{new_name}'."},
             status=status.HTTP_200_OK
         )
