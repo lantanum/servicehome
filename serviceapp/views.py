@@ -2457,7 +2457,7 @@ class MasterProfileView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response(
                 {"detail": "Пользователь не найден."},
