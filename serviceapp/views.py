@@ -19,7 +19,7 @@ from django.utils import timezone
 
 
 from serviceapp.amocrm_client import AmoCRMClient
-from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data
+from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
 from .serializers import (
     AmoCRMWebhookSerializer,
     MasterStatisticsRequestSerializer,
@@ -2403,6 +2403,8 @@ class MasterProfileView(APIView):
     """
     API‑точка для отправки данных профиля мастера.
     Во входных данных требуется указать telegram_id.
+    Если под одним telegram_id существуют записи для клиента и мастера,
+    будет выбрана именно запись с ролью "Master".
     """
     @swagger_auto_schema(
         operation_description="Возвращает данные профиля мастера с расчетом оставшихся работ до следующего уровня.",
@@ -2425,6 +2427,10 @@ class MasterProfileView(APIView):
                         "message": openapi.Schema(
                             type=openapi.TYPE_STRING,
                             description="Форматированное сообщение профиля мастера"
+                        ),
+                        "level": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Наименование уровня мастера"
                         )
                     }
                 )
@@ -2457,17 +2463,12 @@ class MasterProfileView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         try:
+            # Ищем именно пользователя с ролью "Master"
             user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response(
-                {"detail": "Пользователь не найден."},
+                {"detail": "Мастер с данным telegram_id не найден."},
                 status=status.HTTP_404_NOT_FOUND
-            )
-
-        if user.role != "Master":
-            return Response(
-                {"detail": "Пользователь не является мастером."},
-                status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
@@ -2478,7 +2479,7 @@ class MasterProfileView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Подсчёт отзывов (например, число записей RatingLog)
+        # Подсчитываем количество отзывов (например, число записей RatingLog)
         reviews_count = RatingLog.objects.filter(master=master).count()
 
         # Определяем настройки для расчёта условий перехода по уровням
@@ -2508,6 +2509,7 @@ class MasterProfileView(APIView):
                 "required_invites": 0,
             }
         }
+        # Если уровень мастера не задан или больше 3, считаем его уровнем 3
         current_level = master.level if master.level in level_settings else 3
         settings = level_settings[current_level]
 
@@ -2535,6 +2537,9 @@ class MasterProfileView(APIView):
         else:
             remaining_invites = 0
 
+        # Определяем наименование уровня по маппингу
+        level_name = LEVEL_NAME_MAPPING.get(current_level, "Мастер")
+
         # Формируем форматированное сообщение
         message = (
             f"📋 <b>Мой профиль</b>\n"
@@ -2543,18 +2548,18 @@ class MasterProfileView(APIView):
             f"🏙 Город: {user.city_name}\n"
             f"⭐️ Рейтинг: {master.rating}\n"
             f"💬 Отзывы: {reviews_count}\n\n"
-            f"🎖 Уровень: {master.level}\n"
+            f"🎖 Уровень: {level_name}\n"
             f"🚀 Прогресс до следующего уровня: {progress_percent}%\n\n"
             f"<b>Награды и привилегии на вашем уровне:</b>\n"
             f"💸 Комиссия: {settings['current_commission']}\n"
-            f"🔨 Брать {settings['current_max_requests']} заявки в работу\n\n"
+            f"🔨 Брать {settings['current_max_requests']} заявку в работу\n\n"
             f"<b>Что вас ждёт на следующем уровне:</b>\n"
             f"💸 Уменьшение комиссия: {settings['next_commission']}\n"
-            f"🔨 Брать {settings['next_max_requests']} заявки в работу\n\n"
+            f"🔨 Брать {settings['next_max_requests']} заявку в работу\n\n"
             f"📈 <b>Развитие:</b>\n"
             f"🛠 Осталось выполнить работ: {remaining_works}\n"
             f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
             f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
         )
 
-        return Response({"message": message, "level": master.level}, status=status.HTTP_200_OK)
+        return Response({"message": message, "level": level_name}, status=status.HTTP_200_OK)

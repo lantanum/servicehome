@@ -15,6 +15,13 @@ STATUS_MAPPING = {
 
 }
 
+
+MASTER_LEVEL_MAPPING = {
+    'Мастер': 1,
+    'Грандмастер': 2,
+    'Учитель': 3
+}
+
 REVERSE_STATUS_MAPPING = {v: k for k, v in STATUS_MAPPING.items()}
 
 def parse_nested_form_data(form_data):
