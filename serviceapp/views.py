@@ -35,7 +35,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, Master, ReferralLink, ServiceRequest, ServiceType, Settings, Transaction, User
+from .models import EquipmentType, Master, RatingLog, ReferralLink, ServiceRequest, ServiceType, Settings, Transaction, User
 
 logger = logging.getLogger(__name__)
 
@@ -2399,3 +2399,162 @@ class ActivateUserView(APIView):
             {"detail": f"Пользователь {user.name} (telegram_id={telegram_id}) активирован."},
             status=status.HTTP_200_OK
         )
+class MasterProfileView(APIView):
+    """
+    API‑точка для отправки данных профиля мастера.
+    Во входных данных требуется указать telegram_id.
+    """
+    @swagger_auto_schema(
+        operation_description="Возвращает данные профиля мастера с расчетом оставшихся работ до следующего уровня.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID мастера"
+                )
+            },
+            required=["telegram_id"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Данные профиля мастера",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "message": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Форматированное сообщение профиля мастера"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные или пользователь не является мастером",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер или профиль не найдены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        if not telegram_id:
+            return Response(
+                {"detail": "Поле 'telegram_id' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user = User.objects.get(telegram_id=telegram_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if user.role != "Master":
+            return Response(
+                {"detail": "Пользователь не является мастером."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            master = user.master_profile
+        except Master.DoesNotExist:
+            return Response(
+                {"detail": "Профиль мастера не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Подсчёт отзывов (например, число записей RatingLog)
+        reviews_count = RatingLog.objects.filter(master=master).count()
+
+        # Определяем настройки для расчёта условий перехода по уровням
+        level_settings = {
+            1: {
+                "current_commission": "30%",
+                "current_max_requests": "1",
+                "next_commission": "25%",
+                "next_max_requests": "3",
+                "required_works": 10,
+                "required_invites": 1,
+            },
+            2: {
+                "current_commission": "25%",
+                "current_max_requests": "3",
+                "next_commission": "20%",
+                "next_max_requests": "5",
+                "required_works": 30,
+                "required_invites": 3,
+            },
+            3: {
+                "current_commission": "20%",
+                "current_max_requests": "5",
+                "next_commission": "–",
+                "next_max_requests": "–",
+                "required_works": 0,
+                "required_invites": 0,
+            }
+        }
+        current_level = master.level if master.level in level_settings else 3
+        settings = level_settings[current_level]
+
+        # Подсчитываем количество выполненных заказов (без учета диагностики)
+        completed_orders = ServiceRequest.objects.filter(
+            master=master,
+            status='Completed'
+        ).exclude(service_name__icontains="диагностика").count()
+
+        if settings["required_works"] > 0:
+            remaining_works = settings["required_works"] - completed_orders
+            if remaining_works < 0:
+                remaining_works = 0
+            progress_percent = min(100, int((completed_orders / settings["required_works"]) * 100))
+        else:
+            remaining_works = 0
+            progress_percent = 100
+
+        # Подсчитываем количество приглашённых мастеров
+        invited_masters_count = User.objects.filter(referrer=user, role="Master").count()
+        if settings["required_invites"] > 0:
+            remaining_invites = settings["required_invites"] - invited_masters_count
+            if remaining_invites < 0:
+                remaining_invites = 0
+        else:
+            remaining_invites = 0
+
+        # Формируем форматированное сообщение
+        message = (
+            f"📋 Мой профиль\n"
+            f"✏️ Имя: {user.name}\n"
+            f"📞 Телефон: {user.phone}\n"
+            f"🏙 Город: {user.city_name}\n"
+            f"⭐️ Рейтинг: {master.rating}\n"
+            f"💬 Отзывы: {reviews_count}\n\n"
+            f"🎖 Уровень: {master.level}\n"
+            f"🚀 Прогресс до следующего уровня: {progress_percent}%\n\n"
+            f"Награды и привилегии на вашем уровне:\n"
+            f"💸 Комиссия: {settings['current_commission']}\n"
+            f"🔨 Брать {settings['current_max_requests']} заявки в работу\n\n"
+            f"Что вас ждёт на следующем уровне:\n"
+            f"💸 Уменьшение комиссия: {settings['next_commission']}\n"
+            f"🔨 Брать {settings['next_max_requests']} заявки в работу\n\n"
+            f"📈 Развитие:\n"
+            f"🛠 Осталось выполнить работ: {remaining_works}\n"
+            f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
+            f"🛠 Виды работ: {master.service_name}"
+        )
+
+        return Response({"message": message}, status=status.HTTP_200_OK)
