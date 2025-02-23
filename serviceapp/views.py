@@ -2554,7 +2554,7 @@ class MasterProfileView(APIView):
             f"📈 Развитие:\n"
             f"🛠 Осталось выполнить работ: {remaining_works}\n"
             f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
-            f"🛠 Виды работ: {master.service_name}"
+            f"🛠 Виды работ: {master.equipment_type_name}"
         )
 
-        return Response({"message": message}, status=status.HTTP_200_OK)
+        return Response({"message": message, "level": master.level}, status=status.HTTP_200_OK)
