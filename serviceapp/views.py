@@ -2545,7 +2545,7 @@ class MasterProfileView(APIView):
             f"📋 <b>Мой профиль</b>\n"
             f"✏️ Имя: {user.name}\n"
             f"📞 Телефон: {user.phone}\n"
-            f"🏙 Город: {user.city_name}\n"
+            f"🏙 Город: {master.city_name}\n"
             f"⭐️ Рейтинг: {master.rating}\n"
             f"💬 Отзывы: {reviews_count}\n\n"
             f"🎖 Уровень: {level_name}\n"
@@ -2562,7 +2562,7 @@ class MasterProfileView(APIView):
             f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
         )
 
-        return Response({"message": message, "level": level_name}, status=status.HTTP_200_OK)
+        return Response({"message": message, "level": level_name, "city": master.city_name, "name": user.name, "equipment": master.equipment_type_name, "phone": user.phone}, status=status.HTTP_200_OK)
     
 
 class MasterCityUpdateView(APIView):
