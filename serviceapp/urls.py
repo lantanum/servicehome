@@ -1,5 +1,5 @@
 from django.urls import path
-from serviceapp.views import ActivateUserView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterFreeRequestsView, MasterProfileView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
+from serviceapp.views import ActivateUserView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterCityUpdateView, MasterEquipmentUpdateView, MasterFreeRequestsView, MasterProfileView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user_registration'),
@@ -22,5 +22,6 @@ urlpatterns = [
     path('users/deactivate/', DeactivateUserView.as_view(), name='deactivate-user'),
     path('users/activate/', ActivateUserView.as_view(), name='activate-user'),
     path('master_profile/', MasterProfileView.as_view(), name='master-profile'),
-    
+    path('master_update_city/', MasterCityUpdateView.as_view(), name='master-update-city'),
+    path('master_update_equipment/', MasterEquipmentUpdateView.as_view(), name='master-update-equipment')
 ]
