@@ -694,22 +694,13 @@ class UserProfileView(APIView):
             "phone": user.phone or "",
             "balance": str(int(user.balance)),
             "daily_income": "0",   # заглушка, поменяйте под логику
-            "level": "1",          # заглушка
+            "level": user.level,          # заглушка
             "referral_count": total_referrals,
             "referral_count_1_line": count_1_line,
             "referral_count_2_line": count_2_line
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
-
-
-
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 class ServiceEquipmentTypesView(APIView):
     """
@@ -2562,7 +2553,7 @@ class MasterProfileView(APIView):
             f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
         )
 
-        return Response({"message": message, "level": level_name, "city": master.city_name, "name": user.name, "equipment": master.equipment_type_name, "phone": user.phone}, status=status.HTTP_200_OK)
+        return Response({"message": message, "level": master.level, "city": master.city_name, "name": user.name, "equipment": master.equipment_type_name, "phone": user.phone}, status=status.HTTP_200_OK)
     
 
 class MasterCityUpdateView(APIView):
@@ -2885,5 +2876,156 @@ class MasterNameUpdateView(APIView):
         user.save()
         return Response(
             {"detail": f"Имя мастера обновлено на '{new_name}'."},
+            status=status.HTTP_200_OK
+        )
+class ClientPhoneUpdateView(APIView):
+    """
+    API‑точка для обновления номера телефона клиента.
+    Во входных данных ожидаются:
+      - telegram_id: Telegram ID клиента
+      - phone: новый номер телефона клиента
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет номер телефона клиента. Принимает telegram_id и phone (новый номер).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID клиента"
+                ),
+                "phone": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новый номер телефона клиента"
+                )
+            },
+            required=["telegram_id", "phone"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Номер телефона клиента обновлён",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Клиент с данным telegram_id не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        new_phone = request.data.get("phone")
+        if not telegram_id or not new_phone:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'phone' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Ищем клиента по telegram_id и роли "Client"
+            user = User.objects.get(telegram_id=telegram_id, role="Client")
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Клиент с данным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем номер телефона клиента
+        user.phone = new_phone
+        user.save()
+        return Response(
+            {"detail": f"Номер телефона клиента обновлён на '{new_phone}'."},
+            status=status.HTTP_200_OK
+        )
+
+
+class ClientCityUpdateView(APIView):
+    """
+    API‑точка для обновления города клиента.
+    Во входных данных ожидаются:
+      - telegram_id: Telegram ID клиента
+      - name: новое название города клиента
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет город клиента. Принимает telegram_id и name (новый город).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID клиента"
+                ),
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новое название города клиента"
+                )
+            },
+            required=["telegram_id", "name"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Город клиента обновлён",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Клиент с данным telegram_id не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        new_city = request.data.get("name")
+        if not telegram_id or not new_city:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'name' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user = User.objects.get(telegram_id=telegram_id, role="Client")
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Клиент с данным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем город клиента
+        user.city_name = new_city
+        user.save()
+        return Response(
+            {"detail": f"Город клиента обновлён на '{new_city}'."},
             status=status.HTTP_200_OK
         )
