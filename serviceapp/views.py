@@ -3117,6 +3117,7 @@ class MasterServiceUpdateView(APIView):
             status=status.HTTP_200_OK
         )
     
+
 class AmoCRMContactUpdateView(APIView):
     """
     API‑точка для обновления данных контакта из AmoCRM.
@@ -3182,6 +3183,9 @@ class AmoCRMContactUpdateView(APIView):
     )
     def post(self, request):
         data = request.data
+        # Выводим входное сообщение в лог
+        logger.info(f"Received AmoCRM update data: {data}")
+        
         amo_crm_contact_id = data.get("amo_crm_contact_id")
         if amo_crm_contact_id is None:
             return Response(
