@@ -1,5 +1,5 @@
 from django.urls import path
-from serviceapp.views import ActivateUserView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientCityUpdateView, ClientPhoneUpdateView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterCityUpdateView, MasterEquipmentUpdateView, MasterFreeRequestsView, MasterNameUpdateView, MasterPhoneUpdateView, MasterProfileView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
+from serviceapp.views import ActivateUserView, AmoCRMContactUpdateView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientCityUpdateView, ClientPhoneUpdateView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterCityUpdateView, MasterEquipmentUpdateView, MasterFreeRequestsView, MasterNameUpdateView, MasterPhoneUpdateView, MasterProfileView, MasterServiceUpdateView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user_registration'),
@@ -28,4 +28,6 @@ urlpatterns = [
     path('master_update_name/', MasterNameUpdateView.as_view(), name='master-update-name'),
     path('client_update_phone/', ClientPhoneUpdateView.as_view(), name='client-update-phone'),
     path('client_update_city/', ClientCityUpdateView.as_view(), name='client-update-city'),
+    path('master_update_service/', MasterServiceUpdateView.as_view(), name='master-update-service'),
+    path('amocrm_update_contact/', AmoCRMContactUpdateView.as_view(), name='amocrm-update-contact'),
 ]

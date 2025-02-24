@@ -3029,3 +3029,188 @@ class ClientCityUpdateView(APIView):
             {"detail": f"Город клиента обновлён на '{new_city}'."},
             status=status.HTTP_200_OK
         )
+    
+class MasterServiceUpdateView(APIView):
+    """
+    API‑точка для обновления вида услуг мастера.
+    Во входных данных ожидаются:
+      - telegram_id: Telegram ID мастера
+      - name: новое название услуги мастера
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет вид услуг мастера. Принимает telegram_id и name (новое название услуги).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Telegram ID мастера"
+                ),
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новое название услуги мастера"
+                )
+            },
+            required=["telegram_id", "name"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Вид услуг мастера обновлён",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер или его профиль не найдены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def post(self, request):
+        telegram_id = request.data.get("telegram_id")
+        new_service_name = request.data.get("name")
+        if not telegram_id or not new_service_name:
+            return Response(
+                {"detail": "Поля 'telegram_id' и 'name' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Ищем пользователя с ролью "Master"
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Мастер с данным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        try:
+            master = user.master_profile
+        except Master.DoesNotExist:
+            return Response(
+                {"detail": "Профиль мастера не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем вид услуг мастера
+        master.service_name = new_service_name
+        master.save()
+        return Response(
+            {"detail": f"Вид услуг мастера обновлён на '{new_service_name}'."},
+            status=status.HTTP_200_OK
+        )
+    
+class AmoCRMContactUpdateView(APIView):
+    """
+    API‑точка для обновления данных контакта из AmoCRM.
+    Принимает POST‑запрос с данными контакта.
+    Клиент определяется по его amo_crm_contact_id.
+    Возможные поля для обновления:
+      - name: новое имя контакта (опционально)
+      - phone: новый номер телефона (опционально)
+      - city_name: новый город контакта (опционально)
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет данные контакта (имя, телефон, город) на основании amo_crm_contact_id.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "amo_crm_contact_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    description="ID контакта в AmoCRM"
+                ),
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новое имя контакта (опционально)"
+                ),
+                "phone": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новый номер телефона контакта (опционально)"
+                ),
+                "city_name": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Новый город контакта (опционально)"
+                )
+            },
+            required=["amo_crm_contact_id"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Данные контакта успешно обновлены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Контакт с данным amo_crm_contact_id не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        amo_crm_contact_id = data.get("amo_crm_contact_id")
+        if amo_crm_contact_id is None:
+            return Response(
+                {"detail": "Параметр 'amo_crm_contact_id' обязателен."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user = User.objects.get(amo_crm_contact_id=amo_crm_contact_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": f"Контакт с amo_crm_contact_id={amo_crm_contact_id} не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        # Обновляем данные, если они переданы
+        updated_fields = []
+        name = data.get("name")
+        phone = data.get("phone")
+        city_name = data.get("city_name")
+        if name is not None:
+            user.name = name
+            updated_fields.append("name")
+        if phone is not None:
+            user.phone = phone
+            updated_fields.append("phone")
+        if city_name is not None:
+            user.city_name = city_name
+            updated_fields.append("city_name")
+        user.save()
+        return Response(
+            {"detail": f"Данные контакта обновлены. Обновленные поля: {', '.join(updated_fields)}."},
+            status=status.HTTP_200_OK
+        )
