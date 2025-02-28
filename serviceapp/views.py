@@ -795,6 +795,30 @@ def format_date(created_at):
     return f"{day} {month} {year}"
 
 
+def recalc_master_rating(master):
+    """
+    Пересчитывает рейтинг мастера как среднее значение по всем заявкам,
+    в которых заданы все три рейтинговых поля.
+    """
+    from decimal import Decimal
+    requests_qs = ServiceRequest.objects.filter(
+        master=master,
+        quality_rating__isnull=False,
+        competence_rating__isnull=False,
+        recommendation_rating__isnull=False
+    )
+    if not requests_qs.exists():
+        return
+    total = Decimal('0.0')
+    count = 0
+    for req in requests_qs:
+        # Вычисляем среднее значение по заявке
+        avg_req = (req.quality_rating + req.competence_rating + req.recommendation_rating) / 3
+        total += Decimal(avg_req)
+        count += 1
+    master.rating = total / count if count > 0 else Decimal('0.0')
+    master.save(update_fields=['rating'])
+
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -825,16 +849,31 @@ class AmoCRMWebhookView(APIView):
                 new_status_id = lead.get('status_id')
                 operator_comment = lead.get('748437', "")
                 deal_success = lead.get('748715', "")
+                # Из AmoCRM приходят рейтинги по ID
+                quality_rating = lead.get('748771')         # Качество работ
+                competence_rating = lead.get('748773')        # Компетентность мастера
+                recommendation_rating = lead.get('748775')    # Готовность рекомендовать
 
                 with transaction.atomic():
                     service_request = ServiceRequest.objects.select_for_update().get(
                         amo_crm_lead_id=lead_id
                     )
 
-                    # Сохраняем комментарий оператора
+                    # Сохраняем комментарий оператора и успех сделки
                     service_request.crm_operator_comment = operator_comment
                     service_request.deal_success = deal_success
+                    # Сохраняем рейтинговые параметры (предполагается, что поля добавлены в модель)
+                    if quality_rating is not None:
+                        service_request.quality_rating = int(quality_rating)
+                    if competence_rating is not None:
+                        service_request.competence_rating = int(competence_rating)
+                    if recommendation_rating is not None:
+                        service_request.recommendation_rating = int(recommendation_rating)
                     service_request.save()
+
+                    # Пересчитываем рейтинг мастера, если заявка связана с мастером
+                    if service_request.master:
+                        recalc_master_rating(service_request.master)
 
                     # Ищем статус-строку
                     status_name = None
@@ -891,8 +930,6 @@ class AmoCRMWebhookView(APIView):
                     elif status_name == 'Free':
                         previous_status = service_request.status
                         handle_free_status(service_request, previous_status, new_status_id)
-
-
                     else:
                         logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
 
@@ -904,7 +941,6 @@ class AmoCRMWebhookView(APIView):
                 continue
 
         return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
-
 
 
 def handle_free_status(service_request, previous_status, new_status_id):
@@ -1197,7 +1233,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 
     # 8) Пересчитываем уровень мастера
     recalc_master_level(master_profile)
-    
+
 
 def recalc_master_level(master_profile):
     """
