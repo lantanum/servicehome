@@ -1,10 +1,11 @@
 # file: myapp/signals.py
+from decimal import Decimal
 import requests
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from rest_framework.renderers import JSONRenderer
 
-from .models import ServiceType, EquipmentType
+from .models import ServiceType, EquipmentType, Transaction
 from .serializers import ServiceTypeSerializer
 import logging
 
@@ -51,3 +52,44 @@ def equipment_type_changed(sender, instance, **kwargs):
     Срабатывает при любом изменении (создание, обновление, удаление) EquipmentType.
     """
     send_service_equipment_data()
+
+
+
+def recalc_client_balance(client):
+    # Определяем знак для каждой транзакции
+    sign = {
+        'Deposit': Decimal(1),
+        'Comission': Decimal(-1),
+        'Penalty': Decimal(-1)
+    }
+    total = Decimal('0.00')
+    for tx in client.transactions.all():
+        total += sign.get(tx.transaction_type, Decimal('0.00')) * tx.amount
+    client.balance = total
+    client.save(update_fields=['balance'])
+
+def recalc_master_balance(master):
+    sign = {
+        'Deposit': Decimal(1),
+        'Comission': Decimal(-1),
+        'Penalty': Decimal(-1)
+    }
+    total = Decimal('0.00')
+    for tx in master.transactions.all():
+        total += sign.get(tx.transaction_type, Decimal('0.00')) * tx.amount
+    master.balance = total
+    master.save(update_fields=['balance'])
+
+@receiver(post_save, sender=Transaction)
+def update_balance_on_transaction_save(sender, instance, **kwargs):
+    if instance.client:
+        recalc_client_balance(instance.client)
+    elif instance.master:
+        recalc_master_balance(instance.master)
+
+@receiver(post_delete, sender=Transaction)
+def update_balance_on_transaction_delete(sender, instance, **kwargs):
+    if instance.client:
+        recalc_client_balance(instance.client)
+    elif instance.master:
+        recalc_master_balance(instance.master)

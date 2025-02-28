@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db import models
+from pydantic import ValidationError
 class User(models.Model):
     ROLE_CHOICES = [
         ('Client', 'Client'),
@@ -96,36 +97,65 @@ class ServiceRequest(models.Model):
     crm_operator_comment = models.TextField(null=True, blank=True, help_text="Комментарий оператора из AmoCRM")
     deal_success = models.CharField(max_length=255, null=True, blank=True, help_text = "Успех сделки")
 
+    work_outcome = models.OneToOneField('WorkOutcome', null=True, blank=True, on_delete=models.SET_NULL, related_name='service_request_outcome')
+
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
 
+class WorkOutcome(models.Model):
+    service_request = models.OneToOneField(ServiceRequest, on_delete=models.CASCADE, related_name='work_outcome_record')
+    is_penalty = models.BooleanField(default=False, help_text="Признак штрафа")
+    is_success = models.BooleanField(default=False, help_text="Признак успеха")
+    penalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), help_text="Сумма штрафа")
+    user_message = models.TextField(null=True, blank=True, help_text="Текст пользователю")
+    outcome_name = models.CharField(max_length=255, help_text="Название итога работы")
 
+    def __str__(self):
+        return self.outcome_name
 
 class Transaction(models.Model):
     TRANSACTION_CHOICES = [
         ('Deposit', 'Deposit'),
-        ('Withdrawal', 'Withdrawal'),
+        ('Comission', 'Comission'),  # заменили Withdrawal на Comission
         ('Penalty', 'Penalty'),
     ]
-
     TRANSACTION_STATUS = [
         ('Pending', 'Pending'),
         ('Confirmed', 'Confirmed'),
     ]
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    client = models.ForeignKey(
+        'User',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='transactions'
+    )
+    master = models.ForeignKey(
+        'Master',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='transactions'
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_CHOICES)
-    status = models.CharField(
-        max_length=20, 
-        choices=TRANSACTION_STATUS, 
-        default='Pending'
-    )
+    status = models.CharField(max_length=20, choices=TRANSACTION_STATUS, default='Pending')
     reason = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def clean(self):
+        if not self.client and not self.master:
+            raise ValidationError("Transaction must be linked to either a client or a master.")
+        if self.client and self.master:
+            raise ValidationError("Transaction cannot be linked to both a client and a master.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.transaction_type} {self.amount} ({self.status}) for {self.user}"
+        linked_to = f"Client: {self.client.id}" if self.client else f"Master: {self.master.id}"
+        return f"{self.transaction_type} {self.amount} ({self.status}) for {linked_to}"
 
 
 

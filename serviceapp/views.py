@@ -1087,14 +1087,17 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     """
     Обработка сделки со статусом 'Completed':
     1) Считаем комиссию из ServiceType по имени
-    2) Списываем комиссию
+    2) Создаем транзакцию с типом Comission
     3) Отправляем POST на sambot
-    4) Пересчитываем уровень мастера (повышение / понижение)
+    4) Обрабатываем итог работы: если итог - штраф, создаем транзакцию с типом Penalty,
+       и сохраняем итог работы для ServiceRequest.
+    5) Пересчитываем уровень мастера (повышение / понижение)
     """
     from decimal import Decimal
     import requests
     import logging
-    
+    from .models import ServiceType, WorkOutcome, Transaction
+
     logger = logging.getLogger(__name__)
 
     # 1) Получаем сумму сделки
@@ -1112,10 +1115,8 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     # Текущий уровень мастера (1, 2 или 3)
     master_level = master_profile.level
 
-    
-    service_type_name = service_request.service_name  # Текстовое поле, содержащее имя сервиса
+    service_type_name = service_request.service_name  # Имя сервиса из текстового поля
     service_type = None
-
     if service_type_name:
         service_type = ServiceType.objects.filter(name=service_type_name).first()
 
@@ -1128,7 +1129,6 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
         )
         commission_percentage = Decimal('0.0')
     else:
-        # Из модели ServiceType берём поля commission_level_1, commission_level_2, commission_level_3
         if master_level == 1:
             commission_percentage = service_type.commission_level_1 or Decimal('0.0')
         elif master_level == 2:
@@ -1141,10 +1141,14 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     # 4) Рассчитываем сумму комиссии
     commission_amount = deal_amount * commission_percentage / Decimal('100')
 
-    # 5) Списываем комиссию с баланса мастера
-    if master_profile.user:
-        master_profile.user.balance -= commission_amount
-        master_profile.user.save()
+    # 5) Создаем транзакцию для комиссии с типом "Comission" и статусом Confirmed.
+    # Автоматический пересчет баланса произойдет через сигналы.
+    Transaction.objects.create(
+        user=master_profile.user,  # Здесь предполагается, что транзакция для мастера привязана через поле user (или master, если используется обновленная схема)
+        amount=commission_amount,
+        transaction_type='Comission',
+        status='Confirmed'
+    )
 
     # 6) Отправляем POST на sambot
     payload = {
@@ -1170,8 +1174,30 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     except Exception as ex:
         logger.error(f"Error sending data (Completed) to sambot: {ex}")
 
-    recalc_master_level(master_profile)
+    # 7) Обработка итога работы по полю deal_success.
+    if service_request.deal_success:
+        outcome_record = WorkOutcome.objects.filter(outcome_name=service_request.deal_success).first()
+        if outcome_record:
+            if outcome_record.is_penalty:
+                penalty_amount = outcome_record.penalty_amount
+                # Создаем транзакцию для штрафа с типом "Penalty" и статусом Confirmed
+                Transaction.objects.create(
+                    user=master_profile.user,
+                    amount=penalty_amount,
+                    transaction_type='Penalty',
+                    status='Confirmed'
+                )
+                logger.info(f"Penalty applied: {penalty_amount} recorded for master {master_profile.user.id}.")
+            # Привязываем итог работы к ServiceRequest
+            service_request.work_outcome = outcome_record
+            service_request.save()
+            logger.info(f"Work outcome '{outcome_record.outcome_name}' attached to ServiceRequest {service_request.id}.")
+        else:
+            logger.warning(f"WorkOutcome with name '{service_request.deal_success}' not found for ServiceRequest {service_request.id}.")
 
+    # 8) Пересчитываем уровень мастера
+    recalc_master_level(master_profile)
+    
 
 def recalc_master_level(master_profile):
     """
