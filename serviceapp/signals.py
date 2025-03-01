@@ -56,14 +56,13 @@ def equipment_type_changed(sender, instance, **kwargs):
 
 
 def recalc_client_balance(client):
-    # Определяем знак для каждой транзакции
     sign = {
         'Deposit': Decimal(1),
         'Comission': Decimal(-1),
         'Penalty': Decimal(-1)
     }
     total = Decimal('0.00')
-    for tx in client.transactions.all():
+    for tx in client.transactions.filter(status='Confirmed'):
         total += sign.get(tx.transaction_type, Decimal('0.00')) * tx.amount
     client.balance = total
     client.save(update_fields=['balance'])
@@ -75,10 +74,11 @@ def recalc_master_balance(master):
         'Penalty': Decimal(-1)
     }
     total = Decimal('0.00')
-    for tx in master.transactions.all():
+    for tx in master.transactions.filter(status='Confirmed'):
         total += sign.get(tx.transaction_type, Decimal('0.00')) * tx.amount
     master.balance = total
     master.save(update_fields=['balance'])
+
 
 @receiver(post_save, sender=Transaction)
 def update_balance_on_transaction_save(sender, instance, **kwargs):

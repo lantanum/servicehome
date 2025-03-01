@@ -374,7 +374,7 @@ class AssignRequestView(APIView):
                 master = master_user.master_profile
 
                 # (1) Проверка баланса
-                if master_user.balance < 0:
+                if master.balance < 0:
                     return JsonResponse(
                         {"message_for_master": "У вас отрицательный баланс, пополните баланс, чтобы продолжить получать заявки"},
                         status=200
@@ -961,7 +961,7 @@ class AmoCRMWebhookView(APIView):
                                         "message": f"С вас списана комиссия в размере {diff} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                                     }
                                     try:
-                                        response_msg = requests.post('https://sambot.ru/reactions/2890052/start', json=payload, timeout=10)
+                                        response_msg = requests.post('https://sambot.ru/reactions/2849416/start', json=payload, timeout=10)
                                         if response_msg.status_code != 200:
                                             logger.error(f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}")
                                     except Exception as ex:
@@ -1579,7 +1579,7 @@ class FinishRequestView(APIView):
                     }
                     try:
                         response_msg = requests.post(
-                            'https://sambot.ru/reactions/2890052/start',
+                            'https://sambot.ru/reactions/2849416/start',
                             json=payload,
                             timeout=10
                         )
@@ -2386,7 +2386,6 @@ class BalanceDepositConfirmView(APIView):
             if not master:
                 return Response({"detail": "Пользователь не является мастером."}, status=status.HTTP_404_NOT_FOUND)
 
-            master.balance += tx.amount
             master.save()
 
             # Проверяем, является ли это первое пополнение
