@@ -958,7 +958,7 @@ class AmoCRMWebhookView(APIView):
                                 if (service_request.master and service_request.master.user.telegram_id and diff is not None):
                                     payload = {
                                         "master_telegram_id": service_request.master.user.telegram_id,
-                                        "message": f"С вас списана комиссия в размере {diff} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                                        "message": f"С вас списана комиссия в размере {diff} монет по заявке {service_request.amo_crm_lead_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                                     }
                                     try:
                                         response_msg = requests.post('https://sambot.ru/reactions/2849416/start', json=payload, timeout=10)
@@ -1575,7 +1575,7 @@ class FinishRequestView(APIView):
                     # Отправляем сообщение на sambot.ru с информацией о списанной комиссии
                     payload = {
                         "master_telegram_id": master_profile.user.telegram_id,
-                        "message": f"С вас списана комиссия в размере {commission_amount} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                        "message": f"С вас списана комиссия в размере {commission_amount} монет по заявке {request_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                     }
                     try:
                         response_msg = requests.post(
