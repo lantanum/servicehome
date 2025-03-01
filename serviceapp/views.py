@@ -819,6 +819,65 @@ def recalc_master_rating(master):
     master.rating = total / count if count > 0 else Decimal('0.0')
     master.save(update_fields=['rating'])
 
+def update_commission_transaction(service_request, new_price):
+    """
+    Вычисляет новую комиссию по новому значению цены и суммирует уже начисленные транзакции комиссии для данной заявки.
+    Если новая комиссия больше уже начисленной, создаётся дополнительная транзакция на разницу.
+    Функция возвращает разницу (положительное число) или None, если дополнительное списание не требуется.
+    """
+    new_price_value = Decimal(new_price)
+    master_profile = service_request.master
+    if not master_profile:
+        return None
+    master_level = master_profile.level
+
+    service_type = None
+    if service_request.service_name:
+        service_type = ServiceType.objects.filter(name=service_request.service_name).first()
+    if not service_type:
+        commission_percentage = Decimal('0.0')
+        logger.warning(
+            f"ServiceRequest {service_request.id}: ServiceType with name='{service_request.service_name}' not found. Commission = 0 by default."
+        )
+    else:
+        if master_level == 1:
+            commission_percentage = service_type.commission_level_1 or Decimal('0.0')
+        elif master_level == 2:
+            commission_percentage = service_type.commission_level_2 or Decimal('0.0')
+        elif master_level == 3:
+            commission_percentage = service_type.commission_level_3 or Decimal('0.0')
+        else:
+            commission_percentage = Decimal('0.0')
+    spare_parts = service_request.spare_parts_spent or Decimal('0.0')
+    deal_amount = new_price_value - spare_parts
+    new_commission_amount = deal_amount * commission_percentage / Decimal('100')
+
+    # Суммируем уже созданные транзакции комиссии для этой заявки
+    old_commission_agg = Transaction.objects.filter(
+        service_request=service_request,
+        transaction_type='Comission'
+    ).aggregate(total=Sum('amount'))
+    old_commission_total = old_commission_agg['total'] or Decimal('0.0')
+
+    difference = new_commission_amount - old_commission_total
+    if difference > Decimal('0.0'):
+        Transaction.objects.create(
+            user=master_profile.user,
+            amount=difference,
+            transaction_type='Comission',
+            status='Confirmed',
+            service_request=service_request
+        )
+        logger.info(
+            f"Additional commission transaction created for ServiceRequest {service_request.id}: difference = {difference}"
+        )
+        return difference
+    else:
+        logger.info(
+            f"No additional commission transaction required for ServiceRequest {service_request.id}. Old commission: {old_commission_total}, New commission: {new_commission_amount}"
+        )
+        return None
+
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -858,6 +917,7 @@ class AmoCRMWebhookView(APIView):
                         amo_crm_lead_id=lead_id
                     )
 
+                    # Обновляем базовые поля заявки
                     service_request.crm_operator_comment = operator_comment
                     service_request.deal_success = deal_success
                     if quality_rating is not None:
@@ -871,6 +931,7 @@ class AmoCRMWebhookView(APIView):
                     if service_request.master:
                         recalc_master_rating(service_request.master)
 
+                    # Определяем новое имя статуса по STATUS_MAPPING
                     status_name = None
                     for k, v in STATUS_MAPPING.items():
                         if v == new_status_id:
@@ -886,41 +947,18 @@ class AmoCRMWebhookView(APIView):
                     }
                     previous_status = service_request.status
 
-                    if status_name in ['AwaitingClosure', 'Closed', 'Completed']:
-                        for field, value in update_fields.items():
-                            setattr(service_request, field, value)
-                        service_request.save(update_fields=['status', 'amo_status_code'])
-                        logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' (amoCRM ID={new_status_id}).")
-
-                        if status_name == 'AwaitingClosure' and service_request.master and service_request.master.user.telegram_id:
-                            payload = {
-                                "telegram_id": service_request.master.user.telegram_id,
-                                "request_id": str(lead_id)
-                            }
-                            try:
-                                response = requests.post('https://sambot.ru/reactions/2939774/start', json=payload, timeout=10)
-                                if response.status_code != 200:
-                                    logger.error(f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. Status: {response.status_code}, Response: {response.text}")
-                            except Exception as ex:
-                                logger.error(f"Error sending data to sambot: {ex}")
-                        elif status_name == 'Completed':
-                            handle_completed_deal(
-                                service_request=service_request,
-                                operator_comment=operator_comment,
-                                previous_status=previous_status,
-                                lead_id=lead_id
-                            )
-                    elif status_name == 'QualityControl':
+                    # Обрабатываем статусы: AwaitingClosure, Completed, QualityControl
+                    if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
+                        # Если входящее поле price передано, проверяем и обновляем комиссию
                         if incoming_price is not None:
                             new_price_val = Decimal(incoming_price)
                             if service_request.price != new_price_val:
-                                new_commission_amount = update_commission_transaction(service_request, incoming_price)
+                                diff = update_commission_transaction(service_request, incoming_price)
                                 update_fields['price'] = new_price_val
-                                if (service_request.master and service_request.master.user.telegram_id 
-                                    and new_commission_amount is not None):
+                                if (service_request.master and service_request.master.user.telegram_id and diff is not None):
                                     payload = {
                                         "master_telegram_id": service_request.master.user.telegram_id,
-                                        "message": f"С вас списана комиссия в размере {new_commission_amount} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                                        "message": f"С вас списана комиссия в размере {diff} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                                     }
                                     try:
                                         response_msg = requests.post('https://sambot.ru/reactions/2890052/start', json=payload, timeout=10)
@@ -935,6 +973,28 @@ class AmoCRMWebhookView(APIView):
                             fields_to_update.append('price')
                         service_request.save(update_fields=fields_to_update)
                         logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' with updated price.")
+
+                        if status_name == 'AwaitingClosure':
+                            if service_request.master and service_request.master.user.telegram_id:
+                                payload = {
+                                    "telegram_id": service_request.master.user.telegram_id,
+                                    "request_id": str(lead_id)
+                                }
+                                try:
+                                    response = requests.post('https://sambot.ru/reactions/2939774/start', json=payload, timeout=10)
+                                    if response.status_code != 200:
+                                        logger.error(f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. Status: {response.status_code}, Response: {response.text}")
+                                except Exception as ex:
+                                    logger.error(f"Error sending data to sambot: {ex}")
+                        elif status_name == 'Completed':
+                            # Передаем параметр skip_commission=True, чтобы handle_completed_deal не создавал комиссию повторно
+                            handle_completed_deal(
+                                service_request=service_request,
+                                operator_comment=operator_comment,
+                                previous_status=previous_status,
+                                lead_id=lead_id,
+                                skip_commission=True
+                            )
                     elif status_name == 'Free':
                         previous_status = service_request.status
                         handle_free_status(service_request, previous_status, new_status_id)
@@ -948,56 +1008,6 @@ class AmoCRMWebhookView(APIView):
                 continue
 
         return Response({"detail": "Webhook processed."}, status=200)
-
-def update_commission_transaction(service_request, new_price):
-    """
-    Если incoming new_price отличается от service_request.price,
-    удаляет предыдущие транзакции комиссии для этой заявки и создаёт новую.
-    Возвращает рассчитанную сумму комиссии.
-    """
-    new_price_value = Decimal(new_price)
-    if service_request.price == new_price_value:
-        return None  # цена не изменилась
-    # Удаляем старые транзакции комиссии, связанные с заявкой
-    Transaction.objects.filter(service_request=service_request, transaction_type='Comission').delete()
-    
-    master_profile = service_request.master
-    if not master_profile:
-        return None
-    master_level = master_profile.level
-    service_type = None
-    if service_request.service_name:
-        service_type = ServiceType.objects.filter(name=service_request.service_name).first()
-    if not service_type:
-        commission_percentage = Decimal('0.0')
-        logger.warning(
-            f"ServiceRequest {service_request.id}: ServiceType with name='{service_request.service_name}' not found. Commission = 0 by default."
-        )
-    else:
-        if master_level == 1:
-            commission_percentage = service_type.commission_level_1 or Decimal('0.0')
-        elif master_level == 2:
-            commission_percentage = service_type.commission_level_2 or Decimal('0.0')
-        elif master_level == 3:
-            commission_percentage = service_type.commission_level_3 or Decimal('0.0')
-        else:
-            commission_percentage = Decimal('0.0')
-    spare_parts = service_request.spare_parts_spent or Decimal('0.0')
-    deal_amount = new_price_value - spare_parts
-    commission_amount = deal_amount * commission_percentage / Decimal('100')
-    
-    new_tx = Transaction.objects.create(
-        user=master_profile.user,
-        amount=commission_amount,
-        transaction_type='Comission',
-        status='Confirmed',
-        service_request=service_request
-    )
-    logger.info(
-        f"Updated commission transaction for ServiceRequest {service_request.id}: new commission = {commission_amount}"
-    )
-    return commission_amount
-
 
 def handle_free_status(service_request, previous_status, new_status_id):
     """
