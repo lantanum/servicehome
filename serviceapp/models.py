@@ -99,6 +99,11 @@ class ServiceRequest(models.Model):
 
     work_outcome = models.OneToOneField('WorkOutcome', null=True, blank=True, on_delete=models.SET_NULL, related_name='service_request_outcome')
 
+    quality_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Качество работ (от 1 до 5)")
+    competence_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Компетентность мастера (от 1 до 5)")
+    recommendation_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Готовность рекомендовать (от 1 до 5)")
+
+
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
 
@@ -142,6 +147,13 @@ class Transaction(models.Model):
     status = models.CharField(max_length=20, choices=TRANSACTION_STATUS, default='Pending')
     reason = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    service_request = models.ForeignKey(
+        'ServiceRequest',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='transactions'
+    )
 
     def clean(self):
         if not self.client and not self.master:

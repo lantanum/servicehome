@@ -825,12 +825,11 @@ class AmoCRMWebhookView(APIView):
     """
     def post(self, request):
         try:
-            # 1) Логируем и парсим данные
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
         except Exception as e:
             logger.error(f"Error decoding request body: {e}")
-            return Response({"detail": "Invalid request body."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid request body."}, status=400)
 
         nested_data = parse_nested_form_data(request.POST)
         logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
@@ -838,7 +837,7 @@ class AmoCRMWebhookView(APIView):
         serializer = AmoCRMWebhookSerializer(data=nested_data)
         if not serializer.is_valid():
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=400)
 
         embedded = serializer.validated_data.get('leads', {})
         status_changes = embedded.get('status', [])
@@ -849,20 +848,18 @@ class AmoCRMWebhookView(APIView):
                 new_status_id = lead.get('status_id')
                 operator_comment = lead.get('748437', "")
                 deal_success = lead.get('748715', "")
-                # Из AmoCRM приходят рейтинги по ID
                 quality_rating = lead.get('748771')         # Качество работ
                 competence_rating = lead.get('748773')        # Компетентность мастера
                 recommendation_rating = lead.get('748775')    # Готовность рекомендовать
+                incoming_price = lead.get('price')            # Приходящее значение цены (строка)
 
                 with transaction.atomic():
                     service_request = ServiceRequest.objects.select_for_update().get(
                         amo_crm_lead_id=lead_id
                     )
 
-                    # Сохраняем комментарий оператора и успех сделки
                     service_request.crm_operator_comment = operator_comment
                     service_request.deal_success = deal_success
-                    # Сохраняем рейтинговые параметры (предполагается, что поля добавлены в модель)
                     if quality_rating is not None:
                         service_request.quality_rating = int(quality_rating)
                     if competence_rating is not None:
@@ -871,54 +868,41 @@ class AmoCRMWebhookView(APIView):
                         service_request.recommendation_rating = int(recommendation_rating)
                     service_request.save()
 
-                    # Пересчитываем рейтинг мастера, если заявка связана с мастером
                     if service_request.master:
                         recalc_master_rating(service_request.master)
 
-                    # Ищем статус-строку
                     status_name = None
                     for k, v in STATUS_MAPPING.items():
                         if v == new_status_id:
                             status_name = k
                             break
-
                     if not status_name:
-                        logger.warning(
-                            f"No matching status found in STATUS_MAPPING for status_id={new_status_id}"
-                        )
+                        logger.warning(f"No matching status found for status_id={new_status_id}")
                         continue
 
+                    update_fields = {
+                        'status': status_name,
+                        'amo_status_code': new_status_id,
+                    }
+                    previous_status = service_request.status
+
                     if status_name in ['AwaitingClosure', 'Closed', 'Completed']:
-                        previous_status = service_request.status
-                        service_request.status = status_name
-                        service_request.amo_status_code = new_status_id
-                        service_request.save()
+                        for field, value in update_fields.items():
+                            setattr(service_request, field, value)
+                        service_request.save(update_fields=['status', 'amo_status_code'])
+                        logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' (amoCRM ID={new_status_id}).")
 
-                        logger.info(f"ServiceRequest {service_request.id}: status updated "
-                                    f"from {previous_status} to '{status_name}' "
-                                    f"(amoCRM ID={new_status_id}).")
-
-                        if status_name == 'AwaitingClosure':
-                            if service_request.master and service_request.master.user.telegram_id:
-                                telegram_id_master = service_request.master.user.telegram_id
-                                payload = {
-                                    "telegram_id": telegram_id_master,
-                                    "request_id": str(lead_id)
-                                }
-                                try:
-                                    response_sambot = requests.post(
-                                        'https://sambot.ru/reactions/2939774/start',
-                                        json=payload,
-                                        timeout=10
-                                    )
-                                    if response_sambot.status_code != 200:
-                                        logger.error(
-                                            f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. "
-                                            f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
-                                        )
-                                except Exception as ex:
-                                    logger.error(f"Error sending data to sambot: {ex}")
-
+                        if status_name == 'AwaitingClosure' and service_request.master and service_request.master.user.telegram_id:
+                            payload = {
+                                "telegram_id": service_request.master.user.telegram_id,
+                                "request_id": str(lead_id)
+                            }
+                            try:
+                                response = requests.post('https://sambot.ru/reactions/2939774/start', json=payload, timeout=10)
+                                if response.status_code != 200:
+                                    logger.error(f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. Status: {response.status_code}, Response: {response.text}")
+                            except Exception as ex:
+                                logger.error(f"Error sending data to sambot: {ex}")
                         elif status_name == 'Completed':
                             handle_completed_deal(
                                 service_request=service_request,
@@ -926,13 +910,36 @@ class AmoCRMWebhookView(APIView):
                                 previous_status=previous_status,
                                 lead_id=lead_id
                             )
-
+                    elif status_name == 'QualityControl':
+                        if incoming_price is not None:
+                            new_price_val = Decimal(incoming_price)
+                            if service_request.price != new_price_val:
+                                new_commission_amount = update_commission_transaction(service_request, incoming_price)
+                                update_fields['price'] = new_price_val
+                                if (service_request.master and service_request.master.user.telegram_id 
+                                    and new_commission_amount is not None):
+                                    payload = {
+                                        "master_telegram_id": service_request.master.user.telegram_id,
+                                        "message": f"С вас списана комиссия в размере {new_commission_amount} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                                    }
+                                    try:
+                                        response_msg = requests.post('https://sambot.ru/reactions/2890052/start', json=payload, timeout=10)
+                                        if response_msg.status_code != 200:
+                                            logger.error(f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}")
+                                    except Exception as ex:
+                                        logger.error(f"Error sending commission info to sambot: {ex}")
+                        for field, value in update_fields.items():
+                            setattr(service_request, field, value)
+                        fields_to_update = ['status', 'amo_status_code']
+                        if 'price' in update_fields:
+                            fields_to_update.append('price')
+                        service_request.save(update_fields=fields_to_update)
+                        logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' with updated price.")
                     elif status_name == 'Free':
                         previous_status = service_request.status
                         handle_free_status(service_request, previous_status, new_status_id)
                     else:
                         logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
-
             except ServiceRequest.DoesNotExist:
                 logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
                 continue
@@ -940,7 +947,56 @@ class AmoCRMWebhookView(APIView):
                 logger.exception(f"Error processing lead_id={lead_id}: {e}")
                 continue
 
-        return Response({"detail": "Webhook processed."}, status=status.HTTP_200_OK)
+        return Response({"detail": "Webhook processed."}, status=200)
+
+def update_commission_transaction(service_request, new_price):
+    """
+    Если incoming new_price отличается от service_request.price,
+    удаляет предыдущие транзакции комиссии для этой заявки и создаёт новую.
+    Возвращает рассчитанную сумму комиссии.
+    """
+    new_price_value = Decimal(new_price)
+    if service_request.price == new_price_value:
+        return None  # цена не изменилась
+    # Удаляем старые транзакции комиссии, связанные с заявкой
+    Transaction.objects.filter(service_request=service_request, transaction_type='Comission').delete()
+    
+    master_profile = service_request.master
+    if not master_profile:
+        return None
+    master_level = master_profile.level
+    service_type = None
+    if service_request.service_name:
+        service_type = ServiceType.objects.filter(name=service_request.service_name).first()
+    if not service_type:
+        commission_percentage = Decimal('0.0')
+        logger.warning(
+            f"ServiceRequest {service_request.id}: ServiceType with name='{service_request.service_name}' not found. Commission = 0 by default."
+        )
+    else:
+        if master_level == 1:
+            commission_percentage = service_type.commission_level_1 or Decimal('0.0')
+        elif master_level == 2:
+            commission_percentage = service_type.commission_level_2 or Decimal('0.0')
+        elif master_level == 3:
+            commission_percentage = service_type.commission_level_3 or Decimal('0.0')
+        else:
+            commission_percentage = Decimal('0.0')
+    spare_parts = service_request.spare_parts_spent or Decimal('0.0')
+    deal_amount = new_price_value - spare_parts
+    commission_amount = deal_amount * commission_percentage / Decimal('100')
+    
+    new_tx = Transaction.objects.create(
+        user=master_profile.user,
+        amount=commission_amount,
+        transaction_type='Comission',
+        status='Confirmed',
+        service_request=service_request
+    )
+    logger.info(
+        f"Updated commission transaction for ServiceRequest {service_request.id}: new commission = {commission_amount}"
+    )
+    return commission_amount
 
 
 def handle_free_status(service_request, previous_status, new_status_id):
@@ -1138,6 +1194,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 
     # 1) Получаем сумму сделки
     deal_amount = service_request.price or Decimal('0.00')
+    deal_amount = deal_amount - service_request.spare_parts_spent
 
     # Получаем Master (если нет мастера - пропускаем)
     master_profile = service_request.master
@@ -1174,6 +1231,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
         else:
             commission_percentage = Decimal('0.0')
 
+    
     # 4) Рассчитываем сумму комиссии
     commission_amount = deal_amount * commission_percentage / Decimal('100')
 
@@ -1388,11 +1446,10 @@ class MasterStatisticsView(APIView):
 class FinishRequestView(APIView):
     """
     API-эндпоинт для того, чтобы мастер (или бот) мог завершить заявку,
-    переведя её в статус "Контроль качества".
+    переведя её в статус "Контроль качества". При этом производится списание комиссии – создаётся транзакция типа "Comission".
     """
-
     @swagger_auto_schema(
-        operation_description="Закрытие заявки. Переводит заявку в статус 'Контроль качества' и обновляет данные в AmoCRM.",
+        operation_description="Закрытие заявки. Переводит заявку в статус 'Контроль качества', обновляет данные в AmoCRM и списывает комиссию.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -1401,6 +1458,7 @@ class FinishRequestView(APIView):
                 'finalAnsw2': openapi.Schema(type=openapi.TYPE_STRING, description="Гарантия"),
                 'finalAnsw3': openapi.Schema(type=openapi.TYPE_STRING, description="Итоговая цена (число)"),
                 'finalAnsw4': openapi.Schema(type=openapi.TYPE_STRING, description="Сумма, потраченная на запчасти"),
+                'finish_button_text': openapi.Schema(type=openapi.TYPE_STRING, description="Текст кнопки завершения с ID заявки")
             },
             required=['request_id']
         ),
@@ -1418,27 +1476,21 @@ class FinishRequestView(APIView):
                 description="Некорректные данные",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
                 )
             ),
             404: openapi.Response(
                 description="Заявка не найдена",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
                 )
             ),
             500: openapi.Response(
                 description="Внутренняя ошибка сервера",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
                 )
             )
         }
@@ -1446,12 +1498,11 @@ class FinishRequestView(APIView):
     def post(self, request):
         data = request.data
 
-        # Считываем все входные данные как текст (строки)
-        finalAnsw1 = data.get('finalAnsw1', "")      # какие работы были выполнены
-        finalAnsw2 = data.get('finalAnsw2', "")      # гарантия
-        finalAnsw3 = data.get('finalAnsw3', "")      # итоговая цена
-        finalAnsw4 = data.get('finalAnsw4', "")      # сумма, потраченная на запчасти
-        finish_button_text = data.get('finish_button_text', "")  # "Сообщить о завершении 123123"
+        finalAnsw1 = data.get('finalAnsw1', "")      # Какие работы были выполнены
+        finalAnsw2 = data.get('finalAnsw2', "")      # Гарантия
+        finalAnsw3 = data.get('finalAnsw3', "")      # Итоговая цена (число)
+        finalAnsw4 = data.get('finalAnsw4', "")      # Сумма, потраченная на запчасти
+        finish_button_text = data.get('finish_button_text', "")  # Текст кнопки, содержащий ID заявки
 
         match = re.findall(r"\d+", finish_button_text)
         if not match:
@@ -1478,6 +1529,57 @@ class FinishRequestView(APIView):
                 service_request.end_date = timezone.now()
                 service_request.save()
 
+                # Перенос логики списания комиссии
+                if service_request.master:
+                    master_profile = service_request.master
+                    master_level = master_profile.level
+                    service_type_name = service_request.service_name
+                    service_type = None
+                    if service_type_name:
+                        service_type = ServiceType.objects.filter(name=service_type_name).first()
+                    if not service_type:
+                        commission_percentage = Decimal('0.0')
+                        logger.warning(
+                            f"ServiceRequest {service_request.id}: ServiceType with name='{service_type_name}' not found. Commission = 0 by default."
+                        )
+                    else:
+                        if master_level == 1:
+                            commission_percentage = service_type.commission_level_1 or Decimal('0.0')
+                        elif master_level == 2:
+                            commission_percentage = service_type.commission_level_2 or Decimal('0.0')
+                        elif master_level == 3:
+                            commission_percentage = service_type.commission_level_3 or Decimal('0.0')
+                        else:
+                            commission_percentage = Decimal('0.0')
+                    deal_amount = price_value - spare_parts_value
+                    commission_amount = deal_amount * commission_percentage / Decimal('100')
+                    Transaction.objects.create(
+                        user=master_profile.user,
+                        amount=commission_amount,
+                        transaction_type='Comission',
+                        status='Confirmed',
+                        service_request=service_request
+                    )
+                    logger.info(f"Commission transaction created: {commission_amount} for master {master_profile.user.id}")
+
+                    # Отправляем сообщение на sambot.ru с информацией о списанной комиссии
+                    payload = {
+                        "master_telegram_id": master_profile.user.telegram_id,
+                        "message": f"С вас списана комиссия в размере {commission_amount} монет.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                    }
+                    try:
+                        response_msg = requests.post(
+                            'https://sambot.ru/reactions/2890052/start',
+                            json=payload,
+                            timeout=10
+                        )
+                        if response_msg.status_code != 200:
+                            logger.error(
+                                f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}"
+                            )
+                    except Exception as ex:
+                        logger.error(f"Error sending commission info to sambot: {ex}")
+
                 lead_id = service_request.amo_crm_lead_id
                 if not lead_id:
                     return JsonResponse({'error': 'AmoCRM lead_id is missing'}, status=400)
@@ -1501,7 +1603,7 @@ class FinishRequestView(APIView):
                     lead_id,
                     {
                         "status_id": STATUS_MAPPING["QualityControl"], 
-                        "price": int(price_value),   # !!! приводим к int
+                        "price": int(price_value),   # приводим к int
                         "custom_fields_values": custom_fields
                     }
                 )
