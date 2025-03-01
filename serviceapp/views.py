@@ -862,7 +862,7 @@ def update_commission_transaction(service_request, new_price):
     difference = new_commission_amount - old_commission_total
     if difference > Decimal('0.0'):
         Transaction.objects.create(
-            user=master_profile.user,
+            master = master_profile,
             amount=difference,
             transaction_type='Comission',
             status='Confirmed',
@@ -1564,7 +1564,7 @@ class FinishRequestView(APIView):
                     deal_amount = price_value - spare_parts_value
                     commission_amount = deal_amount * commission_percentage / Decimal('100')
                     Transaction.objects.create(
-                        user=master_profile.user,
+                        master=master_profile,
                         amount=commission_amount,
                         transaction_type='Comission',
                         status='Confirmed',
