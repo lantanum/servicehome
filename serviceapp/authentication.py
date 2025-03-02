@@ -1,38 +1,38 @@
-# serviceapp/authentication.py
+from rest_framework.authentication import BaseAuthentication
+from rest_framework import exceptions
+from serviceapp.models import Settings
 
-from rest_framework import authentication, exceptions
-from django.conf import settings
-
-class FixedTokenAuthentication(authentication.BaseAuthentication):
+class BearerTokenUser:
     """
-    Простая аутентификация по фиксированному токену.
-    Клиент должен отправить заголовок:
-    Authorization: Token <your-fixed-token>
+    Простой объект-пользователь для аутентификации по статическому Bearer-токену.
     """
+    is_authenticated = True
 
-    keyword = 'Token'
+    def __str__(self):
+        return "BearerTokenUser"
 
+class BearerTokenAuthentication(BaseAuthentication):
+    """
+    Аутентификатор, который проверяет заголовок Authorization на наличие Bearer-токена,
+    сравнивая его с полем service_token из модели Settings.
+    """
     def authenticate(self, request):
-        auth_header = authentication.get_authorization_header(request).split()
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header:
+            raise exceptions.AuthenticationFailed('Authorization header missing.')
 
-        if not auth_header or auth_header[0].decode().lower() != self.keyword.lower():
-            return None  # Не аутентифицирован
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            raise exceptions.AuthenticationFailed('Invalid Authorization header format. Expected "Bearer <token>".')
 
-        if len(auth_header) == 1:
-            msg = 'Неверный заголовок авторизации. Отсутствует токен.'
-            raise exceptions.AuthenticationFailed(msg)
-        elif len(auth_header) > 2:
-            msg = 'Неверный заголовок авторизации. Слишком много параметров.'
-            raise exceptions.AuthenticationFailed(msg)
+        token = parts[1]
 
-        try:
-            token = auth_header[1].decode()
-        except UnicodeError:
-            msg = 'Неверный токен.'
-            raise exceptions.AuthenticationFailed(msg)
+        # Извлекаем токен из базы данных (предполагается, что существует ровно одна запись в Settings)
+        settings_obj = Settings.objects.first()
+        if not settings_obj or not settings_obj.service_token:
+            raise exceptions.AuthenticationFailed('API service token not configured.')
 
-        if token != settings.API_ACCESS_TOKEN:
-            raise exceptions.AuthenticationFailed('Неверный токен.')
+        if token != settings_obj.service_token:
+            raise exceptions.AuthenticationFailed('Invalid token.')
 
-        # Возвращаем фиктивного пользователя и `None` для `auth`
-        return (None, None)
+        return (BearerTokenUser(), None)

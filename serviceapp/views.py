@@ -1,4 +1,5 @@
 from datetime import timezone
+from math import ceil
 from django.utils.timezone import now, timedelta
 from decimal import Decimal
 import logging
@@ -958,10 +959,10 @@ class AmoCRMWebhookView(APIView):
                                 if (service_request.master and service_request.master.user.telegram_id and diff is not None):
                                     payload = {
                                         "master_telegram_id": service_request.master.user.telegram_id,
-                                        "message": f"С вас списана комиссия в размере {diff} монет по заявке {service_request.amo_crm_lead_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                                        "message": f"С вас списана комиссия в размере {ceil(float(diff))} монет по заявке {service_request.amo_crm_lead_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                                     }
                                     try:
-                                        response_msg = requests.post('https://sambot.ru/reactions/2849416/start', json=payload, timeout=10)
+                                        response_msg = requests.post('https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj', json=payload, timeout=10)
                                         if response_msg.status_code != 200:
                                             logger.error(f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}")
                                     except Exception as ex:
@@ -981,7 +982,7 @@ class AmoCRMWebhookView(APIView):
                                     "request_id": str(lead_id)
                                 }
                                 try:
-                                    response = requests.post('https://sambot.ru/reactions/2939774/start', json=payload, timeout=10)
+                                    response = requests.post('https://sambot.ru/reactions/2939774/start?token=yhvtlmhlqbj', json=payload, timeout=10)
                                     if response.status_code != 200:
                                         logger.error(f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. Status: {response.status_code}, Response: {response.text}")
                                 except Exception as ex:
@@ -1065,7 +1066,7 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
 
     try:
         response = requests.post(
-            'https://sambot.ru/reactions/2890052/start',
+            'https://sambot.ru/reactions/2890052/start?token=yhvtlmhlqbj',
             json=payload,
             timeout=10
         )
@@ -1266,7 +1267,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     }
     try:
         response_sambot = requests.post(
-            'https://sambot.ru/reactions/2939784/start',
+            'https://sambot.ru/reactions/2939784/start?token=yhvtlmhlqbj',
             json=payload,
             timeout=10
         )
@@ -1455,8 +1456,9 @@ class MasterStatisticsView(APIView):
 
 class FinishRequestView(APIView):
     """
-    API-эндпоинт для того, чтобы мастер (или бот) мог завершить заявку,
-    переведя её в статус "Контроль качества". При этом производится списание комиссии – создаётся транзакция типа "Comission".
+    API-эндпоинт для завершения заявки мастером (или ботом).
+    Переводит заявку в статус "Контроль качества", обновляет данные в AmoCRM,
+    списывает комиссию (создаётся транзакция типа "Comission") и возвращает динамическое сообщение.
     """
     @swagger_auto_schema(
         operation_description="Закрытие заявки. Переводит заявку в статус 'Контроль качества', обновляет данные в AmoCRM и списывает комиссию.",
@@ -1478,7 +1480,10 @@ class FinishRequestView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном завершении')
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном завершении'),
+                        'client_telegram_id': openapi.Schema(type=openapi.TYPE_STRING),
+                        'request_id': openapi.Schema(type=openapi.TYPE_STRING),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description="Динамическое сообщение для клиента")
                     }
                 )
             ),
@@ -1539,7 +1544,7 @@ class FinishRequestView(APIView):
                 service_request.end_date = timezone.now()
                 service_request.save()
 
-                # Перенос логики списания комиссии
+                # Логика списания комиссии
                 if service_request.master:
                     master_profile = service_request.master
                     master_level = master_profile.level
@@ -1572,14 +1577,14 @@ class FinishRequestView(APIView):
                     )
                     logger.info(f"Commission transaction created: {commission_amount} for master {master_profile.user.id}")
 
-                    # Отправляем сообщение на sambot.ru с информацией о списанной комиссии
+                    # Отправляем сообщение о списанной комиссии (округляем сумму вверх)
                     payload = {
                         "master_telegram_id": master_profile.user.telegram_id,
-                        "message": f"С вас списана комиссия в размере {commission_amount} монет по заявке {request_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
+                        "message": f"С вас списана комиссия в размере {ceil(float(commission_amount))} монет по заявке {request_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
                     }
                     try:
                         response_msg = requests.post(
-                            'https://sambot.ru/reactions/2849416/start',
+                            'https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj',
                             json=payload,
                             timeout=10
                         )
@@ -1618,9 +1623,32 @@ class FinishRequestView(APIView):
                     }
                 )
 
+                # Формирование динамического сообщения с подстановкой реальных значений
+                device_type = service_request.equipment_type or "оборудование"
+                brand = service_request.equipment_brand or "Bosch"
+                master_name = master_profile.user.name if service_request.master else "мастер"
+                master_rating = master_profile.rating if service_request.master else Decimal("0.0")
+                # Вместо звезд выводим число рейтинга и рядом символ звезды
+                rating_display = f"{master_rating:.2f} ⭐"
+                cost = int(price_value)
+
+                message_text = (
+                    "🎉 Ремонт завершен!\n\n"
+                    f"Ваш {device_type} марки {brand} успешно отремонтирован мастером {master_name}.\n\n"
+                    "👨‍🔧 Выполненные работы:\n"
+                    f"{finalAnsw1}\n\n"
+                    f"💼 Рейтинг мастера: {rating_display}\n\n"
+                    "💸 Стоимость работ:\n"
+                    f"{cost} рублей.\n\n"
+                    "Спасибо за доверие! Если возникнут вопросы или потребуется помощь, обращайтесь!"
+                )
+
             return JsonResponse(
                 {
                     "detail": f"Заявка {request_id} успешно переведена в статус 'Контроль качества'.",
+                    "client_telegram_id": service_request.client.telegram_id,
+                    "request_id": service_request.amo_crm_lead_id,
+                    "message": message_text,
                 },
                 status=200
             )
@@ -1636,7 +1664,6 @@ class FinishRequestView(APIView):
                 {"detail": "Произошла ошибка при завершении заявки."},
                 status=500
             )
-
 
 
 class MasterFreeRequestsView(APIView):

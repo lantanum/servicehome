@@ -287,6 +287,12 @@ class Settings(models.Model):
         default=''
     )
 
+    service_token = models.CharField(
+        max_length=255,
+        default='',
+        help_text="Токен для доступа к API сервиса"
+    )
+
     def __str__(self):
         return (
             f"Настройки системы:\n"

@@ -56,13 +56,13 @@ ROOT_URLCONF = 'myproject.urls'
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Разрешить доступ всем по умолчанию
+         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        # Уберите или оставьте ваши текущие методы аутентификации
-        # 'rest_framework.authentication.TokenAuthentication',
+         'serviceapp.authentication.BearerTokenAuthentication',
     ],
 }
+
 
 TEMPLATES = [
     {
@@ -150,7 +150,7 @@ AMOCRM_SUBDOMAIN = os.getenv('AMOCRM_SUBDOMAIN', 'servicecentru')
 
 AMOCRM_CUSTOM_FIELD_TELEGRAM_ID = 744499
 
-API_ACCESS_TOKEN = ''
+API_ACCESS_TOKEN = 'FqS1JdOLBAmK4XwkxkA3zRWsd2g4gIG2Dqm1Ug9zInQ'
 
 
 # settings.py
