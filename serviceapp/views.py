@@ -1454,24 +1454,6 @@ class MasterStatisticsView(APIView):
         }, status=status.HTTP_200_OK)
     
 
-from decimal import Decimal
-import re, logging, requests
-from math import ceil
-from django.db import transaction
-from django.http import JsonResponse
-from django.utils import timezone
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
-
-from serviceapp.models import ServiceRequest, Transaction, ServiceType
-from serviceapp.amo_client import AmoCRMClient
-from serviceapp.utils import recalc_master_rating  # Предполагается, что эта функция определена
-from serviceapp.utils import handle_completed_deal, handle_free_status  # Аналогично
-
-logger = logging.getLogger(__name__)
-
 class FinishRequestView(APIView):
     """
     API-эндпоинт для завершения заявки мастером (или ботом).
