@@ -1624,8 +1624,6 @@ class FinishRequestView(APIView):
                     }
                 )
 
-                # Проверяем наличие отзыва клиента и формируем флаг
-                has_client_review = bool(service_request.client_review and service_request.client_review.strip())
 
                 # Формирование динамического сообщения для клиента
                 device_type = service_request.equipment_type or "оборудование"
@@ -1651,8 +1649,7 @@ class FinishRequestView(APIView):
                     "detail": f"Заявка {request_id} успешно переведена в статус 'Контроль качества'.",
                     "client_telegram_id": service_request.client.telegram_id,
                     "request_id": service_request.amo_crm_lead_id,
-                    "message": message_text,
-                    "has_client_review": has_client_review
+                    "message": message_text
                 },
                 status=200
             )
@@ -3423,3 +3420,91 @@ class AmoCRMContactUpdateView(APIView):
             {"detail": f"Данные контакта обновлены. Обновленные поля: {', '.join(updated_fields)}."},
             status=status.HTTP_200_OK
         )
+
+
+def stars_to_int(star_string):
+    """
+    Преобразует строку звездочек в целое число, считая количество символов '⭐'.
+    """
+    if not star_string:
+        return 0
+    return star_string.count("⭐")
+
+class UpdateServiceRequestRatingView(APIView):
+    """
+    API‑точка для обновления рейтинговых параметров заявки.
+    Принимает request_id и три рейтинговых параметра, представленных в виде строк звездочек 
+    (например, "⭐⭐⭐⭐⭐" для рейтинга 5).
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет рейтинговые параметры заявки по request_id. Рейтинги принимаются в виде строк из звездочек (например, '⭐⭐⭐⭐⭐').",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "request_id": openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки (amo_crm_lead_id)"),
+                "quality_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Качество работ (звездочки)"),
+                "competence_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Компетентность мастера (звездочки)"),
+                "recommendation_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Готовность рекомендовать (звездочки)")
+            },
+            required=["request_id", "quality_rating", "competence_rating", "recommendation_rating"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Рейтинги обновлены успешно",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об успешном обновлении"),
+                        "request_id": openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Заявка не найдена",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        request_id = data.get("request_id")
+        quality_rating_str = data.get("quality_rating")
+        competence_rating_str = data.get("competence_rating")
+        recommendation_rating_str = data.get("recommendation_rating")
+        
+        if not request_id:
+            return Response({"detail": "Параметр 'request_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
+        except ServiceRequest.DoesNotExist:
+            return Response({"detail": f"Заявка с request_id {request_id} не найдена."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Преобразуем звездочную строку в число звезд
+        quality_value = stars_to_int(quality_rating_str)
+        competence_value = stars_to_int(competence_rating_str)
+        recommendation_value = stars_to_int(recommendation_rating_str)
+        
+        # Проверяем, что рейтинговые значения в диапазоне от 1 до 5
+        if not (1 <= quality_value <= 5 and 1 <= competence_value <= 5 and 1 <= recommendation_value <= 5):
+            return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5 звезд."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        service_request.quality_rating = quality_value
+        service_request.competence_rating = competence_value
+        service_request.recommendation_rating = recommendation_value
+        service_request.save(update_fields=["quality_rating", "competence_rating", "recommendation_rating"])
+        
+        if service_request.master:
+            recalc_master_rating(service_request.master)
+        
+        return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
