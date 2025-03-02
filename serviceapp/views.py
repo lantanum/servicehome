@@ -1454,6 +1454,24 @@ class MasterStatisticsView(APIView):
         }, status=status.HTTP_200_OK)
     
 
+from decimal import Decimal
+import re, logging, requests
+from math import ceil
+from django.db import transaction
+from django.http import JsonResponse
+from django.utils import timezone
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+
+from serviceapp.models import ServiceRequest, Transaction, ServiceType
+from serviceapp.amo_client import AmoCRMClient
+from serviceapp.utils import recalc_master_rating  # Предполагается, что эта функция определена
+from serviceapp.utils import handle_completed_deal, handle_free_status  # Аналогично
+
+logger = logging.getLogger(__name__)
+
 class FinishRequestView(APIView):
     """
     API-эндпоинт для завершения заявки мастером (или ботом).
@@ -1483,7 +1501,8 @@ class FinishRequestView(APIView):
                         'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешном завершении'),
                         'client_telegram_id': openapi.Schema(type=openapi.TYPE_STRING),
                         'request_id': openapi.Schema(type=openapi.TYPE_STRING),
-                        'message': openapi.Schema(type=openapi.TYPE_STRING, description="Динамическое сообщение для клиента")
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description="Динамическое сообщение для клиента"),
+                        'has_client_review': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Флаг наличия отзыва клиента")
                     }
                 )
             ),
@@ -1623,13 +1642,15 @@ class FinishRequestView(APIView):
                     }
                 )
 
-                # Формирование динамического сообщения с подстановкой реальных значений
+                # Проверяем наличие отзыва клиента и формируем флаг
+                has_client_review = bool(service_request.client_review and service_request.client_review.strip())
+
+                # Формирование динамического сообщения для клиента
                 device_type = service_request.equipment_type or "оборудование"
                 brand = service_request.equipment_brand or "Bosch"
                 master_name = master_profile.user.name if service_request.master else "мастер"
                 master_rating = master_profile.rating if service_request.master else Decimal("0.0")
-                # Вместо звезд выводим число рейтинга и рядом символ звезды
-                rating_display = f"{master_rating:.2f} ⭐"
+                rating_display = f"{int(master_rating)} ⭐"  # Выводим целое число рейтинга и рядом звезду
                 cost = int(price_value)
 
                 message_text = (
@@ -1649,6 +1670,7 @@ class FinishRequestView(APIView):
                     "client_telegram_id": service_request.client.telegram_id,
                     "request_id": service_request.amo_crm_lead_id,
                     "message": message_text,
+                    "has_client_review": has_client_review
                 },
                 status=200
             )
@@ -1664,6 +1686,7 @@ class FinishRequestView(APIView):
                 {"detail": "Произошла ошибка при завершении заявки."},
                 status=500
             )
+
 
 
 class MasterFreeRequestsView(APIView):

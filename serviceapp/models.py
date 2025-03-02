@@ -102,7 +102,7 @@ class ServiceRequest(models.Model):
     quality_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Качество работ (от 1 до 5)")
     competence_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Компетентность мастера (от 1 до 5)")
     recommendation_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Готовность рекомендовать (от 1 до 5)")
-
+    client_review = models.TextField(null=True, blank=True, help_text="Отзыв клиента")
 
     def __str__(self):
         return f"Request {self.id} by {self.client.name}"
