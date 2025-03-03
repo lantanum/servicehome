@@ -3605,7 +3605,7 @@ class MasterBalanceView(APIView):
             return Response({"detail": "Профиль мастера не найден."}, status=status.HTTP_404_NOT_FOUND)
         
         # Форматируем баланс – число без запятых (например, "4500.00")
-        balance = format(master.balance, 'f').replace(',', '')
+        balance = int(master.balance)
         
         # Определяем комиссию за заявку по типу сервиса мастера.
         commission = "N/A"
