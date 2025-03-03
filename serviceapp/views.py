@@ -1303,27 +1303,36 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     # 8) Пересчитываем уровень мастера
     recalc_master_level(master_profile)
 
-
 def recalc_master_level(master_profile):
     """
     Пересчитывает уровень мастера на основе:
-      - Разницы между количеством завершённых (Completed) и закрытых (Closed) заявок.
-      - Количества приглашённых мастеров с подтверждённым депозитом.
-    Условия перехода хранятся в базе данных (в модели Settings).
-    При понижении учитываются пороговые значения (80% от требований).
+      1) Разницы между количеством успешных заявок и закрытых заявок.
+         Здесь успешной считается заявка со статусом 'Completed', к которой прикреплён WorkOutcome с is_success=True.
+      2) Количества приглашённых мастеров с подтверждённым депозитом.
+      3) Условий перехода, которые хранятся в базе данных (в модели Settings).
+      
+    Переменная 'difference' представляет собой чистую разницу между числом успешных заявок и закрытых заявок,
+    что позволяет оценить эффективность работы мастера.
+    Если новый уровень отличается от текущего, изменения сохраняются в базе данных.
     """
     user = master_profile.user
     current_level = master_profile.level
 
-    # 1) Подсчет заявок
-    completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
+    # Подсчитываем успешные заявки (с WorkOutcome, у которого is_success=True)
+    completed_count = ServiceRequest.objects.filter(
+        master=master_profile,
+        status='Completed',
+        work_outcome_record__is_success=True
+    ).count()
+    # Подсчитываем закрытые заявки
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+    # Разница между успешными и закрытыми заявками
     difference = completed_count - closed_count
 
-    # 2) Подсчет приглашённых мастеров с депозитом
+    # Подсчитываем количество приглашённых мастеров с подтверждённым депозитом
     invited_with_deposit = count_invited_masters_with_deposit(user)
 
-    # Получаем условия из Settings (если отсутствует, используем значения по умолчанию)
+    # Получаем условия перехода из Settings
     settings_obj = Settings.objects.first()
     if settings_obj:
         req_orders_level2 = settings_obj.required_orders_level2
@@ -1334,9 +1343,9 @@ def recalc_master_level(master_profile):
         req_orders_level2, req_invites_level2 = 10, 1
         req_orders_level3, req_invites_level3 = 30, 3
 
-    new_level = current_level  # по умолчанию
+    new_level = current_level  # по умолчанию оставляем текущий уровень
 
-    # Проверка повышения
+    # Проверка повышения уровня
     if difference >= req_orders_level3 and invited_with_deposit >= req_invites_level3:
         new_level = 3
     elif difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
@@ -1344,7 +1353,7 @@ def recalc_master_level(master_profile):
     else:
         new_level = 1
 
-    # Проверка понижения:
+    # Проверка понижения уровня:
     if current_level == 3:
         if difference < req_orders_level3 * 0.8 or invited_with_deposit < req_invites_level3:
             if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
@@ -1355,11 +1364,12 @@ def recalc_master_level(master_profile):
         if difference < req_orders_level2 * 0.8 or invited_with_deposit < req_invites_level2:
             new_level = 1
 
-    # Сохраняем, если уровень изменился
+    # Если уровень изменился, сохраняем новое значение
     if new_level != current_level:
         master_profile.level = new_level
         master_profile.save()
         logger.info(f"Master {master_profile.id} level changed from {current_level} to {new_level}.")
+
 
 def count_invited_masters_with_deposit(user: User) -> int:
     """
@@ -1529,6 +1539,11 @@ class FinishRequestView(APIView):
             with transaction.atomic():
                 service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=request_id)
 
+                # Проверяем, что заявка находится в статусе "In Progress" (В работе)
+                if service_request.status != 'In Progress':
+                    return JsonResponse({"detail": "Заявка должна быть в статусе 'В работе' для завершения."},
+                                        status=400)
+
                 price_value = Decimal(finalAnsw3) if finalAnsw3 else Decimal("0")
                 spare_parts_value = Decimal(finalAnsw4) if finalAnsw4 else Decimal("0")
 
@@ -1613,12 +1628,11 @@ class FinishRequestView(APIView):
                 amocrm_client.update_lead(
                     lead_id,
                     {
-                        "status_id": STATUS_MAPPING["QualityControl"], 
+                        "status_id": STATUS_MAPPING["QualityControl"],
                         "price": int(price_value),   # приводим к int
                         "custom_fields_values": custom_fields
                     }
                 )
-
 
                 # Формирование динамического сообщения для клиента
                 device_type = service_request.equipment_type or "оборудование"
@@ -1660,7 +1674,6 @@ class FinishRequestView(APIView):
                 {"detail": "Произошла ошибка при завершении заявки."},
                 status=500
             )
-
 
 
 class MasterFreeRequestsView(APIView):
@@ -3419,27 +3432,36 @@ class AmoCRMContactUpdateView(APIView):
 
 def stars_to_int(star_string):
     """
-    Преобразует строку звездочек в целое число, считая количество символов '⭐'.
+    Преобразует входную строку, содержащую цифру и символ звездочки (например, "1⭐"),
+    возвращая только числовое значение.
+    Если цифры нет, возвращает 0.
     """
     if not star_string:
         return 0
-    return star_string.count("⭐")
+    # Извлекаем все цифры из строки и объединяем их в одну строку
+    digit_str = ''.join(filter(str.isdigit, star_string))
+    try:
+        return int(digit_str)
+    except ValueError:
+        return 0
+
 
 class UpdateServiceRequestRatingView(APIView):
     """
     API‑точка для обновления рейтинговых параметров заявки.
-    Принимает request_id и три рейтинговых параметра, представленных в виде строк звездочек 
-    (например, "⭐⭐⭐⭐⭐" для рейтинга 5).
+    Принимает request_id и три рейтинговых параметра, представленных в виде строк,
+    содержащих цифру и символ звездочки (например, "1⭐" для рейтинга 1).
     """
     @swagger_auto_schema(
-        operation_description="Обновляет рейтинговые параметры заявки по request_id. Рейтинги принимаются в виде строк из звездочек (например, '⭐⭐⭐⭐⭐').",
+        operation_description="Обновляет рейтинговые параметры заявки по request_id. "
+                              "Рейтинги принимаются в виде строк, содержащих цифру и символ звездочки (например, '1⭐').",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 "request_id": openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки (amo_crm_lead_id)"),
-                "quality_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Качество работ (звездочки)"),
-                "competence_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Компетентность мастера (звездочки)"),
-                "recommendation_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Готовность рекомендовать (звездочки)")
+                "quality_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Качество работ (например, '1⭐')"),
+                "competence_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Компетентность мастера (например, '1⭐')"),
+                "recommendation_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Готовность рекомендовать (например, '1⭐')")
             },
             required=["request_id", "quality_rating", "competence_rating", "recommendation_rating"]
         ),
@@ -3485,14 +3507,14 @@ class UpdateServiceRequestRatingView(APIView):
         except ServiceRequest.DoesNotExist:
             return Response({"detail": f"Заявка с request_id {request_id} не найдена."}, status=status.HTTP_404_NOT_FOUND)
         
-        # Преобразуем звездочную строку в число звезд
+        # Преобразуем входные строки вида "1⭐" в число
         quality_value = stars_to_int(quality_rating_str)
         competence_value = stars_to_int(competence_rating_str)
         recommendation_value = stars_to_int(recommendation_rating_str)
         
         # Проверяем, что рейтинговые значения в диапазоне от 1 до 5
         if not (1 <= quality_value <= 5 and 1 <= competence_value <= 5 and 1 <= recommendation_value <= 5):
-            return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5 звезд."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5."}, status=status.HTTP_400_BAD_REQUEST)
         
         service_request.quality_rating = quality_value
         service_request.competence_rating = competence_value
@@ -3503,6 +3525,7 @@ class UpdateServiceRequestRatingView(APIView):
             recalc_master_rating(service_request.master)
         
         return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
+
 
 class MasterBalanceView(APIView):
     """
@@ -3628,17 +3651,24 @@ class MasterBalanceView(APIView):
 
     
 
+
 def get_task_of_day(master_profile):
     """
     Возвращает задание дня для мастера на основе его текущего уровня.
-    Условия перехода хранятся в базе данных (в модели Settings).
+    Здесь успешными считаются заявки, завершённые со статусом 'Completed' и имеющие прикреплённый WorkOutcome с is_success=True.
     """
-    # Подсчет заявок
-    completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
+    # Подсчет успешных заявок с WorkOutcome с is_success=True
+    completed_count = ServiceRequest.objects.filter(
+        master=master_profile,
+        status='Completed',
+        work_outcome_record__is_success=True
+    ).count()
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+    # Переменная difference – это разница между количеством успешных заявок и закрытых заявок.
+    # Она служит показателем чистой успешности мастера: чем выше difference, тем лучше.
     difference = completed_count - closed_count
 
-    # Приглашенные мастера с депозитом
+    # Количество приглашённых мастеров с депозитом
     invited_with_deposit = count_invited_masters_with_deposit(master_profile.user)
     current_level = master_profile.level
 
@@ -3663,7 +3693,7 @@ def get_task_of_day(master_profile):
         if needed_invites > 0:
             tasks.append(f"пригласите ещё {needed_invites} мастера")
         if tasks:
-            return "Задача дня: " + " и ".join(tasks) + " для перехода на уровень 2."
+            return " и ".join(tasks) + " для перехода на уровень 2."
         else:
             return "Вы готовы перейти на уровень 2! Поздравляем!"
     elif current_level == 2:
@@ -3675,6 +3705,6 @@ def get_task_of_day(master_profile):
         if needed_invites > 0:
             tasks.append(f"пригласите ещё {needed_invites} мастера")
         if tasks:
-            return "Задача дня: " + " и ".join(tasks) + " для перехода на уровень 3."
+            return " и ".join(tasks) + " для перехода на уровень 3."
         else:
             return "Вы готовы перейти на уровень 3! Поздравляем!"
