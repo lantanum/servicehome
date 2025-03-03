@@ -3510,11 +3510,10 @@ class UpdateServiceRequestRatingView(APIView):
         return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
 
 
-
 class MasterBalanceView(APIView):
     """
     API‑точка для запроса параметров баланса мастера.
-    Принимает POST‑запрос с параметром request_id (amo_crm_lead_id заявки)
+    Принимает POST‑запрос с параметром telegram_id мастера
     и возвращает следующие параметры:
       - name: Имя мастера
       - balance: Текущий баланс
@@ -3529,12 +3528,12 @@ class MasterBalanceView(APIView):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "request_id": openapi.Schema(
+                "telegram_id": openapi.Schema(
                     type=openapi.TYPE_STRING,
-                    description="ID заявки (amo_crm_lead_id)"
+                    description="Telegram ID мастера"
                 )
             },
-            required=["request_id"]
+            required=["telegram_id"]
         ),
         responses={
             200: openapi.Response(
@@ -3546,8 +3545,8 @@ class MasterBalanceView(APIView):
                         "balance": openapi.Schema(type=openapi.TYPE_STRING, description="Текущий баланс"),
                         "status": openapi.Schema(type=openapi.TYPE_STRING, description="Статус мастера"),
                         "commission": openapi.Schema(type=openapi.TYPE_STRING, description="Комиссия за заявку"),
-                        "first_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашенные мастера 1 уровня"),
-                        "second_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашенные мастера 2 уровня"),
+                        "first_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашённые мастера 1 уровня"),
+                        "second_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашённые мастера 2 уровня"),
                         "task_of_day": openapi.Schema(type=openapi.TYPE_STRING, description="Рекомендация для перехода на следующий уровень")
                     }
                 )
@@ -3570,20 +3569,19 @@ class MasterBalanceView(APIView):
     )
     def post(self, request):
         data = request.data
-        request_id = data.get("request_id")
-        if not request_id:
-            return Response({"detail": "Параметр 'request_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        telegram_id = data.get("telegram_id")
+        if not telegram_id:
+            return Response({"detail": "Параметр 'telegram_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
-        except ServiceRequest.DoesNotExist:
-            return Response({"detail": f"Заявка с request_id {request_id} не найдена."}, status=status.HTTP_404_NOT_FOUND)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
+        except User.DoesNotExist:
+            return Response({"detail": f"Мастер с telegram_id {telegram_id} не найден."}, status=status.HTTP_404_NOT_FOUND)
         
-        if not service_request.master:
-            return Response({"detail": "К заявке не привязан мастер."}, status=status.HTTP_404_NOT_FOUND)
-        
-        master = service_request.master
-        user = master.user
+        try:
+            master = user.master_profile
+        except Exception:
+            return Response({"detail": "Профиль мастера не найден."}, status=status.HTTP_404_NOT_FOUND)
         
         # Текущий баланс мастера (в виде строки)
         balance = str(master.balance)
@@ -3609,9 +3607,8 @@ class MasterBalanceView(APIView):
         first_level_users = User.objects.filter(referrer=user, role="Master")
         second_level_invites = User.objects.filter(referrer__in=first_level_users, role="Master").count()
         
-        # Рекомендация для задачи дня – стандартное сообщение (если условия повышения уровня не определены)
+        # Рекомендация для задачи дня – условия формирования берутся из функции get_task_of_day (которая может использовать данные из Settings)
         task_of_day = get_task_of_day(master)
-
         
         response_data = {
             "name": user.name,
@@ -3623,6 +3620,7 @@ class MasterBalanceView(APIView):
             "task_of_day": task_of_day
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
     
 
 def get_task_of_day(master_profile):
