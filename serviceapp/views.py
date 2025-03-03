@@ -15,7 +15,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from decimal import Decimal, ROUND_HALF_UP
-from django.db.models import Sum
+from django.db.models import Sum, Avg
 from django.utils import timezone
 
 
@@ -2043,7 +2043,6 @@ class MasterStatsView(APIView):
     Возвращает JSON c рассчитанными полями статистики мастера (по telegram_id)
     и текстовым представлением реального ТОП-10 мастеров, отсортированного по суммарному доходу.
     """
-
     @swagger_auto_schema(
         operation_description="POST-запрос, возвращает статистику мастера и реальный ТОП-10 мастеров (строками).",
         request_body=openapi.Schema(
@@ -2071,7 +2070,7 @@ class MasterStatsView(APIView):
                         "quality_percent": openapi.Schema(type=openapi.TYPE_STRING),
                         "balance_topup_speed": openapi.Schema(type=openapi.TYPE_STRING),
                         "cost_percentage": openapi.Schema(type=openapi.TYPE_STRING),
-                        "current_status": openapi.Schema(type=openapi.TYPE_STRING),
+                        "current_status": openapi.Schema(type=openapi.TYPE_STRING, description="Номер круга, в который подходит мастер"),
                         "rating_place": openapi.Schema(type=openapi.TYPE_STRING),
                         "top_10": openapi.Schema(
                             type=openapi.TYPE_STRING,
@@ -2084,28 +2083,19 @@ class MasterStatsView(APIView):
                 description="Некорректные данные",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
                 )
             ),
             404: openapi.Response(
                 description="Мастер не найден",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+                    properties={'detail': openapi.Schema(type=openapi.TYPE_STRING)}
                 )
             )
         }
     )
     def post(self, request):
-        """
-        Пример: POST /api/master_stats/
-        Тело запроса: { "telegram_id": "12345" }
-        Возвращает JSON-объект со статистикой мастера и текстовым полем top_10 мастеров.
-        """
         data = request.data
         telegram_id = data.get('telegram_id')
 
@@ -2115,14 +2105,12 @@ class MasterStatsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 1) Проверяем пользователя
         try:
             user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response({"detail": "Мастер с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Предполагаем, что у пользователя role='Master' и есть master_profile
         master = getattr(user, 'master_profile', None)
         if not master:
             return Response({"detail": "Пользователь не является мастером."},
@@ -2134,16 +2122,10 @@ class MasterStatsView(APIView):
         finished_statuses = ['Completed', 'AwaitingClosure', 'Closed', 'QualityControl']
         completed_qs = ServiceRequest.objects.filter(master=master, status__in=finished_statuses)
 
-        # Количество выполненных заявок
         completed_orders_count = completed_qs.count()
-
-        # Сумма дохода
         total_income_value = completed_qs.aggregate(sum_price=Sum('price'))['sum_price'] or Decimal("0")
-
-        # Рейтинг
         master_rating = master.rating or Decimal("0.0")
 
-        # Среднее время (end_date - start_date)
         avg_time_seconds = 0
         count_for_avg = 0
         for req in completed_qs:
@@ -2151,18 +2133,48 @@ class MasterStatsView(APIView):
                 delta = req.end_date - req.start_date
                 avg_time_seconds += delta.total_seconds()
                 count_for_avg += 1
-        if count_for_avg > 0:
-            avg_seconds = avg_time_seconds / count_for_avg
-        else:
-            avg_seconds = 0
-        avg_hours = int(avg_seconds // 3600)
+        avg_hours = int((avg_time_seconds / count_for_avg) // 3600) if count_for_avg > 0 else 0
+        avg_time_str = f"{avg_hours} часов"
 
-        # Остальные поля (заглушки или вычисления)
-        quality_percent_str = "95%"
-        balance_topup_speed_str = "12 часов"
-        cost_percentage_str = "15%"
-        current_status_str = "1-й круг"
-        rating_place_str = "—"
+        # Рассчитываем качество работ как процент от 5 баллов
+        qs_quality = ServiceRequest.objects.filter(master=master, quality_rating__isnull=False)
+        if qs_quality.exists():
+            avg_quality = qs_quality.aggregate(avg=Avg('quality_rating'))['avg']
+            quality_percent = round((avg_quality / 5) * 100)
+        else:
+            quality_percent = 0
+        quality_percent_str = f"{quality_percent}%"
+
+        # Скорость пополнения баланса
+        deposit_qs = master.user.transactions.filter(transaction_type='Deposit', status='Confirmed').order_by('created_at')
+        if deposit_qs.count() >= 2:
+            time_diffs = []
+            deposits = list(deposit_qs)
+            for i in range(1, len(deposits)):
+                diff = (deposits[i].created_at - deposits[i-1].created_at).total_seconds()
+                time_diffs.append(diff)
+            avg_diff_hours = int(sum(time_diffs) / len(time_diffs) // 3600)
+            balance_topup_speed_str = f"{avg_diff_hours} часов"
+        else:
+            balance_topup_speed_str = "N/A"
+
+        # Процент затрат на запчасти
+        total_cost = completed_qs.aggregate(total_cost=Sum('spare_parts_spent'))['total_cost'] or Decimal("0")
+        if total_income_value > 0:
+            cost_percentage = round((total_cost / total_income_value) * 100)
+        else:
+            cost_percentage = 0
+        cost_percentage_str = f"{cost_percentage}%"
+
+        # Текущий статус как номер круга, в который подходит мастер.
+        # Для этого получаем статистику мастера (success_ratio, cost_ratio, last_deposit)
+        success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
+        if success_ratio >= 0.8 and cost_ratio <= 0.3 and last_deposit >= now() - timedelta(hours=24):
+            current_round = "1-й круг"
+        elif success_ratio >= 0.8 and 0.3 < cost_ratio <= 0.5:
+            current_round = "2-й круг"
+        else:
+            current_round = "3-й круг"
 
         registration_date = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
 
@@ -2171,55 +2183,39 @@ class MasterStatsView(APIView):
             "registration_date": registration_date,
             "rating": f"{master_rating}⭐️",
             "completed_orders": completed_orders_count,
-            "avg_time": f"{avg_hours} часов",
+            "avg_time": avg_time_str,
             "total_income": f"{int(total_income_value)} руб.",
             "quality_percent": quality_percent_str,
             "balance_topup_speed": balance_topup_speed_str,
             "cost_percentage": cost_percentage_str,
-            "current_status": current_status_str,
-            "rating_place": rating_place_str,
+            "current_status": current_round,
+            "rating_place": "—",  # будет обновлено ниже
         }
 
-        # -----------------------------------
         # Реальный ТОП-10 мастеров (доход по завершённым заявкам)
-        # -----------------------------------
         all_masters = Master.objects.all()
         stats_list = []
-
         for m in all_masters:
             m_finished_qs = ServiceRequest.objects.filter(master=m, status__in=finished_statuses)
             m_income = m_finished_qs.aggregate(sum_price=Sum('price'))['sum_price'] or Decimal("0")
             m_rating = m.rating or Decimal("0.0")
             m_cities = m.city_name or ""
             stats_list.append((m, m_income, m_rating, m_cities))
-
-        # Сортируем по доходу убыванием
         stats_list.sort(key=lambda x: x[1], reverse=True)
 
-        # Найдём место запрашиваемого мастера
         for idx, item in enumerate(stats_list, start=1):
             if item[0].id == master.id:
                 data_for_master["rating_place"] = f"{idx} место"
                 break
 
-        # Берём первые 10
         top_10_data = stats_list[:10]
-
-        # Формируем одну многострочную строку
         lines = []
         for idx, (m, inc, rat, cts) in enumerate(top_10_data, start=1):
-            # Пример формата: 
-            # 1.| Чеблаков Алексей Юрьевич| Ульяновск димитровград новоульяновск| 159240 руб.| 5⭐️
             line = f"{idx}.| {m.user.name}| {cts}| {int(inc)} руб.| {rat}⭐️"
             lines.append(line)
+        top_10_str = "\n\n".join(lines)
 
-        top_10_str = "\n\n".join(lines)  # можно сделать "\n".join(lines) если нужен перенос без пустой строки
-
-        # -----------------------------------
-        # Формируем общий ответ
-        # -----------------------------------
         result = {**data_for_master, "top_10": top_10_str}
-
         return Response(result, status=status.HTTP_200_OK)
 
 
@@ -3739,7 +3735,7 @@ class ClientReviewUpdateView(APIView):
     """
     API‑точка для обновления отзыва клиента.
     Принимает POST‑запрос с полями:
-      - request_id: ID заявки (amo_crm_lead_id)
+      - request_id: текст, содержащий ID заявки (например, "Оставить отзыв 24859199")
       - client_review: текст отзыва клиента
     После обновления возвращает сообщение об успешном сохранении.
     """
@@ -3750,7 +3746,7 @@ class ClientReviewUpdateView(APIView):
             properties={
                 "request_id": openapi.Schema(
                     type=openapi.TYPE_STRING,
-                    description="ID заявки (amo_crm_lead_id)"
+                    description="Текст с ID заявки (например, 'Оставить отзыв 24859199')"
                 ),
                 "client_review": openapi.Schema(
                     type=openapi.TYPE_STRING,
@@ -3771,7 +3767,7 @@ class ClientReviewUpdateView(APIView):
                         ),
                         "request_id": openapi.Schema(
                             type=openapi.TYPE_STRING,
-                            description="ID заявки"
+                            description="Извлечённый ID заявки"
                         )
                     }
                 )
@@ -3794,20 +3790,26 @@ class ClientReviewUpdateView(APIView):
     )
     def post(self, request):
         data = request.data
-        request_id = data.get("request_id")
+        raw_request_id = data.get("request_id")
         client_review_text = data.get("client_review")
         
-        if not request_id or client_review_text is None:
+        if not raw_request_id or client_review_text is None:
             return Response(
                 {"detail": "Поля 'request_id' и 'client_review' обязательны."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Извлекаем числовую последовательность в конце строки
+        match = re.search(r"(\d+)$", raw_request_id)
+        if not match:
+            return Response({"detail": "Не удалось извлечь ID заявки из входных данных."}, status=status.HTTP_400_BAD_REQUEST)
+        extracted_id = match.group(1)
+        
         try:
-            service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
+            service_request = ServiceRequest.objects.get(amo_crm_lead_id=extracted_id)
         except ServiceRequest.DoesNotExist:
             return Response(
-                {"detail": f"Заявка с request_id {request_id} не найдена."},
+                {"detail": f"Заявка с ID {extracted_id} не найдена."},
                 status=status.HTTP_404_NOT_FOUND
             )
         
@@ -3815,6 +3817,6 @@ class ClientReviewUpdateView(APIView):
         service_request.save(update_fields=["client_review"])
         
         return Response(
-            {"detail": "Отзыв клиента успешно обновлен.", "request_id": request_id},
+            {"detail": "Отзыв клиента успешно обновлен.", "request_id": extracted_id},
             status=status.HTTP_200_OK
         )
