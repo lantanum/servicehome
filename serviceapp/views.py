@@ -3504,18 +3504,19 @@ class UpdateServiceRequestRatingView(APIView):
         
         return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
 
-
 class MasterBalanceView(APIView):
     """
     API‑точка для запроса параметров баланса мастера.
     Принимает POST‑запрос с параметром telegram_id мастера
     и возвращает следующие параметры:
       - name: Имя мастера
-      - balance: Текущий баланс
+      - balance: Текущий баланс (без запятых)
       - status: Статус мастера ("Мастер")
       - commission: Комиссия за заявку (например, "30%") – берется из ServiceType
       - first_level_invites: Количество приглашённых мастеров 1 уровня
       - second_level_invites: Количество приглашённых мастеров 2 уровня
+      - total_invites: Общее число приглашённых мастеров (1-го и 2-го уровней)
+      - service_type: Вид услуги (значение поля service_name мастера)
       - task_of_day: Рекомендация для перехода на следующий уровень
     """
     @swagger_auto_schema(
@@ -3537,11 +3538,13 @@ class MasterBalanceView(APIView):
                     type=openapi.TYPE_OBJECT,
                     properties={
                         "name": openapi.Schema(type=openapi.TYPE_STRING, description="Имя мастера"),
-                        "balance": openapi.Schema(type=openapi.TYPE_STRING, description="Текущий баланс"),
+                        "balance": openapi.Schema(type=openapi.TYPE_STRING, description="Текущий баланс (без запятых)"),
                         "status": openapi.Schema(type=openapi.TYPE_STRING, description="Статус мастера"),
                         "commission": openapi.Schema(type=openapi.TYPE_STRING, description="Комиссия за заявку"),
                         "first_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашённые мастера 1 уровня"),
                         "second_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашённые мастера 2 уровня"),
+                        "total_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Общее количество приглашённых мастеров"),
+                        "service_type": openapi.Schema(type=openapi.TYPE_STRING, description="Вид услуги мастера"),
                         "task_of_day": openapi.Schema(type=openapi.TYPE_STRING, description="Рекомендация для перехода на следующий уровень")
                     }
                 )
@@ -3578,32 +3581,36 @@ class MasterBalanceView(APIView):
         except Exception:
             return Response({"detail": "Профиль мастера не найден."}, status=status.HTTP_404_NOT_FOUND)
         
-        # Текущий баланс мастера (в виде строки)
-        balance = str(master.balance)
+        # Форматируем баланс – число без запятых (например, "4500.00")
+        balance = format(master.balance, 'f').replace(',', '')
         
         # Определяем комиссию за заявку по типу сервиса мастера.
         commission = "N/A"
         if master.service_name:
-            service_type = ServiceType.objects.filter(name=master.service_name).first()
-            if service_type:
+            service_type_obj = ServiceType.objects.filter(name=master.service_name).first()
+            if service_type_obj:
                 if master.level == 1:
-                    commission_value = service_type.commission_level_1 or 0
+                    commission_value = service_type_obj.commission_level_1 or 0
                 elif master.level == 2:
-                    commission_value = service_type.commission_level_2 or 0
+                    commission_value = service_type_obj.commission_level_2 or 0
                 elif master.level == 3:
-                    commission_value = service_type.commission_level_3 or 0
+                    commission_value = service_type_obj.commission_level_3 or 0
                 else:
-                    commission_value = service_type.commission_level_1 or 0
+                    commission_value = service_type_obj.commission_level_1 or 0
                 commission = f"{commission_value}%"
         
-        # Приглашённые мастера первого уровня: те, кого приглашает сам мастер
+        # Подсчитываем приглашённых мастеров первого уровня
         first_level_invites = User.objects.filter(referrer=user, role="Master").count()
         # Приглашённые мастера второго уровня: те, кого приглашают пользователи первого уровня
         first_level_users = User.objects.filter(referrer=user, role="Master")
         second_level_invites = User.objects.filter(referrer__in=first_level_users, role="Master").count()
+        total_invites = first_level_invites + second_level_invites
         
-        # Рекомендация для задачи дня – условия формирования берутся из функции get_task_of_day (которая может использовать данные из Settings)
+        # Рекомендация для задачи дня
         task_of_day = get_task_of_day(master)
+        
+        # Вид услуги, указанный у мастера
+        service_type_str = master.service_name if master.service_name else "N/A"
         
         response_data = {
             "name": user.name,
@@ -3612,9 +3619,12 @@ class MasterBalanceView(APIView):
             "commission": commission,
             "first_level_invites": first_level_invites,
             "second_level_invites": second_level_invites,
+            "total_invites": total_invites,
+            "service_type": service_type_str,
             "task_of_day": task_of_day
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
 
     
 
