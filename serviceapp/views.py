@@ -3446,6 +3446,7 @@ def stars_to_int(star_string):
         return 0
 
 
+
 class UpdateServiceRequestRatingView(APIView):
     """
     API‑точка для обновления рейтинговых параметров заявки.
@@ -3458,10 +3459,22 @@ class UpdateServiceRequestRatingView(APIView):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "request_id": openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки (amo_crm_lead_id)"),
-                "quality_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Качество работ (например, '1⭐')"),
-                "competence_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Компетентность мастера (например, '1⭐')"),
-                "recommendation_rating": openapi.Schema(type=openapi.TYPE_STRING, description="Готовность рекомендовать (например, '1⭐')")
+                "request_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="ID заявки (например, 'Оставить отзыв айди заявки 12312312312')"
+                ),
+                "quality_rating": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Качество работ (например, '1⭐')"
+                ),
+                "competence_rating": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Компетентность мастера (например, '1⭐')"
+                ),
+                "recommendation_rating": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Готовность рекомендовать (например, '1⭐')"
+                )
             },
             required=["request_id", "quality_rating", "competence_rating", "recommendation_rating"]
         ),
@@ -3471,8 +3484,14 @@ class UpdateServiceRequestRatingView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об успешном обновлении"),
-                        "request_id": openapi.Schema(type=openapi.TYPE_STRING, description="ID заявки")
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        ),
+                        "request_id": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Извлечённый ID заявки"
+                        )
                     }
                 )
             ),
@@ -3494,13 +3513,19 @@ class UpdateServiceRequestRatingView(APIView):
     )
     def post(self, request):
         data = request.data
-        request_id = data.get("request_id")
+        raw_request_id = data.get("request_id")
         quality_rating_str = data.get("quality_rating")
         competence_rating_str = data.get("competence_rating")
         recommendation_rating_str = data.get("recommendation_rating")
         
-        if not request_id:
+        if not raw_request_id:
             return Response({"detail": "Параметр 'request_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Извлекаем последовательность цифр в конце строки
+        match = re.search(r"(\d+)$", raw_request_id)
+        if not match:
+            return Response({"detail": "Не удалось извлечь ID заявки из входных данных."}, status=status.HTTP_400_BAD_REQUEST)
+        request_id = match.group(1)
         
         try:
             service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
