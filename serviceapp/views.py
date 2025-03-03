@@ -1307,60 +1307,55 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 def recalc_master_level(master_profile):
     """
     Пересчитывает уровень мастера на основе:
-    1) (Completed - Closed) заявок
-    2) Сколько мастер пригласил мастеров, у которых есть хотя бы один Confirmed депозит.
-    3) Правила повышения/понижения уровня (1->2->3)
+      - Разницы между количеством завершённых (Completed) и закрытых (Closed) заявок.
+      - Количества приглашённых мастеров с подтверждённым депозитом.
+    Условия перехода хранятся в базе данных (в модели Settings).
+    При понижении учитываются пороговые значения (80% от требований).
     """
-
     user = master_profile.user
     current_level = master_profile.level
 
-    # 1) Подсчёт заявок
+    # 1) Подсчет заявок
     completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
     difference = completed_count - closed_count
 
-    # 2) Подсчёт, сколько мастер пригласил Мастеров, имеющих хотя бы 1 пополнение
+    # 2) Подсчет приглашённых мастеров с депозитом
     invited_with_deposit = count_invited_masters_with_deposit(user)
 
-    # Условия для уровней:
-    #   Уровень 2: difference >= 10, invited_with_deposit >= 1
-    #   Уровень 3: difference >= 30, invited_with_deposit >= 3
-    #
-    # Для понижения: если текущий уровень 2, но difference < 8 (80% от 10)
-    #                или invited_with_deposit < 1, => падаем на 1
-    #
-    #               если текущий уровень 3, но difference < 24 (80% от 30)
-    #                или invited_with_deposit < 3 => пробуем условия уровня 2,
-    #                если тоже не подходит => уровень 1.
+    # Получаем условия из Settings (если отсутствует, используем значения по умолчанию)
+    settings_obj = Settings.objects.first()
+    if settings_obj:
+        req_orders_level2 = settings_obj.required_orders_level2
+        req_invites_level2 = settings_obj.required_invites_level2
+        req_orders_level3 = settings_obj.required_orders_level3
+        req_invites_level3 = settings_obj.required_invites_level3
+    else:
+        req_orders_level2, req_invites_level2 = 10, 1
+        req_orders_level3, req_invites_level3 = 30, 3
 
-    new_level = current_level  # по умолчанию оставляем
+    new_level = current_level  # по умолчанию
 
-    # === Проверяем повышение ===
-    # Сначала проверяем возможность достичь 3
-    if difference >= 30 and invited_with_deposit >= 3:
+    # Проверка повышения
+    if difference >= req_orders_level3 and invited_with_deposit >= req_invites_level3:
         new_level = 3
-    # иначе пробуем достичь 2
-    elif difference >= 10 and invited_with_deposit >= 1:
+    elif difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
         new_level = 2
     else:
         new_level = 1
 
-    # === Проверяем «не дотягивает» ли до текущего уровня (понижение) ===
-    # Если мастер уже 3, но difference <24 или invited_with_deposit<3 => пробуем уровень 2, если не выйдет ->1
+    # Проверка понижения:
     if current_level == 3:
-        if difference < 24 or invited_with_deposit < 3:
-            # пытаемся удержаться на уровне 2
-            if difference >= 10 and invited_with_deposit >= 1:
+        if difference < req_orders_level3 * 0.8 or invited_with_deposit < req_invites_level3:
+            if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
                 new_level = 2
             else:
                 new_level = 1
-    # Если мастер 2, но difference <8 или invited_with_deposit <1 => уровень 1
     elif current_level == 2:
-        if difference < 8 or invited_with_deposit < 1:
+        if difference < req_orders_level2 * 0.8 or invited_with_deposit < req_invites_level2:
             new_level = 1
 
-    # Сохраняем, если изменилось
+    # Сохраняем, если уровень изменился
     if new_level != current_level:
         master_profile.level = new_level
         master_profile.save()
@@ -3625,29 +3620,33 @@ class MasterBalanceView(APIView):
 
 def get_task_of_day(master_profile):
     """
-    Возвращает задание дня для мастера на основе:
-      - Разницы между количеством завершённых (Completed) и закрытых (Closed) заявок (difference).
-      - Количества приглашённых мастеров с подтверждённым депозитом (invited_with_deposit).
-    Условия:
-      - Для перехода с уровня 1 на 2: difference >= 10 и invited_with_deposit >= 1.
-      - Для перехода с уровня 2 на 3: difference >= 30 и invited_with_deposit >= 3.
-    Функция возвращает рекомендацию в виде строки.
+    Возвращает задание дня для мастера на основе его текущего уровня.
+    Условия перехода хранятся в базе данных (в модели Settings).
     """
-    # Подсчитываем количество заявок
+    # Подсчет заявок
     completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
     difference = completed_count - closed_count
 
-    # Количество приглашённых мастеров с депозитом
+    # Приглашенные мастера с депозитом
     invited_with_deposit = count_invited_masters_with_deposit(master_profile.user)
     current_level = master_profile.level
+
+    settings_obj = Settings.objects.first()
+    if settings_obj:
+        req_orders_level2 = settings_obj.required_orders_level2
+        req_invites_level2 = settings_obj.required_invites_level2
+        req_orders_level3 = settings_obj.required_orders_level3
+        req_invites_level3 = settings_obj.required_invites_level3
+    else:
+        req_orders_level2, req_invites_level2 = 10, 1
+        req_orders_level3, req_invites_level3 = 30, 3
 
     if current_level == 3:
         return "Вы достигли максимального уровня. Поздравляем!"
     elif current_level == 1:
-        # Для перехода на уровень 2: difference >= 10, invited_with_deposit >= 1
-        needed_orders = max(0, 10 - difference)
-        needed_invites = max(0, 1 - invited_with_deposit)
+        needed_orders = max(0, req_orders_level2 - difference)
+        needed_invites = max(0, req_invites_level2 - invited_with_deposit)
         tasks = []
         if needed_orders > 0:
             tasks.append(f"выполните ещё {needed_orders} заказ{'ов' if needed_orders != 1 else ''}")
@@ -3658,9 +3657,8 @@ def get_task_of_day(master_profile):
         else:
             return "Вы готовы перейти на уровень 2! Поздравляем!"
     elif current_level == 2:
-        # Для перехода на уровень 3: difference >= 30, invited_with_deposit >= 3
-        needed_orders = max(0, 30 - difference)
-        needed_invites = max(0, 3 - invited_with_deposit)
+        needed_orders = max(0, req_orders_level3 - difference)
+        needed_invites = max(0, req_invites_level3 - invited_with_deposit)
         tasks = []
         if needed_orders > 0:
             tasks.append(f"выполните ещё {needed_orders} заказ{'ов' if needed_orders != 1 else ''}")

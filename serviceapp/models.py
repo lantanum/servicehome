@@ -249,8 +249,7 @@ class EquipmentType(models.Model):
 
 
 class Settings(models.Model):
-
-    # Новые поля
+    # Существующие поля
     max_requests_level1 = models.PositiveIntegerField(
         default=1,
         help_text="Максимальное число заявок в работе для уровня 1"
@@ -263,16 +262,31 @@ class Settings(models.Model):
         default=5,
         help_text="Максимальное число заявок в работе для уровня 3"
     )
-
     amocrm_bearer_token = models.TextField(
         help_text="Токен для аутентификации в AmoCRM",
         default=''
     )
-
     service_token = models.CharField(
         max_length=255,
         default='',
         help_text="Токен для доступа к API сервиса"
+    )
+    # Новые поля для условий перехода уровней мастера:
+    required_orders_level2 = models.IntegerField(
+        default=10,
+        help_text="Требуемая разница (Completed - Closed) для перехода с уровня 1 на 2"
+    )
+    required_invites_level2 = models.IntegerField(
+        default=1,
+        help_text="Требуемое число приглашённых мастеров с депозитом для перехода с уровня 1 на 2"
+    )
+    required_orders_level3 = models.IntegerField(
+        default=30,
+        help_text="Требуемая разница (Completed - Closed) для перехода с уровня 2 на 3"
+    )
+    required_invites_level3 = models.IntegerField(
+        default=3,
+        help_text="Требуемое число приглашённых мастеров с депозитом для перехода с уровня 2 на 3"
     )
 
     def __str__(self):
@@ -280,5 +294,7 @@ class Settings(models.Model):
             f"Настройки системы:\n"
             f"Макс. заявки L1: {self.max_requests_level1}, "
             f"L2: {self.max_requests_level2}, "
-            f"L3: {self.max_requests_level3}"
+            f"L3: {self.max_requests_level3}\n"
+            f"Переход 1->2: заказы: {self.required_orders_level2}, рефералы: {self.required_invites_level2}\n"
+            f"Переход 2->3: заказы: {self.required_orders_level3}, рефералы: {self.required_invites_level3}"
         )
