@@ -1376,8 +1376,8 @@ def count_invited_masters_with_deposit(user: User) -> int:
 
     # 2) Оставляем только тех, у кого есть хотя бы одна транзакция Deposit в статусе Confirmed
     invited_with_deposit = invited_masters.filter(
-        transaction__transaction_type='Deposit',
-        transaction__status='Confirmed'
+        transactions__transaction_type='Deposit',
+        transactions__status='Confirmed'
     ).distinct()
 
     return invited_with_deposit.count()
