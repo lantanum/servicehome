@@ -678,7 +678,7 @@ class UserProfileView(APIView):
         
         try:
             # Просто находим пользователя (клиента или мастера) по telegram_id
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role='Client')
         except User.DoesNotExist:
             return Response({"detail": "Пользователь с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
@@ -1890,7 +1890,7 @@ class ClientRequestsView(APIView):
             return Response({"detail": "telegram_id обязателен."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role='Client')
         except User.DoesNotExist:
             return Response({"detail": "Клиент с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
@@ -3645,7 +3645,7 @@ class MasterBalanceView(APIView):
                     commission_value = service_type_obj.commission_level_3 or 0
                 else:
                     commission_value = service_type_obj.commission_level_1 or 0
-                commission = f"{commission_value}%"
+                commission = f"{int(commission_value)}%"
         
         # Подсчитываем приглашённых мастеров первого уровня
         first_level_invites = User.objects.filter(referrer=user, role="Master").count()
@@ -3733,3 +3733,88 @@ def get_task_of_day(master_profile):
             return " и ".join(tasks) + " для перехода на уровень 3."
         else:
             return "Вы готовы перейти на уровень 3! Поздравляем!"
+        
+
+class ClientReviewUpdateView(APIView):
+    """
+    API‑точка для обновления отзыва клиента.
+    Принимает POST‑запрос с полями:
+      - request_id: ID заявки (amo_crm_lead_id)
+      - client_review: текст отзыва клиента
+    После обновления возвращает сообщение об успешном сохранении.
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет отзыв клиента для заявки по request_id.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "request_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="ID заявки (amo_crm_lead_id)"
+                ),
+                "client_review": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Текст отзыва клиента"
+                )
+            },
+            required=["request_id", "client_review"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Отзыв клиента успешно обновлен.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Сообщение об успешном обновлении"
+                        ),
+                        "request_id": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="ID заявки"
+                        )
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные данные.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Заявка не найдена.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        request_id = data.get("request_id")
+        client_review_text = data.get("client_review")
+        
+        if not request_id or client_review_text is None:
+            return Response(
+                {"detail": "Поля 'request_id' и 'client_review' обязательны."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
+        except ServiceRequest.DoesNotExist:
+            return Response(
+                {"detail": f"Заявка с request_id {request_id} не найдена."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        service_request.client_review = client_review_text
+        service_request.save(update_fields=["client_review"])
+        
+        return Response(
+            {"detail": "Отзыв клиента успешно обновлен.", "request_id": request_id},
+            status=status.HTTP_200_OK
+        )

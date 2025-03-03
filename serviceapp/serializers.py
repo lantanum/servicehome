@@ -1,9 +1,13 @@
-
-
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import transaction
 from .models import EquipmentType, ServiceType, User, Master, ServiceRequest, ReferralLink  # Предполагается, что ReferralLink существует
+from rest_framework import serializers
+from django.conf import settings
+from .models import User, Master
+from .amocrm_client import AmoCRMClient  # Импорт клиента, где Bearer-токен
+import logging
+import re
 
 
 # Минимальный сериализатор для отображения информации о пользователе
@@ -19,13 +23,6 @@ class MasterStatisticsRequestSerializer(serializers.Serializer):
 class MasterStatisticsResponseSerializer(serializers.Serializer):
     balance = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Баланс мастера")
     active_requests_count = serializers.IntegerField(help_text="Количество активных заявок")
-
-from rest_framework import serializers
-from django.conf import settings
-from .models import User, Master
-from .amocrm_client import AmoCRMClient  # Импорт клиента, где Bearer-токен
-import logging
-import re
 
 logger = logging.getLogger(__name__)
 
