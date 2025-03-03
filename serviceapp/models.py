@@ -249,24 +249,6 @@ class EquipmentType(models.Model):
 
 
 class Settings(models.Model):
-    commission_level1 = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0.0,
-        help_text="Процент комиссии для уровня 1"
-    )
-    commission_level2 = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0.0,
-        help_text="Процент комиссии для уровня 2"
-    )
-    commission_level3 = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0.0,
-        help_text="Процент комиссии для уровня 3"
-    )
 
     # Новые поля
     max_requests_level1 = models.PositiveIntegerField(
@@ -296,7 +278,6 @@ class Settings(models.Model):
     def __str__(self):
         return (
             f"Настройки системы:\n"
-            f"Комиссия L1: {self.commission_level1}%, L2: {self.commission_level2}%, L3: {self.commission_level3}%\n"
             f"Макс. заявки L1: {self.max_requests_level1}, "
             f"L2: {self.max_requests_level2}, "
             f"L3: {self.max_requests_level3}"

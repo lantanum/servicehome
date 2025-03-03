@@ -1,5 +1,5 @@
 from django.urls import path
-from serviceapp.views import ActivateUserView, AmoCRMContactUpdateView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientCityUpdateView, ClientPhoneUpdateView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterCityUpdateView, MasterEquipmentUpdateView, MasterFreeRequestsView, MasterNameUpdateView, MasterPhoneUpdateView, MasterProfileView, MasterServiceUpdateView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UpdateServiceRequestRatingView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
+from serviceapp.views import ActivateUserView, AmoCRMContactUpdateView, AmoCRMWebhookView, BalanceDepositConfirmView, BalanceDepositView, ClientCityUpdateView, ClientPhoneUpdateView, ClientRequestInfoView, ClientRequestsView, DeactivateUserView, MasterBalanceView, MasterCityUpdateView, MasterEquipmentUpdateView, MasterFreeRequestsView, MasterNameUpdateView, MasterPhoneUpdateView, MasterProfileView, MasterServiceUpdateView, MasterStatisticsView, MasterStatsView, ServiceEquipmentTypesView, UpdateServiceRequestRatingView, UserRegistrationView, ServiceRequestCreateView, ServiceRequestHistoryView, MasterActiveRequestsView, AssignRequestView, CloseRequestView, UserProfileView, FinishRequestView
 
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user_registration'),
@@ -30,5 +30,6 @@ urlpatterns = [
     path('client_update_city/', ClientCityUpdateView.as_view(), name='client-update-city'),
     path('master_update_service/', MasterServiceUpdateView.as_view(), name='master-update-service'),
     path('amocrm_update_contact/', AmoCRMContactUpdateView.as_view(), name='amocrm-update-contact'),
-    path('update_request_rating/', UpdateServiceRequestRatingView.as_view(), name='update-request-rating')
+    path('update_request_rating/', UpdateServiceRequestRatingView.as_view(), name='update-request-rating'),
+    path('master_balance/', MasterBalanceView.as_view(), name='master-balance'),
 ]

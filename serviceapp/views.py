@@ -245,7 +245,7 @@ class MasterActiveRequestsView(APIView):
 
         # Поиск пользователя по telegram_id
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response({"detail": "Пользователь с указанным telegram_id не найден."}, 
                             status=status.HTTP_404_NOT_FOUND)
@@ -371,7 +371,7 @@ class AssignRequestView(APIView):
         try:
             with transaction.atomic():
                 # 1) Ищем мастера
-                master_user = User.objects.select_for_update().get(telegram_id=telegram_id)
+                master_user = User.objects.select_for_update().get(telegram_id=telegram_id, role="Master")
                 master = master_user.master_profile
 
                 # (1) Проверка баланса
@@ -1425,7 +1425,7 @@ class MasterStatisticsView(APIView):
 
         # Пытаемся найти пользователя по telegram_id
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response(
                 {"detail": "Пользователь с указанным telegram_id не найден."},
@@ -1743,7 +1743,7 @@ class MasterFreeRequestsView(APIView):
 
         # 1) Проверяем пользователя
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response({"detail": "Пользователь с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
@@ -2109,7 +2109,7 @@ class MasterStatsView(APIView):
 
         # 1) Проверяем пользователя
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response({"detail": "Мастер с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
@@ -2297,7 +2297,7 @@ class BalanceDepositView(APIView):
 
         # Ищем пользователя
         try:
-            user = User.objects.get(telegram_id=telegram_id)
+            user = User.objects.get(telegram_id=telegram_id, role="Master"),
         except User.DoesNotExist:
             return Response(
                 {"detail": "Пользователь с указанным telegram_id не найден."},
@@ -3508,3 +3508,167 @@ class UpdateServiceRequestRatingView(APIView):
             recalc_master_rating(service_request.master)
         
         return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
+
+
+
+class MasterBalanceView(APIView):
+    """
+    API‑точка для запроса параметров баланса мастера.
+    Принимает POST‑запрос с параметром request_id (amo_crm_lead_id заявки)
+    и возвращает следующие параметры:
+      - name: Имя мастера
+      - balance: Текущий баланс
+      - status: Статус мастера ("Мастер")
+      - commission: Комиссия за заявку (например, "30%") – берется из ServiceType
+      - first_level_invites: Количество приглашённых мастеров 1 уровня
+      - second_level_invites: Количество приглашённых мастеров 2 уровня
+      - task_of_day: Рекомендация для перехода на следующий уровень
+    """
+    @swagger_auto_schema(
+        operation_description="Возвращает параметры баланса мастера и информацию о партнёрской программе.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "request_id": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="ID заявки (amo_crm_lead_id)"
+                )
+            },
+            required=["request_id"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Параметры успешно получены",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "name": openapi.Schema(type=openapi.TYPE_STRING, description="Имя мастера"),
+                        "balance": openapi.Schema(type=openapi.TYPE_STRING, description="Текущий баланс"),
+                        "status": openapi.Schema(type=openapi.TYPE_STRING, description="Статус мастера"),
+                        "commission": openapi.Schema(type=openapi.TYPE_STRING, description="Комиссия за заявку"),
+                        "first_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашенные мастера 1 уровня"),
+                        "second_level_invites": openapi.Schema(type=openapi.TYPE_INTEGER, description="Приглашенные мастера 2 уровня"),
+                        "task_of_day": openapi.Schema(type=openapi.TYPE_STRING, description="Рекомендация для перехода на следующий уровень")
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            404: openapi.Response(
+                description="Мастер не найден",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        request_id = data.get("request_id")
+        if not request_id:
+            return Response({"detail": "Параметр 'request_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
+        except ServiceRequest.DoesNotExist:
+            return Response({"detail": f"Заявка с request_id {request_id} не найдена."}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not service_request.master:
+            return Response({"detail": "К заявке не привязан мастер."}, status=status.HTTP_404_NOT_FOUND)
+        
+        master = service_request.master
+        user = master.user
+        
+        # Текущий баланс мастера (в виде строки)
+        balance = str(master.balance)
+        
+        # Определяем комиссию за заявку по типу сервиса мастера.
+        commission = "N/A"
+        if master.service_name:
+            service_type = ServiceType.objects.filter(name=master.service_name).first()
+            if service_type:
+                if master.level == 1:
+                    commission_value = service_type.commission_level_1 or 0
+                elif master.level == 2:
+                    commission_value = service_type.commission_level_2 or 0
+                elif master.level == 3:
+                    commission_value = service_type.commission_level_3 or 0
+                else:
+                    commission_value = service_type.commission_level_1 or 0
+                commission = f"{commission_value}%"
+        
+        # Приглашённые мастера первого уровня: те, кого приглашает сам мастер
+        first_level_invites = User.objects.filter(referrer=user, role="Master").count()
+        # Приглашённые мастера второго уровня: те, кого приглашают пользователи первого уровня
+        first_level_users = User.objects.filter(referrer=user, role="Master")
+        second_level_invites = User.objects.filter(referrer__in=first_level_users, role="Master").count()
+        
+        # Рекомендация для задачи дня – стандартное сообщение (если условия повышения уровня не определены)
+        task_of_day = get_task_of_day(master)
+
+        
+        response_data = {
+            "name": user.name,
+            "balance": balance,
+            "status": "Мастер",
+            "commission": commission,
+            "first_level_invites": first_level_invites,
+            "second_level_invites": second_level_invites,
+            "task_of_day": task_of_day
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+
+def get_task_of_day(master_profile):
+    """
+    Возвращает задание дня для мастера на основе:
+      - Разницы между количеством завершённых (Completed) и закрытых (Closed) заявок (difference).
+      - Количества приглашённых мастеров с подтверждённым депозитом (invited_with_deposit).
+    Условия:
+      - Для перехода с уровня 1 на 2: difference >= 10 и invited_with_deposit >= 1.
+      - Для перехода с уровня 2 на 3: difference >= 30 и invited_with_deposit >= 3.
+    Функция возвращает рекомендацию в виде строки.
+    """
+    # Подсчитываем количество заявок
+    completed_count = ServiceRequest.objects.filter(master=master_profile, status='Completed').count()
+    closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+    difference = completed_count - closed_count
+
+    # Количество приглашённых мастеров с депозитом
+    invited_with_deposit = count_invited_masters_with_deposit(master_profile.user)
+    current_level = master_profile.level
+
+    if current_level == 3:
+        return "Вы достигли максимального уровня. Поздравляем!"
+    elif current_level == 1:
+        # Для перехода на уровень 2: difference >= 10, invited_with_deposit >= 1
+        needed_orders = max(0, 10 - difference)
+        needed_invites = max(0, 1 - invited_with_deposit)
+        tasks = []
+        if needed_orders > 0:
+            tasks.append(f"выполните ещё {needed_orders} заказ{'ов' if needed_orders != 1 else ''}")
+        if needed_invites > 0:
+            tasks.append(f"пригласите ещё {needed_invites} мастера")
+        if tasks:
+            return "Задача дня: " + " и ".join(tasks) + " для перехода на уровень 2."
+        else:
+            return "Вы готовы перейти на уровень 2! Поздравляем!"
+    elif current_level == 2:
+        # Для перехода на уровень 3: difference >= 30, invited_with_deposit >= 3
+        needed_orders = max(0, 30 - difference)
+        needed_invites = max(0, 3 - invited_with_deposit)
+        tasks = []
+        if needed_orders > 0:
+            tasks.append(f"выполните ещё {needed_orders} заказ{'ов' if needed_orders != 1 else ''}")
+        if needed_invites > 0:
+            tasks.append(f"пригласите ещё {needed_invites} мастера")
+        if tasks:
+            return "Задача дня: " + " и ".join(tasks) + " для перехода на уровень 3."
+        else:
+            return "Вы готовы перейти на уровень 3! Поздравляем!"
