@@ -2610,59 +2610,10 @@ class ActivateUserView(APIView):
 class MasterProfileView(APIView):
     """
     API‑точка для отправки данных профиля мастера.
-    Во входных данных требуется указать telegram_id.
-    Если под одним telegram_id существуют записи для клиента и мастера,
-    будет выбрана именно запись с ролью "Master".
+    Во входных данных ожидается telegram_id (у пользователя role="Master").
+    Возвращает форматированное сообщение и доп.данные о мастере.
     """
-    @swagger_auto_schema(
-        operation_description="Возвращает данные профиля мастера с расчетом оставшихся работ до следующего уровня.",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                "telegram_id": openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    description="Telegram ID мастера"
-                )
-            },
-            required=["telegram_id"]
-        ),
-        responses={
-            200: openapi.Response(
-                description="Данные профиля мастера",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "message": openapi.Schema(
-                            type=openapi.TYPE_STRING,
-                            description="Форматированное сообщение профиля мастера"
-                        ),
-                        "level": openapi.Schema(
-                            type=openapi.TYPE_STRING,
-                            description="Наименование уровня мастера"
-                        )
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Некорректные входные данные или пользователь не является мастером",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="Мастер или профиль не найдены",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            )
-        }
-    )
+
     def post(self, request):
         telegram_id = request.data.get("telegram_id")
         if not telegram_id:
@@ -2670,8 +2621,9 @@ class MasterProfileView(APIView):
                 {"detail": "Поле 'telegram_id' обязательно."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # 1) Проверяем, что такой пользователь существует и является мастером
         try:
-            # Ищем именно пользователя с ролью "Master"
             user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response(
@@ -2679,6 +2631,7 @@ class MasterProfileView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # 2) Получаем профиль мастера
         try:
             master = user.master_profile
         except Master.DoesNotExist:
@@ -2687,91 +2640,154 @@ class MasterProfileView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Подсчитываем количество отзывов (например, число записей RatingLog)
+        # Подсчитываем кол-во отзывов
         reviews_count = RatingLog.objects.filter(master=master).count()
 
-        # Определяем настройки для расчёта условий перехода по уровням
-        level_settings = {
-            1: {
-                "current_commission": "30%",
-                "current_max_requests": "1",
-                "next_commission": "25%",
-                "next_max_requests": "3",
-                "required_works": 10,
-                "required_invites": 1,
-            },
-            2: {
-                "current_commission": "25%",
-                "current_max_requests": "3",
-                "next_commission": "20%",
-                "next_max_requests": "5",
-                "required_works": 30,
-                "required_invites": 3,
-            },
-            3: {
-                "current_commission": "20%",
-                "current_max_requests": "5",
-                "next_commission": "–",
-                "next_max_requests": "–",
-                "required_works": 0,
-                "required_invites": 0,
-            }
-        }
-        # Если уровень мастера не задан или больше 3, считаем его уровнем 3
-        current_level = master.level if master.level in level_settings else 3
-        settings = level_settings[current_level]
+        # 3) Считываем настройки перехода уровней из БД
+        settings_obj = Settings.objects.first()
+        if not settings_obj:
+            # fallback, если настроек нет
+            max_req_l1, max_req_l2, max_req_l3 = 1, 3, 5
+            req_orders_level2, req_invites_level2 = 10, 1
+            req_orders_level3, req_invites_level3 = 30, 3
+        else:
+            max_req_l1 = settings_obj.max_requests_level1
+            max_req_l2 = settings_obj.max_requests_level2
+            max_req_l3 = settings_obj.max_requests_level3
+            req_orders_level2 = settings_obj.required_orders_level2
+            req_invites_level2 = settings_obj.required_invites_level2
+            req_orders_level3 = settings_obj.required_orders_level3
+            req_invites_level3 = settings_obj.required_invites_level3
 
-        # Подсчитываем количество выполненных заказов (без учета диагностики)
+        current_level = master.level if master.level in (1, 2, 3) else 3
+
+        # 4) Определяем комиссию для текущего/следующего уровня, исходя из service_name
+        service_type_name = master.service_name or ""
+        service_type = ServiceType.objects.filter(name=service_type_name).first()
+
+        def safe_percent(val: Decimal|None) -> str:
+            """Округляем и возвращаем строку вида '30%', либо '–', если None."""
+            if val is None:
+                return "–"
+            return f"{int(val)}%"
+
+        if not service_type:
+            # Если такой service_type не найден => все комиссии 0
+            commission_l1 = commission_l2 = commission_l3 = Decimal(0)
+        else:
+            commission_l1 = service_type.commission_level_1 or Decimal(0)
+            commission_l2 = service_type.commission_level_2 or Decimal(0)
+            commission_l3 = service_type.commission_level_3 or Decimal(0)
+
+        if current_level == 1:
+            cur_comm = commission_l1
+            cur_max_req = max_req_l1
+            next_comm = commission_l2
+            next_max_req = max_req_l2
+            req_works_for_next = req_orders_level2
+            req_invites_for_next = req_invites_level2
+            next_level = 2
+        elif current_level == 2:
+            cur_comm = commission_l2
+            cur_max_req = max_req_l2
+            next_comm = commission_l3
+            next_max_req = max_req_l3
+            req_works_for_next = req_orders_level3
+            req_invites_for_next = req_invites_level3
+            next_level = 3
+        else:
+            # Третий уровень — выше нет
+            cur_comm = commission_l3
+            cur_max_req = max_req_l3
+            next_comm = None
+            next_max_req = None
+            req_works_for_next = 0
+            req_invites_for_next = 0
+            next_level = None
+
+        # 5) Подсчитываем «успешные» заказы (WorkOutcome с is_success=True)
         completed_orders = ServiceRequest.objects.filter(
             master=master,
-            status='Completed'
-        ).exclude(service_name__icontains="диагностика").count()
+            status='Completed',
+            work_outcome_record__is_success=True
+        ).count()
 
-        if settings["required_works"] > 0:
-            remaining_works = settings["required_works"] - completed_orders
-            if remaining_works < 0:
-                remaining_works = 0
-            progress_percent = min(100, int((completed_orders / settings["required_works"]) * 100))
-        else:
-            remaining_works = 0
-            progress_percent = 100
+        # 6) Подсчёт приглашённых мастеров (если нужно с депозитом — адаптируйте)
+        invited_count = User.objects.filter(referrer=user, role="Master").count()
 
-        # Подсчитываем количество приглашённых мастеров
-        invited_masters_count = User.objects.filter(referrer=user, role="Master").count()
-        if settings["required_invites"] > 0:
-            remaining_invites = settings["required_invites"] - invited_masters_count
-            if remaining_invites < 0:
-                remaining_invites = 0
-        else:
-            remaining_invites = 0
+        # 7) Сколько осталось до следующего уровня
+        remaining_works = 0
+        remaining_invites = 0
+        progress_works = 0
+        progress_invites = 0
 
-        # Определяем наименование уровня по маппингу
-        level_name = MASTER_LEVEL_MAPPING.get(current_level, "Мастер")
+        if current_level < 3:
+            # Работы
+            need_works = req_works_for_next - completed_orders
+            remaining_works = max(0, need_works)
+            # Приглашения
+            need_invites = req_invites_for_next - invited_count
+            remaining_invites = max(0, need_invites)
 
-        # Формируем форматированное сообщение
+            # Считаем проценты прогресса (от 0 до 100)
+            if req_works_for_next > 0:
+                progress_works = min(100, int((completed_orders / req_works_for_next) * 100))
+            else:
+                progress_works = 100
+            if req_invites_for_next > 0:
+                progress_invites = min(100, int((invited_count / req_invites_for_next) * 100))
+            else:
+                progress_invites = 100
+
+        # итого берём минимум, чтобы для достижения 100% нужно было выполнить оба условия
+        overall_progress = min(progress_works, progress_invites)
+
+        # 8) Формируем наименование уровня через MASTER_LEVEL_MAPPING
+        #    Предположим, в utils.py у вас есть словарь:
+        #    MASTER_LEVEL_MAPPING = {1: "Мастер", 2: "Грандмастер", 3: "Учитель"}
+        level_name = MASTER_LEVEL_MAPPING.get(current_level, f"Уровень {current_level}")
+
+        # 9) Формируем итоговое сообщение
         message = (
             f"📋 <b>Мой профиль</b>\n"
-            f"✏️ Имя: {user.name}\n"
-            f"📞 Телефон: {user.phone}\n"
-            f"🏙 Город: {master.city_name}\n"
+            f"✏️ Имя: {user.name or ''}\n"
+            f"📞 Телефон: {user.phone or ''}\n"
+            f"🏙 Город: {master.city_name or ''}\n"
             f"⭐️ Рейтинг: {master.rating}\n"
             f"💬 Отзывы: {reviews_count}\n\n"
-            f"🎖 Уровень: {level_name}\n"
-            f"🚀 Прогресс: {progress_percent}%\n\n"
+            f"🎖 Уровень: {level_name}\n\n"
+            f"🚀 Прогресс по работам: {progress_works}%\n"
+            f"🚀 Прогресс по приглашениям: {progress_invites}%\n"
+            f"🏁 Итоговый прогресс: {overall_progress}%\n\n"
             f"<b>Награды и привилегии на вашем уровне:</b>\n"
-            f"💸 Комиссия: {settings['current_commission']}\n"
-            f"🔨 Брать {settings['current_max_requests']} заявку в работу\n\n"
-            f"<b>Что вас ждёт на следующем уровне:</b>\n"
-            f"💸 Уменьшение комиссия: {settings['next_commission']}\n"
-            f"🔨 Брать {settings['next_max_requests']} заявку в работу\n\n"
-            f"📈 <b>Развитие:</b>\n"
-            f"🛠 Осталось выполнить работ: {remaining_works}\n"
-            f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
-            f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
+            f"💸 Текущая комиссия: {safe_percent(cur_comm)}\n"
+            f"🔨 Можно брать {cur_max_req} заявок\n\n"
         )
 
-        return Response({"message": message, "level": master.level, "city": master.city_name, "name": user.name, "equipment": master.equipment_type_name, "phone": user.phone}, status=status.HTTP_200_OK)
-    
+        if current_level < 3:
+            next_level_name = MASTER_LEVEL_MAPPING.get(next_level, f"Уровень {next_level}")
+            message += (
+                f"<b>Что вас ждёт на следующем уровне:</b>\n"
+                f"💸 Уменьшение комиссии: {safe_percent(next_comm)}\n"
+                f"🔨 Можно брать {next_max_req} заявок\n"
+                f"📈 <b>Развитие</b>:\n"
+                f"🛠 Осталось выполнить работ: {remaining_works}\n"
+                f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
+                f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
+                f"🛠 <b>Вид услуг:</b> {service_type_name}\n\n"
+            )
+        else:
+            message += "Вы уже на максимальном уровне!\n"
+
+        response_data = {
+            "message": message,
+            "level": current_level,
+            "city": master.city_name,
+            "name": user.name,
+            "equipment": master.equipment_type_name,
+            "phone": user.phone,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 
 class MasterCityUpdateView(APIView):
     """
@@ -3525,38 +3541,80 @@ class UpdateServiceRequestRatingView(APIView):
         competence_rating_str = data.get("competence_rating")
         recommendation_rating_str = data.get("recommendation_rating")
         
-        if not raw_request_id:
-            return Response({"detail": "Параметр 'request_id' обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        if not raw_request_id or quality_rating_str is None or competence_rating_str is None or recommendation_rating_str is None:
+            return Response({"detail": "Параметры 'request_id' и все три рейтинга обязательны."},
+                            status=status.HTTP_400_BAD_REQUEST)
         
-        # Извлекаем последовательность цифр в конце строки
+        # 1. Извлекаем числовую часть ID заявки
         match = re.search(r"(\d+)$", raw_request_id)
         if not match:
-            return Response({"detail": "Не удалось извлечь ID заявки из входных данных."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Не удалось извлечь ID заявки из входных данных."},
+                            status=status.HTTP_400_BAD_REQUEST)
         request_id = match.group(1)
         
+        # 2. Ищем заявку
         try:
             service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
         except ServiceRequest.DoesNotExist:
-            return Response({"detail": f"Заявка с request_id {request_id} не найдена."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": f"Заявка с request_id {request_id} не найдена."},
+                            status=status.HTTP_404_NOT_FOUND)
         
-        # Преобразуем входные строки вида "1⭐" в число
+        # 3. Преобразуем строки "1⭐" => int(1..5)
         quality_value = stars_to_int(quality_rating_str)
         competence_value = stars_to_int(competence_rating_str)
         recommendation_value = stars_to_int(recommendation_rating_str)
         
-        # Проверяем, что рейтинговые значения в диапазоне от 1 до 5
+        # 4. Проверяем диапазон от 1 до 5
         if not (1 <= quality_value <= 5 and 1 <= competence_value <= 5 and 1 <= recommendation_value <= 5):
-            return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5."},
+                            status=status.HTTP_400_BAD_REQUEST)
         
+        # 5. Сохраняем рейтинги в базе
         service_request.quality_rating = quality_value
         service_request.competence_rating = competence_value
         service_request.recommendation_rating = recommendation_value
         service_request.save(update_fields=["quality_rating", "competence_rating", "recommendation_rating"])
         
+        # 6. Пересчитываем рейтинг мастера (если есть)
         if service_request.master:
             recalc_master_rating(service_request.master)
-        
-        return Response({"detail": "Рейтинги успешно обновлены.", "request_id": request_id}, status=status.HTTP_200_OK)
+
+        # 7. Теперь обновим поля рейтинга в AmoCRM
+        #    ID полей, по вашему указанию: 
+        #    Качество работ = 748771, Компетентность = 748773, Рекомендовать = 748775
+        lead_id = service_request.amo_crm_lead_id
+        if lead_id:
+            try:
+                amocrm_client = AmoCRMClient()
+                amocrm_client.update_lead(
+                    lead_id,
+                    {
+                        "custom_fields_values": [
+                            {
+                                "field_id": 748771,
+                                "values": [{"value": str(quality_value)}]
+                            },
+                            {
+                                "field_id": 748773,
+                                "values": [{"value": str(competence_value)}]
+                            },
+                            {
+                                "field_id": 748775,
+                                "values": [{"value": str(recommendation_value)}]
+                            }
+                        ]
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Не удалось обновить рейтинги в AmoCRM для сделки {lead_id}: {e}")
+
+        return Response(
+            {
+                "detail": "Рейтинги успешно обновлены.",
+                "request_id": request_id
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class MasterBalanceView(APIView):
