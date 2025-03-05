@@ -114,6 +114,13 @@ class WorkOutcome(models.Model):
     penalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), help_text="Сумма штрафа")
     user_message = models.TextField(null=True, blank=True, help_text="Текст пользователю")
     outcome_name = models.CharField(max_length=255, help_text="Название итога работы")
+    outcome_rating = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Рейтинг исхода работы (0..5, например)"
+    )
 
     def __str__(self):
         return self.outcome_name

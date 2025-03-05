@@ -798,26 +798,44 @@ def format_date(created_at):
 
 def recalc_master_rating(master):
     """
-    Пересчитывает рейтинг мастера как среднее значение по всем заявкам,
-    в которых заданы все три рейтинговых поля.
+    Новый вариант пересчёта рейтинга мастера.
+    Учитываем только заявки со статусом Completed и
+    заполненными 3 полями рейтинга клиента + rating в WorkOutcome.
+    Итог за заявку = (среднее трёх клиентских рейтингов + outcome_rating) / 2.
+    Среднее по всем таким заявкам = общий рейтинг мастера.
     """
-    from decimal import Decimal
+    # Берём только "Completed" + все 3 поля и WorkOutcome с не-null outcome_rating
     requests_qs = ServiceRequest.objects.filter(
         master=master,
+        status='Completed',
         quality_rating__isnull=False,
         competence_rating__isnull=False,
-        recommendation_rating__isnull=False
+        recommendation_rating__isnull=False,
+        work_outcome_record__isnull=False,
+        work_outcome_record__outcome_rating__isnull=False
     )
-    if not requests_qs.exists():
-        return
+
     total = Decimal('0.0')
     count = 0
+
     for req in requests_qs:
-        # Вычисляем среднее значение по заявке
-        avg_req = (req.quality_rating + req.competence_rating + req.recommendation_rating) / 3
-        total += Decimal(avg_req)
+        # Среднее клиента
+        client_avg = (req.quality_rating + req.competence_rating + req.recommendation_rating) / 3
+        client_avg_dec = Decimal(client_avg)
+
+        # Рейтинг исхода работы
+        outcome_rating = req.work_outcome_record.outcome_rating  # decimal / float
+        outcome_rating_dec = Decimal(outcome_rating)
+
+        # Итог за заявку
+        final_req_rating = (client_avg_dec + outcome_rating_dec) / Decimal('2.0')
+
+        total += final_req_rating
         count += 1
-    master.rating = total / count if count > 0 else Decimal('0.0')
+
+    # Среднее по всем выбранным заявкам
+    final_master_rating = total / count if count > 0 else Decimal('0.0')
+    master.rating = final_master_rating
     master.save(update_fields=['rating'])
 
 def update_commission_transaction(service_request, new_price):
@@ -2745,7 +2763,7 @@ class MasterProfileView(APIView):
         # 8) Формируем наименование уровня через MASTER_LEVEL_MAPPING
         #    Предположим, в utils.py у вас есть словарь:
         #    MASTER_LEVEL_MAPPING = {1: "Мастер", 2: "Грандмастер", 3: "Учитель"}
-        level_name = MASTER_LEVEL_MAPPING.get(current_level, f"Уровень {current_level}")
+        level_name = MASTER_LEVEL_MAPPING.get(current_level, f"{current_level}")
 
         # 9) Формируем итоговое сообщение
         message = (
@@ -2769,11 +2787,11 @@ class MasterProfileView(APIView):
             message += (
                 f"<b>Что вас ждёт на следующем уровне:</b>\n"
                 f"💸 Уменьшение комиссии: {safe_percent(next_comm)}\n"
-                f"🔨 Можно брать {next_max_req} заявок\n"
+                f"🔨 Можно брать {next_max_req} заявок\n\n"
                 f"📈 <b>Развитие</b>:\n"
                 f"🛠 Осталось выполнить работ: {remaining_works}\n"
                 f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
-                f"🛠 <b>Виды работ:</b> {master.equipment_type_name}"
+                f"🛠 <b>Виды работ:</b> {master.equipment_type_name}\n"
                 f"🛠 <b>Вид услуг:</b> {service_type_name}\n\n"
             )
         else:
