@@ -1146,7 +1146,7 @@ def get_master_statistics(master):
     cost_ratio = total_cost / total_earnings if total_earnings > 0 else 0
 
     last_transaction = Transaction.objects.filter(
-        user=master.user, transaction_type="Deposit", status="Confirmed"
+        master=master, transaction_type="Deposit", status="Confirmed"
     ).order_by("-created_at").first()
 
     last_deposit = last_transaction.created_at if last_transaction else now() - timedelta(days=365)
@@ -2758,12 +2758,12 @@ class MasterProfileView(APIView):
                 progress_invites = 100
 
         # итого берём минимум, чтобы для достижения 100% нужно было выполнить оба условия
-        overall_progress = min(progress_works, progress_invites)
+        overall_progress = int((progress_works + progress_invites) / 2)
 
         # 8) Формируем наименование уровня через MASTER_LEVEL_MAPPING
         #    Предположим, в utils.py у вас есть словарь:
         #    MASTER_LEVEL_MAPPING = {1: "Мастер", 2: "Грандмастер", 3: "Учитель"}
-        level_name = MASTER_LEVEL_MAPPING.get(current_level, f"{current_level}")
+        level_name = MASTER_LEVEL_MAPPING.get(current_level)
 
         # 9) Формируем итоговое сообщение
         message = (
@@ -2792,7 +2792,7 @@ class MasterProfileView(APIView):
                 f"🛠 Осталось выполнить работ: {remaining_works}\n"
                 f"👤 Осталось пригласить мастеров: {remaining_invites}\n\n"
                 f"🛠 <b>Виды работ:</b> {master.equipment_type_name}\n"
-                f"🛠 <b>Вид услуг:</b> {service_type_name}\n\n"
+                f"🛠 <b>Вид услуг:</b> {service_type_name}\n"
             )
         else:
             message += "Вы уже на максимальном уровне!\n"
