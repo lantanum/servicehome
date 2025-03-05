@@ -1306,14 +1306,10 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 def recalc_master_level(master_profile):
     """
     Пересчитывает уровень мастера на основе:
-      1) Разницы между количеством успешных заявок и закрытых заявок.
-         Здесь успешной считается заявка со статусом 'Completed', к которой прикреплён WorkOutcome с is_success=True.
+      1) Разницы между количеством успешных заявок (Completed, is_success=True) и закрытых заявок.
       2) Количества приглашённых мастеров с подтверждённым депозитом.
-      3) Условий перехода, которые хранятся в базе данных (в модели Settings).
-      
-    Переменная 'difference' представляет собой чистую разницу между числом успешных заявок и закрытых заявок,
-    что позволяет оценить эффективность работы мастера.
-    Если новый уровень отличается от текущего, изменения сохраняются в базе данных.
+      3) Условий перехода, которые хранятся в базе данных (модель Settings).
+      4) Дополнительной проверки (POST-запрос), вступил ли мастер в группу (для перехода на 3-й уровень).
     """
     user = master_profile.user
     current_level = master_profile.level
@@ -1326,6 +1322,7 @@ def recalc_master_level(master_profile):
     ).count()
     # Подсчитываем закрытые заявки
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+
     # Разница между успешными и закрытыми заявками
     difference = completed_count - closed_count
 
@@ -1340,22 +1337,35 @@ def recalc_master_level(master_profile):
         req_orders_level3 = settings_obj.required_orders_level3
         req_invites_level3 = settings_obj.required_invites_level3
     else:
+        # Заглушки, если настроек нет
         req_orders_level2, req_invites_level2 = 10, 1
         req_orders_level3, req_invites_level3 = 30, 3
 
-    new_level = current_level  # по умолчанию оставляем текущий уровень
+    new_level = current_level  # по умолчанию оставим текущий
 
     # Проверка повышения уровня
+    # сначала смотрим, достаточно ли заявок и рефералов для уровня 3
     if difference >= req_orders_level3 and invited_with_deposit >= req_invites_level3:
-        new_level = 3
+        # Добавляем проверку "вступил ли в группу" (через POST-запрос)
+        if check_master_in_group(user.telegram_id):
+            new_level = 3
+        else:
+            # Если не вступил, то пытаемся хотя бы повысить до 2,
+            # если вдруг еще не на втором уровне.
+            if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
+                new_level = 2
+            else:
+                new_level = 1
     elif difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
         new_level = 2
     else:
         new_level = 1
 
-    # Проверка понижения уровня:
+    # Проверяем, не нужно ли понизить уровень (например, мастер 3-го уровня ухудшил показатели)
     if current_level == 3:
+        # Допустим, условие понижения такое же, как раньше:
         if difference < req_orders_level3 * 0.8 or invited_with_deposit < req_invites_level3:
+            # Переходим на 2-й уровень, если выполняются требования на 2-й
             if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
                 new_level = 2
             else:
@@ -1364,11 +1374,12 @@ def recalc_master_level(master_profile):
         if difference < req_orders_level2 * 0.8 or invited_with_deposit < req_invites_level2:
             new_level = 1
 
-    # Если уровень изменился, сохраняем новое значение
+    # Если уровень изменился, сохраняем
     if new_level != current_level:
         master_profile.level = new_level
         master_profile.save()
         logger.info(f"Master {master_profile.id} level changed from {current_level} to {new_level}.")
+
 
 
 def count_invited_masters_with_deposit(user: User) -> int:
@@ -3739,6 +3750,7 @@ class ClientReviewUpdateView(APIView):
       - client_review: текст отзыва клиента
     После обновления возвращает сообщение об успешном сохранении.
     """
+
     @swagger_auto_schema(
         operation_description="Обновляет отзыв клиента для заявки по request_id.",
         request_body=openapi.Schema(
@@ -3813,10 +3825,90 @@ class ClientReviewUpdateView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # Сохраняем отзыв в модель
         service_request.client_review = client_review_text
         service_request.save(update_fields=["client_review"])
         
+        # ==== Дополняем код: Обновляем поле отзыва в AmoCRM (ID поля 748949) ====
+        lead_id = service_request.amo_crm_lead_id
+        if lead_id:
+            try:
+                amocrm_client = AmoCRMClient()
+                amocrm_client.update_lead(
+                    lead_id,
+                    {
+                        "custom_fields_values": [
+                            {
+                                "field_id": 748949,
+                                "values": [{"value": client_review_text}]
+                            }
+                        ]
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Не удалось обновить поле отзыва в AmoCRM для сделки {lead_id}: {e}")
+        # ================================================================
+
         return Response(
-            {"detail": "Отзыв клиента успешно обновлен.", "request_id": extracted_id},
+            {"detail": "Отзыв клиента успешно обновлён.", "request_id": extracted_id},
             status=status.HTTP_200_OK
         )
+
+import time
+# Например, вверху файла views.py
+group_check_results = {}  # dict[telegram_id: bool], где True/False = вступил/не вступил
+
+
+def check_master_in_group(telegram_id: str) -> bool:
+    """
+    Запрашивает у SamBot проверку, вступил ли мастер в группу.
+    Ждёт до 10 секунд, пока SamBot отправит колбэк в MasterGroupCheckCallbackView.
+    Возвращает True, если в итоге joined = True, иначе False.
+    """
+    # (1) Готовим URL SamBot. Предположим, token тот же:
+    url = "https://sambot.ru/reactions/3011532/start?token=yhvtlmhlqbj"
+
+    # (2) Передаём данные, в том числе callback_url:
+    #  callback_url — это ваш эндпоинт, где вы ожидаете joined: true/false
+    payload = {
+       "telegram_id": telegram_id,  
+    }
+
+    # (3) Посылаем запрос
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        logger.error(f"Ошибка при запросе к SamBot: {e}")
+        return False
+
+    # (4) Очищаем предыдущее состояние
+    if telegram_id in group_check_results:
+        del group_check_results[telegram_id]
+
+    # (5) Ждём до 10 секунд, пока SamBot не стукнется колбэком
+    total_wait = 10
+    for _ in range(total_wait):
+        time.sleep(1)
+        # Проверяем, пришёл ли ответ
+        if telegram_id in group_check_results:
+            return group_check_results[telegram_id]
+
+    # Если за 10 секунд колбэк не пришёл, считаем, ч
+
+
+class MasterGroupCheckCallbackView(APIView):
+    """
+    Колбэк, в который SamBot шлёт "joined: true/false" после проверки вступления в группу.
+    """
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get("telegram_id")
+        joined = data.get("joined")
+
+        if not telegram_id or joined is None:
+            return Response({"detail": "Поля telegram_id и joined обязательны"}, status=400)
+
+        # Сохраняем в глобальный словарь
+        group_check_results[telegram_id] = bool(joined)  # приведение к bool
+
+        return Response({"detail": "OK, status saved"}, status=200)
