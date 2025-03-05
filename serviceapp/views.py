@@ -798,42 +798,41 @@ def format_date(created_at):
 
 def recalc_master_rating(master):
     """
-    Новый вариант пересчёта рейтинга мастера.
-    Учитываем только заявки со статусом Completed и
-    заполненными 3 полями рейтинга клиента + rating в WorkOutcome.
-    Итог за заявку = (среднее трёх клиентских рейтингов + outcome_rating) / 2.
+    Новый вариант пересчёта рейтинга мастера:
+    Учитываем только заявки со статусом Completed,
+    заполненными 3 полями рейтинга клиента
+    и ссылкой на WorkOutcome, у которого outcome_rating не null.
+
+    Итог за заявку = (среднее трёх клиентских рейтингов + outcome_rating) / 2
     Среднее по всем таким заявкам = общий рейтинг мастера.
     """
-    # Берём только "Completed" + все 3 поля и WorkOutcome с не-null outcome_rating
     requests_qs = ServiceRequest.objects.filter(
         master=master,
         status='Completed',
         quality_rating__isnull=False,
         competence_rating__isnull=False,
         recommendation_rating__isnull=False,
-        work_outcome_record__isnull=False,
-        work_outcome_record__outcome_rating__isnull=False
+        work_outcome__isnull=False,               # Вместо work_outcome_record__isnull=False
+        work_outcome__outcome_rating__isnull=False
     )
 
     total = Decimal('0.0')
     count = 0
 
     for req in requests_qs:
-        # Среднее клиента
+        # Среднее трёх клиентских рейтингов
         client_avg = (req.quality_rating + req.competence_rating + req.recommendation_rating) / 3
         client_avg_dec = Decimal(client_avg)
 
-        # Рейтинг исхода работы
-        outcome_rating = req.work_outcome_record.outcome_rating  # decimal / float
-        outcome_rating_dec = Decimal(outcome_rating)
+        # Рейтинг исхода работы из справочника
+        outcome_rating_dec = Decimal(req.work_outcome.outcome_rating)
 
-        # Итог за заявку
+        # Итоговое значение заявки
         final_req_rating = (client_avg_dec + outcome_rating_dec) / Decimal('2.0')
 
         total += final_req_rating
         count += 1
 
-    # Среднее по всем выбранным заявкам
     final_master_rating = total / count if count > 0 else Decimal('0.0')
     master.rating = final_master_rating
     master.save(update_fields=['rating'])
@@ -1204,15 +1203,14 @@ def generate_free_status_data(service_request):
     }
 
 
-def handle_completed_deal(service_request, operator_comment, previous_status, lead_id):
+def handle_completed_deal(service_request, operator_comment, previous_status, lead_id, skip_commission=False):
     """
     Обработка сделки со статусом 'Completed':
-    1) Считаем комиссию из ServiceType по имени
-    2) Создаем транзакцию с типом Comission
-    3) Отправляем POST на sambot
-    4) Обрабатываем итог работы: если итог - штраф, создаем транзакцию с типом Penalty,
-       и сохраняем итог работы для ServiceRequest.
-    5) Пересчитываем уровень мастера (повышение / понижение)
+     1) Считаем комиссию из ServiceType по имени
+     2) Создаем транзакцию с типом Comission (если skip_commission=False)
+     3) Отправляем POST на sambot
+     4) Обрабатываем итог работы (WorkOutcome) — если в справочнике outcome есть штраф, списываем
+     5) Пересчитываем уровень мастера
     """
     from decimal import Decimal
     import requests
@@ -1221,33 +1219,24 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 
     logger = logging.getLogger(__name__)
 
-    # 1) Получаем сумму сделки
+    # 1) Сумма сделки
     deal_amount = service_request.price or Decimal('0.00')
-    deal_amount = deal_amount - service_request.spare_parts_spent
+    deal_amount = deal_amount - (service_request.spare_parts_spent or Decimal('0.00'))
 
-    # Получаем Master (если нет мастера - пропускаем)
     master_profile = service_request.master
     if not master_profile:
-        logger.warning(
-            "ServiceRequest %s: no master assigned, skipping commission",
-            service_request.id
-        )
+        logger.warning(f"ServiceRequest {service_request.id}: no master assigned, skipping commission")
         return
 
-    # Текущий уровень мастера (1, 2 или 3)
+    # Текущий уровень мастера
     master_level = master_profile.level
+    service_type_name = service_request.service_name
+    service_type = ServiceType.objects.filter(name=service_type_name).first() if service_type_name else None
 
-    service_type_name = service_request.service_name  # Имя сервиса из текстового поля
-    service_type = None
-    if service_type_name:
-        service_type = ServiceType.objects.filter(name=service_type_name).first()
-
-    # 3) Определяем процент комиссии, если нашли нужный ServiceType
     if not service_type:
         logger.warning(
-            "ServiceRequest %s: ServiceType with name='%s' not found. Commission = 0 by default.",
-            service_request.id,
-            service_type_name
+            "ServiceRequest %s: ServiceType '%s' not found, комиссия = 0",
+            service_request.id, service_type_name
         )
         commission_percentage = Decimal('0.0')
     else:
@@ -1260,23 +1249,22 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
         else:
             commission_percentage = Decimal('0.0')
 
-    
-    # 4) Рассчитываем сумму комиссии
     commission_amount = deal_amount * commission_percentage / Decimal('100')
 
-    # 5) Создаем транзакцию для комиссии с типом "Comission" и статусом Confirmed.
-    # Автоматический пересчет баланса произойдет через сигналы.
-    Transaction.objects.create(
-        user=master_profile.user,  # Здесь предполагается, что транзакция для мастера привязана через поле user (или master, если используется обновленная схема)
-        amount=commission_amount,
-        transaction_type='Comission',
-        status='Confirmed'
-    )
+    # Если не пропускаем комиссию
+    if not skip_commission:
+        Transaction.objects.create(
+            master=master_profile,
+            amount=commission_amount,
+            transaction_type='Comission',
+            status='Confirmed',
+            service_request=service_request
+        )
 
-    # 6) Отправляем POST на sambot
+    # Шлём данные в sambot
     payload = {
         "request_id": lead_id,
-        "telegram_id": master_profile.user.telegram_id if master_profile else "",
+        "telegram_id": master_profile.user.telegram_id,
         "penalty_message": "",
         "request_amount": deal_amount,
         "comission_amount": commission_amount,
@@ -1290,35 +1278,36 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
             timeout=10
         )
         if response_sambot.status_code != 200:
-            logger.error(
-                f"Failed to send data (Completed) for Request {service_request.id}. "
-                f"Status code: {response_sambot.status_code}, Response: {response_sambot.text}"
-            )
+            logger.error(f"Failed to send data for Request {service_request.id}, status={response_sambot.status_code}")
     except Exception as ex:
-        logger.error(f"Error sending data (Completed) to sambot: {ex}")
+        logger.error(f"Error sending data to sambot: {ex}")
 
-    # 7) Обработка итога работы по полю deal_success.
+    # 4) Обработка итогов работы (WorkOutcome).
+    #    См. поле 'deal_success', ищем WorkOutcome из справочника
     if service_request.deal_success:
         outcome_record = WorkOutcome.objects.filter(outcome_name=service_request.deal_success).first()
         if outcome_record:
+            # Если у справочного исхода is_penalty=True, делаем транзакцию Penalty
             if outcome_record.is_penalty:
-                penalty_amount = outcome_record.penalty_amount
-                # Создаем транзакцию для штрафа с типом "Penalty" и статусом Confirmed
+                penalty_amount = outcome_record.penalty_amount or Decimal('0.0')
                 Transaction.objects.create(
-                    user=master_profile.user,
+                    master=master_profile,
                     amount=penalty_amount,
                     transaction_type='Penalty',
-                    status='Confirmed'
+                    status='Confirmed',
+                    service_request=service_request
                 )
-                logger.info(f"Penalty applied: {penalty_amount} recorded for master {master_profile.user.id}.")
-            # Привязываем итог работы к ServiceRequest
+                logger.info(f"Penalty {penalty_amount} recorded for master {master_profile.id}")
+
+            # Привязываем (ForeignKey)
             service_request.work_outcome = outcome_record
             service_request.save()
-            logger.info(f"Work outcome '{outcome_record.outcome_name}' attached to ServiceRequest {service_request.id}.")
         else:
-            logger.warning(f"WorkOutcome with name '{service_request.deal_success}' not found for ServiceRequest {service_request.id}.")
+            logger.warning(
+                f"WorkOutcome with name '{service_request.deal_success}' not found for Request {service_request.id}"
+            )
 
-    # 8) Пересчитываем уровень мастера
+    # 5) Пересчитываем уровень
     recalc_master_level(master_profile)
 
 def recalc_master_level(master_profile):
@@ -1336,7 +1325,7 @@ def recalc_master_level(master_profile):
     completed_count = ServiceRequest.objects.filter(
         master=master_profile,
         status='Completed',
-        work_outcome_record__is_success=True
+        work_outcome__is_success=True  # <-- вместо work_outcome_record__is_success
     ).count()
     # Подсчитываем закрытые заявки
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
@@ -3769,7 +3758,7 @@ def get_task_of_day(master_profile):
     completed_count = ServiceRequest.objects.filter(
         master=master_profile,
         status='Completed',
-        work_outcome_record__is_success=True
+        work_outcome__is_success=True  # <-- вместо work_outcome_record__is_success=True
     ).count()
     closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
     # Переменная difference – это разница между количеством успешных заявок и закрытых заявок.

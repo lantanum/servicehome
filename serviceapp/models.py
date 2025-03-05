@@ -97,7 +97,13 @@ class ServiceRequest(models.Model):
     crm_operator_comment = models.TextField(null=True, blank=True, help_text="Комментарий оператора из AmoCRM")
     deal_success = models.CharField(max_length=255, null=True, blank=True, help_text = "Успех сделки")
 
-    work_outcome = models.OneToOneField('WorkOutcome', null=True, blank=True, on_delete=models.SET_NULL, related_name='service_request_outcome')
+    work_outcome = models.ForeignKey(
+        'WorkOutcome',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='requests'
+    )
 
     quality_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Качество работ (от 1 до 5)")
     competence_rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Компетентность мастера (от 1 до 5)")
@@ -108,7 +114,6 @@ class ServiceRequest(models.Model):
         return f"Request {self.id} by {self.client.name}"
 
 class WorkOutcome(models.Model):
-    service_request = models.OneToOneField(ServiceRequest, on_delete=models.CASCADE, related_name='work_outcome_record')
     is_penalty = models.BooleanField(default=False, help_text="Признак штрафа")
     is_success = models.BooleanField(default=False, help_text="Признак успеха")
     penalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), help_text="Сумма штрафа")
