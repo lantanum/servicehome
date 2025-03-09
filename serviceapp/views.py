@@ -15,7 +15,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from decimal import Decimal, ROUND_HALF_UP
-from django.db.models import Sum, Avg
+from django.db.models import Sum, Avg, Q
 from django.utils import timezone
 
 
