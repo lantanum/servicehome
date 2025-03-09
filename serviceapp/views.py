@@ -1359,30 +1359,36 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 def recalc_master_level(master_profile):
     """
     Пересчитывает уровень мастера на основе:
-      1) Разницы между количеством успешных заявок (Completed, is_success=True) и закрытых заявок.
+      1) Разницы между количеством успешных заявок (Completed с WorkOutcome, где is_success=True) и закрытых заявок.
       2) Количества приглашённых мастеров с подтверждённым депозитом.
-      3) Условий перехода, которые хранятся в базе данных (модель Settings).
-      4) Дополнительной проверки (POST-запрос), вступил ли мастер в группу (для перехода на 3-й уровень).
+      3) Условий перехода, которые хранятся в базе данных (в модели Settings).
+      4) Признака вступления в группу (поле joined_group у мастера).
+      
+    Переменная difference – разница между числом успешных заявок и числом закрытых заявок,
+    отражающая "чистый" показатель успешности работы мастера.
     """
     user = master_profile.user
     current_level = master_profile.level
 
-    # Подсчитываем успешные заявки (с WorkOutcome, у которого is_success=True)
+    # Подсчитываем успешные заявки с WorkOutcome (где is_success=True)
     completed_count = ServiceRequest.objects.filter(
         master=master_profile,
         status='Completed',
-        work_outcome__is_success=True  # <-- вместо work_outcome_record__is_success
+        work_outcome__is_success=True
     ).count()
     # Подсчитываем закрытые заявки
-    closed_count = ServiceRequest.objects.filter(master=master_profile, status='Closed').count()
+    closed_count = ServiceRequest.objects.filter(
+        master=master_profile,
+        status='Closed'
+    ).count()
 
-    # Разница между успешными и закрытыми заявками
+    # Разница успешных и закрытых заявок – показатель чистой успешности
     difference = completed_count - closed_count
 
-    # Подсчитываем количество приглашённых мастеров с подтверждённым депозитом
+    # Количество приглашённых мастеров с подтверждённым депозитом
     invited_with_deposit = count_invited_masters_with_deposit(user)
 
-    # Получаем условия перехода из Settings
+    # Получаем условия перехода из настроек
     settings_obj = Settings.objects.first()
     if settings_obj:
         req_orders_level2 = settings_obj.required_orders_level2
@@ -1390,35 +1396,26 @@ def recalc_master_level(master_profile):
         req_orders_level3 = settings_obj.required_orders_level3
         req_invites_level3 = settings_obj.required_invites_level3
     else:
-        # Заглушки, если настроек нет
         req_orders_level2, req_invites_level2 = 10, 1
         req_orders_level3, req_invites_level3 = 30, 3
 
-    new_level = current_level  # по умолчанию оставим текущий
+    new_level = current_level  # по умолчанию оставляем текущий уровень
 
-    # Проверка повышения уровня
-    # сначала смотрим, достаточно ли заявок и рефералов для уровня 3
-    if difference >= req_orders_level3 and invited_with_deposit >= req_invites_level3:
-        # Добавляем проверку "вступил ли в группу" (через POST-запрос)
-        if check_master_in_group(user.telegram_id):
-            new_level = 3
-        else:
-            # Если не вступил, то пытаемся хотя бы повысить до 2,
-            # если вдруг еще не на втором уровне.
-            if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
-                new_level = 2
-            else:
-                new_level = 1
+    # Для перехода на 3-й уровень мастер должен:
+    # – иметь difference >= req_orders_level3,
+    # – приглашено не менее req_invites_level3 мастеров,
+    # – И, обязательно, иметь joined_group == True.
+    if difference >= req_orders_level3 and invited_with_deposit >= req_invites_level3 and master_profile.joined_group:
+        new_level = 3
+    # Если условия для уровня 3 не выполнены, но для уровня 2 – переходим на 2-й уровень
     elif difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
         new_level = 2
     else:
         new_level = 1
 
-    # Проверяем, не нужно ли понизить уровень (например, мастер 3-го уровня ухудшил показатели)
+    # Проверка на понижение уровня (если показатели ухудшились)
     if current_level == 3:
-        # Допустим, условие понижения такое же, как раньше:
         if difference < req_orders_level3 * 0.8 or invited_with_deposit < req_invites_level3:
-            # Переходим на 2-й уровень, если выполняются требования на 2-й
             if difference >= req_orders_level2 and invited_with_deposit >= req_invites_level2:
                 new_level = 2
             else:
@@ -1427,11 +1424,11 @@ def recalc_master_level(master_profile):
         if difference < req_orders_level2 * 0.8 or invited_with_deposit < req_invites_level2:
             new_level = 1
 
-    # Если уровень изменился, сохраняем
     if new_level != current_level:
         master_profile.level = new_level
-        master_profile.save()
+        master_profile.save(update_fields=["level"])
         logger.info(f"Master {master_profile.id} level changed from {current_level} to {new_level}.")
+
 
 
 
@@ -4023,3 +4020,114 @@ class MasterGroupCheckCallbackView(APIView):
         group_check_results[telegram_id] = bool(joined)  # приведение к bool
 
         return Response({"detail": "OK, status saved"}, status=200)
+
+
+class MasterGroupMembershipUpdateView(APIView):
+    """
+    API‑точка для обновления признака вступления в группу для мастера.
+    Принимает POST‑запрос с полями:
+      - telegram_id: Telegram ID мастера
+      - joined_group: булевое значение (True, если мастер вступил в группу, иначе False)
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет признак вступления в группу для мастера.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(type=openapi.TYPE_STRING, description="Telegram ID мастера"),
+                "joined_group": openapi.Schema(type=openapi.TYPE_BOOLEAN, description="True, если мастер вступил в группу")
+            },
+            required=["telegram_id", "joined_group"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Признак вступления для мастера обновлён.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные.",
+                schema=openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            404: openapi.Response(
+                description="Мастер или профиль не найдены.",
+                schema=openapi.Schema(type=openapi.TYPE_OBJECT)
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get("telegram_id")
+        joined_group = data.get("joined_group")
+        if telegram_id is None or joined_group is None:
+            return Response({"detail": "Поля 'telegram_id' и 'joined_group' обязательны."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
+        except User.DoesNotExist:
+            return Response({"detail": "Мастер с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+        try:
+            master = user.master_profile
+        except Master.DoesNotExist:
+            return Response({"detail": "Профиль мастера не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+        master.joined_group = bool(joined_group)
+        master.save(update_fields=["joined_group"])
+        return Response({"detail": "Признак вступления в группу для мастера обновлён."},
+                        status=status.HTTP_200_OK)
+
+
+class ClientGroupMembershipUpdateView(APIView):
+    """
+    API‑точка для обновления признака вступления в группу для клиента.
+    Принимает POST‑запрос с полями:
+      - telegram_id: Telegram ID клиента
+      - joined_group: булевое значение (True, если клиент вступил в группу, иначе False)
+    """
+    @swagger_auto_schema(
+        operation_description="Обновляет признак вступления в группу для клиента.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "telegram_id": openapi.Schema(type=openapi.TYPE_STRING, description="Telegram ID клиента"),
+                "joined_group": openapi.Schema(type=openapi.TYPE_BOOLEAN, description="True, если клиент вступил в группу")
+            },
+            required=["telegram_id", "joined_group"]
+        ),
+        responses={
+            200: openapi.Response(
+                description="Признак вступления для клиента обновлён.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)}
+                )
+            ),
+            400: openapi.Response(
+                description="Некорректные входные данные.",
+                schema=openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            404: openapi.Response(
+                description="Клиент не найден.",
+                schema=openapi.Schema(type=openapi.TYPE_OBJECT)
+            )
+        }
+    )
+    def post(self, request):
+        data = request.data
+        telegram_id = data.get("telegram_id")
+        joined_group = data.get("joined_group")
+        if telegram_id is None or joined_group is None:
+            return Response({"detail": "Поля 'telegram_id' и 'joined_group' обязательны."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(telegram_id=telegram_id, role="Client")
+        except User.DoesNotExist:
+            return Response({"detail": "Клиент с указанным telegram_id не найден."},
+                            status=status.HTTP_404_NOT_FOUND)
+        user.joined_group = bool(joined_group)
+        user.save(update_fields=["joined_group"])
+        return Response({"detail": "Признак вступления в группу для клиента обновлён."},
+                        status=status.HTTP_200_OK)

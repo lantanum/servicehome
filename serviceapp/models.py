@@ -31,6 +31,7 @@ class User(models.Model):
         help_text="Баланс клиента"
     )
     is_active = models.BooleanField(default=True, help_text="Активен ли пользователь")
+    joined_group = models.BooleanField(default=False, help_text="Вступил ли клиент в группу")
 
     def __str__(self):
         return f"{self.name} ({self.role})"
@@ -46,6 +47,7 @@ class Master(models.Model):
     service_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название услуги")
     equipment_type_name = models.CharField(max_length=255, null=True, blank=True, help_text="Тип оборудования мастера")  # Новое строковое поле
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, help_text="Баланс мастера")
+    joined_group = models.BooleanField(default=False, help_text="Вступил ли мастер в группу")
     def __str__(self):
         return f"Master: {self.user.name}"
 
