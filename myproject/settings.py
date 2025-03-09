@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'serviceapp',
     'drf_yasg',
+    'django_crontab',
 ]
 
 MIDDLEWARE = [
@@ -89,7 +90,7 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.parse('postgresql://servicehome_user:uR5TywYbdblWj3XMXfsOsWLOKzVrECYh@dpg-cuhr34in91rc739sgre0-a.oregon-postgres.render.com/servicehome_ai9x')
+    'default': dj_database_url.parse('postgresql://servicehome_user:U80ZyloODXBswx1kYz6f5YZDIJoG4ruw@dpg-cv6s8o3tq21c73dlu17g-a.oregon-postgres.render.com/servicehomedb')
 }
 
 
@@ -152,6 +153,12 @@ AMOCRM_CUSTOM_FIELD_TELEGRAM_ID = 744499
 
 API_ACCESS_TOKEN = 'FqS1JdOLBAmK4XwkxkA3zRWsd2g4gIG2Dqm1Ug9zInQ'
 
+
+
+CRONJOBS = [
+    # Каждое воскресенье в 12:00 (0 12 * * 0)
+    ('0 12 * * 0', 'django.core.management.call_command', ['notify_negative_balance']),
+]
 
 # settings.py
 

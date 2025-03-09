@@ -36,7 +36,7 @@ from .serializers import (
     UserProfileRequestSerializer, 
     UserProfileSerializer
 )
-from .models import EquipmentType, Master, RatingLog, ReferralLink, ServiceRequest, ServiceType, Settings, Transaction, User
+from .models import EquipmentType, Master, RatingLog, ReferralLink, ServiceRequest, ServiceType, Settings, Transaction, User, WorkOutcome
 
 logger = logging.getLogger(__name__)
 
@@ -929,50 +929,95 @@ class AmoCRMWebhookView(APIView):
                 competence_rating = lead.get('748773')        # Компетентность мастера
                 recommendation_rating = lead.get('748775')    # Готовность рекомендовать
                 incoming_price = lead.get('price')            # Приходящее значение цены (строка)
-
+                work_outcome_name = lead.get('745353')          # Название итога работы
+        
+                # Определяем новое имя статуса по STATUS_MAPPING
+                status_name = None
+                for k, v in STATUS_MAPPING.items():
+                    if v == new_status_id:
+                        status_name = k
+                        break
+                if not status_name:
+                    logger.warning(f"No matching status found for status_id={new_status_id}")
+                    status_name = 'Open'  # либо другой статус по умолчанию
+        
                 with transaction.atomic():
-                    service_request = ServiceRequest.objects.select_for_update().get(
-                        amo_crm_lead_id=lead_id
-                    )
-
-                    # Обновляем базовые поля заявки
-                    service_request.crm_operator_comment = operator_comment
-                    service_request.deal_success = deal_success
-                    if quality_rating is not None:
-                        service_request.quality_rating = int(quality_rating)
-                    if competence_rating is not None:
-                        service_request.competence_rating = int(competence_rating)
-                    if recommendation_rating is not None:
-                        service_request.recommendation_rating = int(recommendation_rating)
-                    service_request.save()
-
-                    if service_request.master:
-                        recalc_master_rating(service_request.master)
-
-                    # Определяем новое имя статуса по STATUS_MAPPING
-                    status_name = None
-                    for k, v in STATUS_MAPPING.items():
-                        if v == new_status_id:
-                            status_name = k
-                            break
-                    if not status_name:
-                        logger.warning(f"No matching status found for status_id={new_status_id}")
-                        continue
-
-                    update_fields = {
-                        'status': status_name,
-                        'amo_status_code': new_status_id,
-                    }
+                    try:
+                        # Пытаемся найти существующую заявку
+                        service_request = ServiceRequest.objects.select_for_update().get(
+                            amo_crm_lead_id=lead_id
+                        )
+                        # Обновляем базовые поля заявки
+                        service_request.crm_operator_comment = operator_comment
+                        service_request.deal_success = deal_success
+                        if quality_rating is not None:
+                            service_request.quality_rating = int(quality_rating)
+                        if competence_rating is not None:
+                            service_request.competence_rating = int(competence_rating)
+                        if recommendation_rating is not None:
+                            service_request.recommendation_rating = int(recommendation_rating)
+        
+                    except ServiceRequest.DoesNotExist:
+                        # Если заявка не найдена – создаём новую
+                        phone = lead.get('phone')
+                        telegram_id = lead.get('telegram_id')
+        
+                        # Ищем пользователя по номеру телефона или telegram_id
+                        user = None
+                        if phone or telegram_id:
+                            user = User.objects.filter(Q(phone=phone) | Q(telegram_id=telegram_id)).first()
+        
+                        if user:
+                            if user.role == 'Master':
+                                try:
+                                    master = Master.objects.get(user=user)
+                                except Master.DoesNotExist:
+                                    logger.error(f"User {user.id} имеет роль 'Master', но профиль мастера не найден.")
+                                    master = None
+                            else:
+                                master = None
+                        else:
+                            # Если пользователь не найден, создаём нового клиента
+                            user = User.objects.create(
+                                name=lead.get('name', 'Новый клиент'),
+                                phone=phone,
+                                telegram_id=telegram_id,
+                                role='Client'
+                            )
+                            master = None
+        
+                        service_request = ServiceRequest.objects.create(
+                            client=user,
+                            master=master,
+                            amo_crm_lead_id=lead_id,
+                            status=status_name,
+                            amo_status_code=new_status_id,
+                            price=Decimal(incoming_price) if incoming_price is not None else None,
+                            crm_operator_comment=operator_comment,
+                            deal_success=deal_success,
+                            quality_rating=int(quality_rating) if quality_rating is not None else None,
+                            competence_rating=int(competence_rating) if competence_rating is not None else None,
+                            recommendation_rating=int(recommendation_rating) if recommendation_rating is not None else None,
+                        )
+                        logger.info(f"Created new ServiceRequest with amo_crm_lead_id={lead_id}")
+        
+                    # Обрабатываем итог работы (work_outcome)
+                    if work_outcome_name:
+                        try:
+                            outcome = WorkOutcome.objects.get(outcome_name=work_outcome_name)
+                            service_request.work_outcome = outcome
+                        except WorkOutcome.DoesNotExist:
+                            logger.warning(f"WorkOutcome with name '{work_outcome_name}' not found for lead_id {lead_id}.")
+        
                     previous_status = service_request.status
-
+        
                     # Обрабатываем статусы: AwaitingClosure, Completed, QualityControl
                     if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
-                        # Если входящее поле price передано, проверяем и обновляем комиссию
                         if incoming_price is not None:
                             new_price_val = Decimal(incoming_price)
                             if service_request.price != new_price_val:
                                 diff = update_commission_transaction(service_request, incoming_price)
-                                update_fields['price'] = new_price_val
+                                service_request.price = new_price_val
                                 if (service_request.master and service_request.master.user.telegram_id and diff is not None):
                                     payload = {
                                         "master_telegram_id": service_request.master.user.telegram_id,
@@ -984,14 +1029,18 @@ class AmoCRMWebhookView(APIView):
                                             logger.error(f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}")
                                     except Exception as ex:
                                         logger.error(f"Error sending commission info to sambot: {ex}")
-                        for field, value in update_fields.items():
-                            setattr(service_request, field, value)
+                        # Обновляем поля заявки
+                        service_request.status = status_name
+                        service_request.amo_status_code = new_status_id
                         fields_to_update = ['status', 'amo_status_code']
-                        if 'price' in update_fields:
+                        if incoming_price is not None:
                             fields_to_update.append('price')
+                        # Если итог работы был изменён – добавляем и его в список обновлений
+                        if work_outcome_name:
+                            fields_to_update.append('work_outcome')
                         service_request.save(update_fields=fields_to_update)
                         logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' with updated price.")
-
+        
                         if status_name == 'AwaitingClosure':
                             if service_request.master and service_request.master.user.telegram_id:
                                 payload = {
@@ -1005,7 +1054,6 @@ class AmoCRMWebhookView(APIView):
                                 except Exception as ex:
                                     logger.error(f"Error sending data to sambot: {ex}")
                         elif status_name == 'Completed':
-                            # Передаем параметр skip_commission=True, чтобы handle_completed_deal не создавал комиссию повторно
                             handle_completed_deal(
                                 service_request=service_request,
                                 operator_comment=operator_comment,
@@ -1018,9 +1066,7 @@ class AmoCRMWebhookView(APIView):
                         handle_free_status(service_request, previous_status, new_status_id)
                     else:
                         logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
-            except ServiceRequest.DoesNotExist:
-                logger.error(f"ServiceRequest with amo_crm_lead_id={lead_id} does not exist.")
-                continue
+        
             except Exception as e:
                 logger.exception(f"Error processing lead_id={lead_id}: {e}")
                 continue
