@@ -2483,44 +2483,54 @@ class BalanceDepositConfirmView(APIView):
                 tx = Transaction.objects.select_for_update().get(id=tx_id)
             except Transaction.DoesNotExist:
                 return Response({"detail": "Транзакция не найдена."}, status=status.HTTP_404_NOT_FOUND)
-
+        
             if tx.status == 'Confirmed':
                 return Response({"detail": "Транзакция уже подтверждена."}, status=status.HTTP_400_BAD_REQUEST)
-
+        
             if tx.transaction_type != 'Deposit':
                 return Response({"detail": "Транзакция не является пополнением (Deposit)."}, status=status.HTTP_400_BAD_REQUEST)
-
+        
             # Подтверждаем транзакцию
             tx.status = 'Confirmed'
             tx.save()
-
-            # Увеличиваем баланс мастера
-            user = tx.user
-            master = getattr(user, 'master_profile', None)
+        
+            # Получаем мастера из транзакции
+            master = tx.master
             if not master:
-                return Response({"detail": "Пользователь не является мастером."}, status=status.HTTP_404_NOT_FOUND)
-
+                return Response({"detail": "Мастер не найден."}, status=status.HTTP_404_NOT_FOUND)
+        
+            # Получаем пользователя из мастера
+            user = master.user
+            if not user:
+                return Response({"detail": "Пользователь не найден."}, status=status.HTTP_404_NOT_FOUND)
+        
+            # Обновляем баланс мастера (например, увеличиваем баланс на сумму транзакции)
+            master.balance += tx.amount
             master.save()
-
+        
             # Проверяем, является ли это первое пополнение
-            first_deposit = not Transaction.objects.filter(master=master, transaction_type='Deposit', status='Confirmed').exclude(id=tx.id).exists()
-
-            # Если это **первое пополнение**, начисляем бонус
+            first_deposit = not Transaction.objects.filter(
+                master=master,
+                transaction_type='Deposit',
+                status='Confirmed'
+            ).exclude(id=tx.id).exists()
+        
+            # Если это первое пополнение, начисляем бонусы реферальной системы
             if first_deposit:
-                ref_1 = user.referrer  # первая линия
+                ref_1 = user.referrer  # первая линия рефералов
                 if ref_1 and ref_1.role == 'Master':
                     ref_1.master_profile.balance += Decimal(500)
                     ref_1.master_profile.save()
-
-                    # проверяем вторую линию
+        
+                    # Проверяем вторую линию
                     ref_2 = ref_1.referrer
                     if ref_2 and ref_2.role == 'Master':
                         ref_2.master_profile.balance += Decimal(250)
                         ref_2.master_profile.save()
-
+        
             return Response({
-                "detail": "Транзакция подтверждена, баланс мастера обновлён. "
-                          f"{'Бонусы начислены.' if first_deposit else 'Бонусы НЕ начислены (не первое пополнение).' }",
+                "detail": "Транзакция подтверждена, баланс мастера обновлён. " +
+                          ("Бонусы начислены." if first_deposit else "Бонусы НЕ начислены (не первое пополнение)."),
                 "new_balance": str(master.balance),
                 "telegram_id": user.telegram_id
             }, status=status.HTTP_200_OK)
