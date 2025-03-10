@@ -2217,7 +2217,7 @@ class MasterStatsView(APIView):
             avg_diff_hours = int(sum(time_diffs) / len(time_diffs) // 3600)
             balance_topup_speed_str = f"{avg_diff_hours} часов"
         else:
-            balance_topup_speed_str = "N/A"
+            balance_topup_speed_str = "Нет данных"
 
         # Процент затрат на запчасти
         total_cost = completed_qs.aggregate(total_cost=Sum('spare_parts_spent'))['total_cost'] or Decimal("0")
