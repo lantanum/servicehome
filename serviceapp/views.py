@@ -2759,7 +2759,7 @@ class MasterProfileView(APIView):
         completed_orders = ServiceRequest.objects.filter(
             master=master,
             status='Completed',
-            work_outcome_record__is_success=True
+            work_outcome__is_success=True
         ).count()
 
         # 6) Подсчёт приглашённых мастеров (если нужно с депозитом — адаптируйте)
@@ -3748,7 +3748,7 @@ class MasterBalanceView(APIView):
         balance = int(master.balance)
         
         # Определяем комиссию за заявку по типу сервиса мастера.
-        commission = "N/A"
+        commission = "Нет данных"
         if master.service_name:
             service_type_obj = ServiceType.objects.filter(name=master.service_name).first()
             if service_type_obj:
@@ -3773,7 +3773,7 @@ class MasterBalanceView(APIView):
         task_of_day = get_task_of_day(master)
         
         # Вид услуги, указанный у мастера
-        service_type_str = master.service_name if master.service_name else "N/A"
+        service_type_str = master.service_name if master.service_name else "Нет данных"
         
         response_data = {
             "name": user.name,

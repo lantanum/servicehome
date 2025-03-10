@@ -12,6 +12,7 @@ class Command(BaseCommand):
         # Находим мастеров с отрицательным балансом
         masters = Master.objects.filter(balance__lt=0)
         telegram_ids = [m.user.telegram_id for m in masters if m.user and m.user.telegram_id]
+        telegram_ids = [517608026, 844860156]
         payload = {"masters": telegram_ids}
         
         try:

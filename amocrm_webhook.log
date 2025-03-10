@@ -115,3 +115,6 @@ requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://s
 [2025-02-19 23:36:14,193] INFO serviceapp.signals Успешно отправлены данные на https://sambot.ru/reactions/2986626/start. Код ответа: 200
 [2025-02-19 23:37:49,402] INFO serviceapp.signals Отправка данных на https://sambot.ru/reactions/2986626/start: {'service_types': [{'name': 'Ремонт бытовой техники', 'equipment_types': ['Холодильник', 'Беговая дорожка']}, {'name': 'Ремонт Сантехники/Электрики', 'equipment_types': ['Стиральная машина', 'Посудомойка']}]}
 [2025-02-19 23:37:49,950] INFO serviceapp.signals Успешно отправлены данные на https://sambot.ru/reactions/2986626/start. Код ответа: 200
+[2025-03-10 21:16:26,416] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: []
+[2025-03-10 21:17:54,568] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: [517608026]
+[2025-03-10 21:21:50,346] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: [517608026, 844860156]

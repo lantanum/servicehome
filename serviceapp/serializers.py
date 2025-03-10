@@ -231,15 +231,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     "field_id": 744219,
                     "values": [{"value": user.city_name}]
                 })
-
-            try:
-                created_contact = amo_client.create_contact(contact_data)
-                user.amo_crm_contact_id = created_contact['id']
-                user.save()
-                logger.info(f"Created contact in AmoCRM (id={created_contact['id']}) for user_id={user.id}")
-            except Exception as e:
-                logger.error("Ошибка при создании контакта в AmoCRM: %s", e, exc_info=True)
-                raise serializers.ValidationError("Ошибка в AmoCRM при создании контакта.")
+            user.save()
 
         return user
 
