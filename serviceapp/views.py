@@ -2382,7 +2382,7 @@ class BalanceDepositView(APIView):
 
         # Ищем пользователя
         try:
-            user = User.objects.get(telegram_id=telegram_id, role="Master"),
+            user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response(
                 {"detail": "Пользователь с указанным telegram_id не найден."},
