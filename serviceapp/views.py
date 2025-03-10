@@ -2400,7 +2400,7 @@ class BalanceDepositView(APIView):
         # Создаём транзакцию со статусом 'Pending'
         with transaction.atomic():
             new_tx = Transaction.objects.create(
-                user=user,
+                master = master,
                 amount=amount,
                 transaction_type='Deposit',
                 status='Pending',  # можно не указывать, если в модели стоит default='Pending'
@@ -2503,7 +2503,7 @@ class BalanceDepositConfirmView(APIView):
             master.save()
 
             # Проверяем, является ли это первое пополнение
-            first_deposit = not Transaction.objects.filter(user=user, transaction_type='Deposit', status='Confirmed').exclude(id=tx.id).exists()
+            first_deposit = not Transaction.objects.filter(master=master, transaction_type='Deposit', status='Confirmed').exclude(id=tx.id).exists()
 
             # Если это **первое пополнение**, начисляем бонус
             if first_deposit:
