@@ -1143,8 +1143,9 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
 
 def find_suitable_masters(service_request_id, round_num):
     """
-    Подбирает мастеров в зависимости от круга рассылки,
-    исключая неактивных мастеров.
+    Подбирает мастеров для рассылки в зависимости от номера круга.
+    Условия для кругов берутся из настроек (Settings).
+    Если Settings не заданы, используются значения по умолчанию.
     """
     service_request = ServiceRequest.objects.get(id=service_request_id)
 
@@ -1158,21 +1159,40 @@ def find_suitable_masters(service_request_id, round_num):
     now_time = now()
     last_24_hours = now_time - timedelta(hours=24)
 
+    # Получаем настройки для кругов
+    settings_obj = Settings.objects.first()
+    if settings_obj:
+        round1_success_ratio = settings_obj.round1_success_ratio or Decimal("0.8")
+        round1_cost_ratio_max = settings_obj.round1_cost_ratio_max or Decimal("0.3")
+        round2_success_ratio = settings_obj.round2_success_ratio or Decimal("0.8")
+        round2_cost_ratio_min = settings_obj.round2_cost_ratio_min or Decimal("0.3")
+        round2_cost_ratio_max = settings_obj.round2_cost_ratio_max or Decimal("0.5")
+    else:
+        round1_success_ratio, round1_cost_ratio_max = Decimal("0.8"), Decimal("0.3")
+        round2_success_ratio, round2_cost_ratio_min, round2_cost_ratio_max = Decimal("0.8"), Decimal("0.3"), Decimal("0.5")
+
     for master in masters:
         master_cities = (master.city_name or "").lower()
         master_equips = (master.equipment_type_name or "").lower()
 
         if city_name in master_cities and equipment_type in master_equips:
             success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
-
-            if round_num == 1 and success_ratio >= 0.8 and cost_ratio <= 0.3 and last_deposit >= last_24_hours:
-                selected_masters.append(master.user.telegram_id)
-            elif round_num == 2 and success_ratio >= 0.8 and 0.3 < cost_ratio <= 0.5:
-                selected_masters.append(master.user.telegram_id)
+            if round_num == 1:
+                if (success_ratio >= round1_success_ratio and
+                    cost_ratio <= round1_cost_ratio_max and
+                    last_deposit >= last_24_hours):
+                    selected_masters.append(master.user.telegram_id)
+            elif round_num == 2:
+                if (success_ratio >= round2_success_ratio and
+                    cost_ratio > round2_cost_ratio_min and
+                    cost_ratio <= round2_cost_ratio_max):
+                    selected_masters.append(master.user.telegram_id)
             elif round_num == 3:
+                # Во 3‑й круг можно включить всех оставшихся (без дополнительных условий)
                 selected_masters.append(master.user.telegram_id)
 
     return selected_masters
+
 
 
 def get_master_statistics(master):

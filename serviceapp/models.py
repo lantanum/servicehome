@@ -302,6 +302,37 @@ class Settings(models.Model):
         default=3,
         help_text="Требуемое число приглашённых мастеров с депозитом для перехода с уровня 2 на 3"
     )
+    # Поля для условий рассылки (кругов)
+    round1_success_ratio = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("0.80"),
+        help_text="Минимальное значение процента успешных заявок для 1-го круга (1.00 это 100%)."
+    )
+    round1_cost_ratio_max = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("0.30"),
+        help_text="Максимальное значение процента затрат для 1-го круга (1.00 это 100%)."
+    )
+    round2_success_ratio = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("0.80"),
+        help_text="Минимальное значение процента успешных заявок для 2-го круга (1.00 это 100%)."
+    )
+    round2_cost_ratio_min = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("0.30"),
+        help_text="Минимальное значение процента затрат для 2-го круга (1.00 это 100%)."
+    )
+    round2_cost_ratio_max = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("0.50"),
+        help_text="Максимальное значение процента затрат для 2-го круга (1.00 это 100%)."
+    )
 
     def __str__(self):
         return (

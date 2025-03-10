@@ -17,10 +17,11 @@ STATUS_MAPPING = {
 
 
 MASTER_LEVEL_MAPPING = {
-    'Мастер': 1,
-    'Грандмастер': 2,
-    'Учитель': 3
+    1: "Мастер",
+    2: "Грандмастер",
+    3: "Учитель"
 }
+
 
 REVERSE_STATUS_MAPPING = {v: k for k, v in STATUS_MAPPING.items()}
 
