@@ -898,14 +898,11 @@ def update_commission_transaction(service_request, new_price):
         )
         return None
 
-from django.views.decorators.csrf import csrf_exempt
-
-@csrf_exempt
-@permission_classes([AllowAny])
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
     """
+    permission_classes = [AllowAny]
     def post(self, request):
         try:
             raw_data = request.body.decode('utf-8')
@@ -3437,8 +3434,6 @@ class MasterServiceUpdateView(APIView):
         )
     
 
-@csrf_exempt
-@permission_classes([AllowAny])
 class AmoCRMContactUpdateView(APIView):
     """
     API‑точка для обновления данных контакта из AmoCRM.
@@ -3449,6 +3444,7 @@ class AmoCRMContactUpdateView(APIView):
       - phone: новый номер телефона (опционально)
       - city_name: новый город контакта (опционально)
     """
+    permission_classes = [AllowAny]
     @swagger_auto_schema(
         operation_description="Обновляет данные контакта (имя, телефон, город) на основании amo_crm_contact_id.",
         request_body=openapi.Schema(
