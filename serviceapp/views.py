@@ -898,6 +898,9 @@ def update_commission_transaction(service_request, new_price):
         )
         return None
 
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
 @permission_classes([AllowAny])
 class AmoCRMWebhookView(APIView):
     """
@@ -3434,6 +3437,7 @@ class MasterServiceUpdateView(APIView):
         )
     
 
+@csrf_exempt
 @permission_classes([AllowAny])
 class AmoCRMContactUpdateView(APIView):
     """
