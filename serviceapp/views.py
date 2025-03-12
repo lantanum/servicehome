@@ -19,6 +19,8 @@ from django.db.models import Sum, Avg, Q
 from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 
 from serviceapp.amocrm_client import AmoCRMClient
@@ -898,6 +900,9 @@ def update_commission_transaction(service_request, new_price):
         )
         return None
 
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -3432,8 +3437,8 @@ class MasterServiceUpdateView(APIView):
             {"detail": f"Вид услуг мастера обновлён на '{new_service_name}'."},
             status=status.HTTP_200_OK
         )
-    
 
+@method_decorator(csrf_exempt, name='dispatch')
 class AmoCRMContactUpdateView(APIView):
     """
     API‑точка для обновления данных контакта из AmoCRM.
