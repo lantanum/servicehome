@@ -17,6 +17,8 @@ from drf_yasg import openapi
 from decimal import Decimal, ROUND_HALF_UP
 from django.db.models import Sum, Avg, Q
 from django.utils import timezone
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import permission_classes
 
 
 from serviceapp.amocrm_client import AmoCRMClient
@@ -896,6 +898,7 @@ def update_commission_transaction(service_request, new_price):
         )
         return None
 
+@permission_classes([AllowAny])
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -3431,6 +3434,7 @@ class MasterServiceUpdateView(APIView):
         )
     
 
+@permission_classes([AllowAny])
 class AmoCRMContactUpdateView(APIView):
     """
     API‑точка для обновления данных контакта из AmoCRM.
