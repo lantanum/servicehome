@@ -902,7 +902,7 @@ def update_commission_transaction(service_request, new_price):
 
 
 
-@method_decorator(csrf_exempt, name='dispatch')
+
 class AmoCRMWebhookView(APIView):
     """
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
@@ -955,6 +955,7 @@ class AmoCRMWebhookView(APIView):
                         service_request = ServiceRequest.objects.select_for_update().get(
                             amo_crm_lead_id=lead_id
                         )
+                        logger.info(f"Found existing ServiceRequest with amo_crm_lead_id={lead_id}")
                         # Обновляем базовые поля заявки
                         service_request.crm_operator_comment = operator_comment
                         service_request.deal_success = deal_success

@@ -1,6 +1,9 @@
 from decimal import Decimal
 from django.db import models
 from pydantic import ValidationError
+from django.contrib.postgres.fields import ArrayField
+
+
 class User(models.Model):
     ROLE_CHOICES = [
         ('Client', 'Client'),
@@ -333,6 +336,8 @@ class Settings(models.Model):
         default=Decimal("0.50"),
         help_text="Максимальное значение процента затрат для 2-го круга (1.00 это 100%)."
     )
+
+    allowed_hosts = ArrayField(models.CharField(max_length=255), default=list, help_text="Список разрешенных источников запросов")
 
     def __str__(self):
         return (
