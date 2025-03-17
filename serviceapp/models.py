@@ -337,7 +337,7 @@ class Settings(models.Model):
         help_text="Максимальное значение процента затрат для 2-го круга (1.00 это 100%)."
     )
 
-    allowed_hosts = ArrayField(models.CharField(max_length=255), default=list, help_text="Список разрешенных источников запросов")
+    allowed_hosts = models.TextField(default="", help_text="Список разрешенных источников запросов (через запятую)")
 
     def __str__(self):
         return (
