@@ -12,6 +12,9 @@ class AllowedHostsAndTokenMiddleware:
 
     def __call__(self, request):
         settings_obj = self.get_settings()
+        if request.path.startswith('/admin'):
+            return self.get_response(request)
+
         token_in_header = request.headers.get('Authorization')
         origin = request.headers.get('Origin')
 
