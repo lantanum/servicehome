@@ -1,43 +1,70 @@
+import logging
 from django.http import JsonResponse
 from serviceapp.models import Settings
+
+# Настраиваем логирование
+logger = logging.getLogger(__name__)
 
 class AllowedHostsAndTokenMiddleware:
     """
     Middleware для проверки запросов:
     - Если в заголовке присутствует токен (Authorization), сравниваем его с service_token из Settings.
     - Если токена нет, проверяем, что Origin запроса входит в список разрешённых хостов.
+    - Если путь начинается с /admin, то запрос пропускается без проверки.
     """
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         settings_obj = self.get_settings()
+        
+        # Получаем информацию о запросе
+        request_info = {
+            "path": request.path,
+            "method": request.method,
+            "origin": request.headers.get("Origin", "Не указан"),
+            "ip": request.META.get("REMOTE_ADDR", "Неизвестен"),
+        }
+
+        # Если запрос в админку, пропускаем его без проверки
         if request.path.startswith('/admin'):
+            logger.info(f"Админ-доступ разрешён: {request_info}")
             return self.get_response(request)
 
         token_in_header = request.headers.get('Authorization')
         origin = request.headers.get('Origin')
 
         if token_in_header:
-            # Если токен присутствует, сравниваем его с service_token
-            if token_in_header != settings_obj.service_token:
+            token = self.extract_bearer_token(token_in_header)
+            if not token or token != settings_obj.service_token:
+                logger.warning(f"ОТКАЗАНО: Неверный токен | {request_info}")
                 return JsonResponse({"detail": "Неверный токен."}, status=403)
         else:
             # Если токена нет, проверяем Origin
             allowed_hosts = self.get_allowed_hosts(settings_obj)
             if origin and origin not in allowed_hosts:
+                logger.warning(f"ОТКАЗАНО: Доступ запрещен (неразрешённый Origin) | {request_info}")
                 return JsonResponse({"detail": "Доступ запрещен."}, status=403)
 
+        logger.info(f"ДОСТУП РАЗРЕШЁН: {request_info}")
         return self.get_response(request)
+
+    def extract_bearer_token(self, authorization_header):
+        """
+        Извлекает токен из заголовка Authorization: Bearer <token>.
+        """
+        parts = authorization_header.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            return parts[1]  # Возвращаем сам токен
+        return None
 
     def get_settings(self):
         """
-        Получает объект Settings. Если его нет, можно вернуть объект с дефолтными значениями.
+        Получает объект Settings. Если его нет, создаёт с дефолтными значениями.
         """
         settings_obj = Settings.objects.first()
         if not settings_obj:
-            # Если настроек нет, можно создать настройки с пустым токеном и дефолтными allowed_hosts.
-            # (Либо возвращать объект с дефолтными значениями, в зависимости от логики вашего приложения)
             settings_obj = Settings.objects.create(
                 service_token="",
                 allowed_hosts="http://localhost, http://127.0.0.1"
@@ -47,10 +74,7 @@ class AllowedHostsAndTokenMiddleware:
     def get_allowed_hosts(self, settings_obj):
         """
         Получает список разрешенных хостов из поля allowed_hosts.
-        Предполагается, что это строка с доменами, разделёнными запятыми.
         """
-        if hasattr(settings_obj, 'allowed_hosts') and settings_obj.allowed_hosts:
-            # Разбиваем по запятой и убираем лишние пробелы
+        if settings_obj.allowed_hosts:
             return [host.strip() for host in settings_obj.allowed_hosts.split(',')]
-        # Значения по умолчанию, если поле не задано
         return ["http://localhost", "http://127.0.0.1"]
