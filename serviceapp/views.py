@@ -1165,54 +1165,43 @@ class AmoCRMWebhookView(APIView):
 
     def update_custom_fields(self, service_request: ServiceRequest, lead: dict):
         """
-        Из вашего же примера:
-        Сохраняем "Категория услуг", "Тип оборудования", "Марка", "Адрес город", "Адрес улица" в ServiceRequest.
+        Сохраняем "Категория услуг" (field_id=743839), 
+        "Тип оборудования" (field_id=240631), 
+        "Марка" (field_id=240635), 
+        "Адрес город" (field_id=240623), 
+        "Адрес улица" (field_id=743447).
         """
+        # Можно завести "мапу" field_id -> название нужного поля ServiceRequest
+        FIELD_ID_TO_MODEL_FIELD = {
+            743839: 'service_name',       # Категория услуг
+            240631: 'equipment_type',     # Тип оборудования
+            240635: 'equipment_brand',    # Марка
+            240623: 'city_name',          # Адрес город
+            743447: 'address',            # Адрес улица
+        }
+    
+        fields_to_update = []
         custom_fields = lead.get("custom_fields_values", [])
-        category = None
-        equipment_type = None
-        brand = None
-        city = None
-        street = None
-
-        for field in custom_fields:
-            field_name = field.get("field_name")
-            values = field.get("values", [])
+    
+        for field_data in custom_fields:
+            field_id = field_data.get("field_id")
+            values = field_data.get("values", [])
             if not values:
                 continue
+            
+            # Для простого select/text берём первое значение
+            # (если у вас multiselect, возможно, придётся дополнительно собирать в список)
             field_value = values[0].get("value", "")
-
-            if field_name == "Категория услуг":
-                category = field_value
-            elif field_name == "Тип оборудования":
-                equipment_type = field_value
-            elif field_name == "Марка":
-                brand = field_value
-            elif field_name == "Адрес город":
-                city = field_value
-            elif field_name == "Адрес улица":
-                street = field_value
-
-        fields_to_update = []
-        if category:
-            service_request.service_name = category
-            fields_to_update.append('service_name')
-        if equipment_type:
-            service_request.equipment_type = equipment_type
-            fields_to_update.append('equipment_type')
-        if brand:
-            service_request.equipment_brand = brand
-            fields_to_update.append('equipment_brand')
-        if city:
-            service_request.city_name = city
-            fields_to_update.append('city_name')
-        if street:
-            service_request.address = street
-            fields_to_update.append('address')
-
+            
+            # Смотрим, есть ли такое поле в нашей мапе
+            if field_id in FIELD_ID_TO_MODEL_FIELD:
+                setattr(service_request, FIELD_ID_TO_MODEL_FIELD[field_id], field_value)
+                fields_to_update.append(FIELD_ID_TO_MODEL_FIELD[field_id])
+    
         if fields_to_update:
             service_request.save(update_fields=fields_to_update)
             logger.info(f"Updated custom fields {fields_to_update} for ServiceRequest ID={service_request.id}")
+
 
     def set_work_outcome(self, service_request: ServiceRequest, work_outcome_name: str):
         """
