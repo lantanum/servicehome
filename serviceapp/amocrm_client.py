@@ -211,6 +211,7 @@ class AmoCRMClient:
             )
             response.raise_for_status()
 
+    
 
     def attach_contact_to_lead(self, lead_id, contact_id):
         # Получаем лид
@@ -227,3 +228,91 @@ class AmoCRMClient:
             # Обновляем лид
             self.update_lead(lead_id, {'_embedded': {'contacts': updated_contacts}})
             logger.info(f"Контакт {contact_id} успешно прикреплён к лиду {lead_id}")
+
+    def get_lead_links(self, lead_id):
+        """
+        Получает список связанных объектов для лида (ищем контакты).
+        """
+        url = f"{self.base_url}/leads/{lead_id}/links"
+        headers = self._get_headers()
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Не удалось получить ссылки лида {lead_id}: {response.text}")
+            return {}
+    # users_app/amocrm_client.py
+
+    def parse_contact_data(contact_json: dict) -> dict:
+        """
+        Извлекает телефон, имя, Telegram ID и другие нужные поля
+        из ответа AmoCRM /api/v4/contacts/{contact_id}.
+        
+        Пример входных данных см. в теле вопроса:
+        {
+            "id": 29504626,
+            "name": "Дмитрий Тестер",
+            ...
+            "custom_fields_values": [
+                {
+                    "field_code": "PHONE",
+                    "values": [{ "value": "+79057890223" }]
+                },
+                {
+                    "field_id": 744499,
+                    "field_name": "Телеграмм ID",
+                    "values": [{ "value": "844860156" }]
+                },
+                ...
+            ]
+        }
+    
+        Возвращаем dict, например:
+        {
+            "amo_crm_contact_id": 29504626,
+            "name": "Дмитрий Тестер",
+            "phone": "+79057890223",
+            "telegram_id": "844860156",
+            "role": "Client",   # если есть в полях
+            "city_name": "Тестогород"  # если есть в полях
+        }
+        """
+        contact_id = contact_json.get("id")
+        name = contact_json.get("name", "Без имени")
+    
+        phone = None
+        telegram_id = None
+        role = None
+        city_name = None
+    
+        custom_fields = contact_json.get("custom_fields_values", [])
+        for cf in custom_fields:
+            field_code = cf.get("field_code")  # Может быть "PHONE"
+            field_id = cf.get("field_id")      # Например, 744499 для Telegram
+            values = cf.get("values", [])
+    
+            if field_code == "PHONE" and values:
+                phone = values[0].get("value")  # Берём первый телефон
+    
+            # Ваш кастомный ID для Telegram = 744499
+            if field_id == 744499 and values:
+                telegram_id = values[0].get("value")
+    
+            # Ваш кастомный ID для "Роль" = 744523
+            if field_id == 744523 and values:
+                role = values[0].get("value")
+    
+            # Ваш кастомный ID для "Город" = 744219 (судя по примеру)
+            if field_id == 744219 and values:
+                city_name = values[0].get("value")
+    
+        return {
+            "amo_crm_contact_id": contact_id,
+            "name": name,
+            "phone": phone,
+            "telegram_id": telegram_id,
+            "role": role,
+            "city_name": city_name,
+        }
+

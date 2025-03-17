@@ -21,7 +21,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
+from serviceapp.amocrm_client import AmoCRMClient
 
 from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
@@ -908,6 +908,7 @@ class AmoCRMWebhookView(APIView):
     API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
     """
     permission_classes = [AllowAny]
+
     def post(self, request):
         try:
             raw_data = request.body.decode('utf-8')
@@ -924,163 +925,410 @@ class AmoCRMWebhookView(APIView):
             logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
             return Response(serializer.errors, status=400)
 
+        # Извлекаем данные о лидах
         embedded = serializer.validated_data.get('leads', {})
         status_changes = embedded.get('status', [])
 
         for lead in status_changes:
             try:
-                lead_id = lead.get('id')
-                new_status_id = lead.get('status_id')
-                operator_comment = lead.get('748437', "")
-                deal_success = lead.get('748715', "")
-                quality_rating = lead.get('748771')         # Качество работ
-                competence_rating = lead.get('748773')        # Компетентность мастера
-                recommendation_rating = lead.get('748775')    # Готовность рекомендовать
-                incoming_price = lead.get('price')            # Приходящее значение цены (строка)
-                work_outcome_name = lead.get('745353')          # Название итога работы
-        
-                # Определяем новое имя статуса по STATUS_MAPPING
-                status_name = None
-                for k, v in STATUS_MAPPING.items():
-                    if v == new_status_id:
-                        status_name = k
-                        break
-                if not status_name:
-                    logger.warning(f"No matching status found for status_id={new_status_id}")
-                    status_name = 'Open'  # либо другой статус по умолчанию
-        
-                with transaction.atomic():
-                    try:
-                        # Пытаемся найти существующую заявку
-                        service_request = ServiceRequest.objects.select_for_update().get(
-                            amo_crm_lead_id=lead_id
-                        )
-                        logger.info(f"Found existing ServiceRequest with amo_crm_lead_id={lead_id}")
-                        # Обновляем базовые поля заявки
-                        service_request.crm_operator_comment = operator_comment
-                        service_request.deal_success = deal_success
-                        if quality_rating is not None:
-                            service_request.quality_rating = int(quality_rating)
-                        if competence_rating is not None:
-                            service_request.competence_rating = int(competence_rating)
-                        if recommendation_rating is not None:
-                            service_request.recommendation_rating = int(recommendation_rating)
-        
-                    except ServiceRequest.DoesNotExist:
-                        # Если заявка не найдена – создаём новую
-                        phone = lead.get('phone')
-                        telegram_id = lead.get('telegram_id')
-        
-                        # Ищем пользователя по номеру телефона или telegram_id
-                        user = None
-                        if phone or telegram_id:
-                            user = User.objects.filter(Q(phone=phone) | Q(telegram_id=telegram_id)).first()
-        
-                        if user:
-                            if user.role == 'Master':
-                                try:
-                                    master = Master.objects.get(user=user)
-                                except Master.DoesNotExist:
-                                    logger.error(f"User {user.id} имеет роль 'Master', но профиль мастера не найден.")
-                                    master = None
-                            else:
-                                master = None
-                        else:
-                            # Если пользователь не найден, создаём нового клиента
-                            user = User.objects.create(
-                                name=lead.get('name', 'Новый клиент'),
-                                phone=phone,
-                                telegram_id=telegram_id,
-                                role='Client'
-                            )
-                            master = None
-        
-                        service_request = ServiceRequest.objects.create(
-                            client=user,
-                            master=master,
-                            amo_crm_lead_id=lead_id,
-                            status=status_name,
-                            amo_status_code=new_status_id,
-                            price=Decimal(incoming_price) if incoming_price is not None else None,
-                            crm_operator_comment=operator_comment,
-                            deal_success=deal_success,
-                            quality_rating=int(quality_rating) if quality_rating is not None else None,
-                            competence_rating=int(competence_rating) if competence_rating is not None else None,
-                            recommendation_rating=int(recommendation_rating) if recommendation_rating is not None else None,
-                        )
-                        logger.info(f"Created new ServiceRequest with amo_crm_lead_id={lead_id}")
-        
-                    # Обрабатываем итог работы (work_outcome)
-                    if work_outcome_name:
-                        try:
-                            outcome = WorkOutcome.objects.get(outcome_name=work_outcome_name)
-                            service_request.work_outcome = outcome
-                        except WorkOutcome.DoesNotExist:
-                            logger.warning(f"WorkOutcome with name '{work_outcome_name}' not found for lead_id {lead_id}.")
-        
-                    previous_status = service_request.status
-        
-                    # Обрабатываем статусы: AwaitingClosure, Completed, QualityControl
-                    if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
-                        if incoming_price is not None:
-                            new_price_val = Decimal(incoming_price)
-                            if service_request.price != new_price_val:
-                                diff = update_commission_transaction(service_request, incoming_price)
-                                service_request.price = new_price_val
-                                if (service_request.master and service_request.master.user.telegram_id and diff is not None):
-                                    payload = {
-                                        "master_telegram_id": service_request.master.user.telegram_id,
-                                        "message": f"С вас списана комиссия в размере {ceil(float(diff))} монет по заявке {service_request.amo_crm_lead_id}.\n\nВажно! Для того, чтобы получать новые заказы, необходимо иметь положительный баланс."
-                                    }
-                                    try:
-                                        response_msg = requests.post('https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj', json=payload, timeout=10)
-                                        if response_msg.status_code != 200:
-                                            logger.error(f"Failed to send commission info to sambot. Status code: {response_msg.status_code}, Response: {response_msg.text}")
-                                    except Exception as ex:
-                                        logger.error(f"Error sending commission info to sambot: {ex}")
-                        # Обновляем поля заявки
-                        service_request.status = status_name
-                        service_request.amo_status_code = new_status_id
-                        fields_to_update = ['status', 'amo_status_code']
-                        if incoming_price is not None:
-                            fields_to_update.append('price')
-                        # Если итог работы был изменён – добавляем и его в список обновлений
-                        if work_outcome_name:
-                            fields_to_update.append('work_outcome')
-                        service_request.save(update_fields=fields_to_update)
-                        logger.info(f"ServiceRequest {service_request.id}: status updated from {previous_status} to '{status_name}' with updated price.")
-        
-                        if status_name == 'AwaitingClosure':
-                            if service_request.master and service_request.master.user.telegram_id:
-                                payload = {
-                                    "telegram_id": service_request.master.user.telegram_id,
-                                    "request_id": str(lead_id)
-                                }
-                                try:
-                                    response = requests.post('https://sambot.ru/reactions/2939774/start?token=yhvtlmhlqbj', json=payload, timeout=10)
-                                    if response.status_code != 200:
-                                        logger.error(f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. Status: {response.status_code}, Response: {response.text}")
-                                except Exception as ex:
-                                    logger.error(f"Error sending data to sambot: {ex}")
-                        elif status_name == 'Completed':
-                            handle_completed_deal(
-                                service_request=service_request,
-                                operator_comment=operator_comment,
-                                previous_status=previous_status,
-                                lead_id=lead_id,
-                                skip_commission=True
-                            )
-                    elif status_name == 'Free':
-                        previous_status = service_request.status
-                        handle_free_status(service_request, previous_status, new_status_id)
-                    else:
-                        logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
-        
+                self.process_lead(lead)
             except Exception as e:
-                logger.exception(f"Error processing lead_id={lead_id}: {e}")
+                logger.exception(f"Error processing lead_id={lead.get('id')}: {e}")
                 continue
 
         return Response({"detail": "Webhook processed."}, status=200)
+
+    def process_lead(self, lead: dict):
+        """
+        Обрабатывает один лид из вебхука AmoCRM.
+        """
+        lead_id = lead.get('id')
+        new_status_id = lead.get('status_id')
+        operator_comment = lead.get('748437', "")
+        deal_success = lead.get('748715', "")
+        quality_rating = lead.get('748771')
+        competence_rating = lead.get('748773')
+        recommendation_rating = lead.get('748775')
+        incoming_price = lead.get('price')
+        work_outcome_name = lead.get('745353')
+
+        # Определяем статус_name по STATUS_MAPPING
+        status_name = self.get_status_name(new_status_id)
+
+        with transaction.atomic():
+            try:
+                # 1. Пытаемся найти ServiceRequest по amo_crm_lead_id
+                service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
+                created = False
+                logger.info(f"Found existing ServiceRequest with lead_id={lead_id}")
+            except ServiceRequest.DoesNotExist:
+                logger.info(f"ServiceRequest for lead_id={lead_id} not found => creating new.")
+                created = True
+                service_request = None
+
+            if created:
+                # Нужно вытащить контакт AmoCRM и найти/создать пользователя
+                user = self.find_or_create_user_from_lead_links(lead_id, lead)
+                # Теперь создаём ServiceRequest
+                service_request = self.create_new_service_request(
+                    lead_id, status_name, new_status_id, incoming_price,
+                    operator_comment, deal_success,
+                    quality_rating, competence_rating, recommendation_rating,
+                    user
+                )
+            else:
+                # Если уже есть заявка, просто обновляем нужные поля
+                self.update_existing_service_request(
+                    service_request,
+                    operator_comment,
+                    deal_success,
+                    quality_rating,
+                    competence_rating,
+                    recommendation_rating
+                )
+
+            # Дополнительно - обрабатываем поля из custom_fields_values (Категория, Марка, Город и т.д.)
+            self.update_custom_fields(service_request, lead)
+
+            # Итог работы (если задан)
+            if work_outcome_name:
+                self.set_work_outcome(service_request, work_outcome_name)
+
+            # Обработка статуса и цены, комиссий и пр.
+            self.handle_status_change(
+                service_request, status_name, new_status_id, incoming_price, 
+                operator_comment, lead_id
+            )
+
+    # --------------------- Методы для обработки пользователя и ServiceRequest ---------------------
+
+    def find_or_create_user_from_lead_links(self, lead_id: int, lead: dict) -> User:
+        """
+        1) Достаёт через AmoCRMClient связи лида (links),
+        2) если есть contact_id, делает get_contact_by_id,
+        3) парсит контакт,
+        4) ищет/обновляет или создаёт пользователя локально.
+        
+        Если в лида вообще нет контактов, fallback — смотрим phone/telegram_id в самом lead (если есть).
+        """
+        amocrm_client = AmoCRMClient()
+        links_resp = amocrm_client.get_lead_links(lead_id)
+        link_items = links_resp.get("_embedded", {}).get("links", [])
+
+        contact_id = None
+        for item in link_items:
+            if item.get("to_entity_type") == "contacts":
+                contact_id = item["to_entity_id"]
+                break
+
+        if contact_id:
+            # Запрашиваем контакт
+            contact_data = amocrm_client.get_contact_by_id(contact_id)
+            parsed = AmoCRMClient.parse_contact_data(contact_data)  # {"amo_crm_contact_id":..., "phone":..., "telegram_id":..., ...}
+            user = self.find_or_update_user_from_amo(parsed)
+            return user
+        else:
+            # Если контакта нет, fallback - берём phone/telegram_id из самого lead
+            return self.find_or_create_user_from_lead(lead)
+
+    def find_or_update_user_from_amo(self, parsed_data: dict) -> User:
+        """
+        Ищем пользователя по amo_crm_contact_id.
+        Если не нашли, ищем по телефону.
+        Если не нашли, создаём нового.
+        Обновляем поля (telegram_id, name, city_name, role...), если они не пусты.
+        """
+        contact_id = parsed_data.get("amo_crm_contact_id")
+        phone = parsed_data.get("phone")
+        tg_id = parsed_data.get("telegram_id")
+        name = parsed_data.get("name", "Новый клиент")
+        role = parsed_data.get("role") or "Client"
+        city_name = parsed_data.get("city_name")
+
+        # 1) Ищем по amo_crm_contact_id
+        user = User.objects.filter(amo_crm_contact_id=contact_id).first()
+        if user:
+            logger.info(f"User found by amo_crm_contact_id={contact_id}, updating data.")
+            # Обновляем
+            if phone:
+                user.phone = phone
+            if tg_id:
+                user.telegram_id = tg_id
+            user.name = name
+            user.role = role
+            if city_name:
+                user.city_name = city_name
+            user.save()
+            return user
+
+        # 2) Не нашли, но у нас есть телефон -> ищем по телефону
+        if phone:
+            user = User.objects.filter(phone=phone).first()
+            if user:
+                logger.info(f"User found by phone={phone}, updating & set amo_crm_contact_id={contact_id}")
+                user.amo_crm_contact_id = contact_id
+                if tg_id:
+                    user.telegram_id = tg_id
+                user.name = name
+                user.role = role
+                if city_name:
+                    user.city_name = city_name
+                user.save()
+                return user
+
+        # 3) Вообще не нашли -> создаём
+        logger.info(f"No user found by contact_id={contact_id} or phone={phone}, creating new user.")
+        user = User.objects.create(
+            name=name,
+            phone=phone,
+            telegram_id=tg_id,
+            amo_crm_contact_id=contact_id,
+            role=role,
+            city_name=city_name
+        )
+        return user
+
+    def find_or_create_user_from_lead(self, lead: dict) -> User:
+        """
+        Запасной вариант, если у лида нет связанного контакта в AmoCRM.
+        Ищем пользователя по phone/telegram_id, иначе создаём.
+        """
+        phone = lead.get('phone')
+        tg_id = lead.get('telegram_id')
+        name = lead.get('name', 'Новый клиент')
+
+        if phone or tg_id:
+            user = User.objects.filter(Q(phone=phone) | Q(telegram_id=tg_id)).first()
+            if user:
+                logger.info(f"Found user by phone/telegram from lead. Updating name.")
+                user.name = name
+                if phone:
+                    user.phone = phone
+                if tg_id:
+                    user.telegram_id = tg_id
+                user.save()
+                return user
+
+        # Иначе создаём
+        logger.info("No contact_id in lead links, no user found by phone/tg => creating new user.")
+        return User.objects.create(
+            name=name,
+            phone=phone,
+            telegram_id=tg_id,
+            role='Client'
+        )
+
+    def create_new_service_request(self,
+                                   lead_id, status_name, new_status_id, incoming_price,
+                                   operator_comment, deal_success,
+                                   quality_rating, competence_rating, recommendation_rating,
+                                   user: User) -> ServiceRequest:
+        """
+        Создаёт новый ServiceRequest, привязывая к переданному user.
+        """
+        logger.info(f"Creating new ServiceRequest for lead_id={lead_id}, user_id={user.id}")
+        sreq = ServiceRequest.objects.create(
+            client=user,
+            amo_crm_lead_id=lead_id,
+            status=status_name,
+            amo_status_code=new_status_id,
+            price=Decimal(incoming_price) if incoming_price is not None else None,
+            crm_operator_comment=operator_comment,
+            deal_success=deal_success,
+            quality_rating=int(quality_rating) if quality_rating else None,
+            competence_rating=int(competence_rating) if competence_rating else None,
+            recommendation_rating=int(recommendation_rating) if recommendation_rating else None
+        )
+        return sreq
+
+    def update_existing_service_request(self,
+                                        service_request: ServiceRequest,
+                                        operator_comment: str,
+                                        deal_success: str,
+                                        quality_rating,
+                                        competence_rating,
+                                        recommendation_rating):
+        """
+        Обновляет поля ServiceRequest, если заявка уже существовала.
+        """
+        service_request.crm_operator_comment = operator_comment
+        service_request.deal_success = deal_success
+        if quality_rating is not None:
+            service_request.quality_rating = int(quality_rating)
+        if competence_rating is not None:
+            service_request.competence_rating = int(competence_rating)
+        if recommendation_rating is not None:
+            service_request.recommendation_rating = int(recommendation_rating)
+        service_request.save()
+
+    # --------------------- Остальная логика (обновление полей, статусов, комиссий...) ---------------------
+
+    def update_custom_fields(self, service_request: ServiceRequest, lead: dict):
+        """
+        Из вашего же примера:
+        Сохраняем "Категория услуг", "Тип оборудования", "Марка", "Адрес город", "Адрес улица" в ServiceRequest.
+        """
+        custom_fields = lead.get("custom_fields_values", [])
+        category = None
+        equipment_type = None
+        brand = None
+        city = None
+        street = None
+
+        for field in custom_fields:
+            field_name = field.get("field_name")
+            values = field.get("values", [])
+            if not values:
+                continue
+            field_value = values[0].get("value", "")
+
+            if field_name == "Категория услуг":
+                category = field_value
+            elif field_name == "Тип оборудования":
+                equipment_type = field_value
+            elif field_name == "Марка":
+                brand = field_value
+            elif field_name == "Адрес город":
+                city = field_value
+            elif field_name == "Адрес улица":
+                street = field_value
+
+        fields_to_update = []
+        if category:
+            service_request.service_name = category
+            fields_to_update.append('service_name')
+        if equipment_type:
+            service_request.equipment_type = equipment_type
+            fields_to_update.append('equipment_type')
+        if brand:
+            service_request.equipment_brand = brand
+            fields_to_update.append('equipment_brand')
+        if city:
+            service_request.city_name = city
+            fields_to_update.append('city_name')
+        if street:
+            service_request.address = street
+            fields_to_update.append('address')
+
+        if fields_to_update:
+            service_request.save(update_fields=fields_to_update)
+            logger.info(f"Updated custom fields {fields_to_update} for ServiceRequest ID={service_request.id}")
+
+    def set_work_outcome(self, service_request: ServiceRequest, work_outcome_name: str):
+        """
+        Проставляет итог работы (WorkOutcome), если есть.
+        """
+        try:
+            outcome = WorkOutcome.objects.get(outcome_name=work_outcome_name)
+            service_request.work_outcome = outcome
+            service_request.save(update_fields=["work_outcome"])
+        except WorkOutcome.DoesNotExist:
+            logger.warning(f"WorkOutcome not found by name='{work_outcome_name}'")
+
+    def get_status_name(self, new_status_id):
+        """
+        Поиск имени статуса по STATUS_MAPPING. Если не найдено, возвращаем 'Open'.
+        """
+        for k, v in STATUS_MAPPING.items():
+            if v == new_status_id:
+                return k
+        logger.warning(f"No matching status found for status_id={new_status_id}")
+        return 'Open'
+
+    def handle_status_change(self, service_request, status_name, new_status_id, incoming_price, operator_comment, lead_id):
+        """
+        Ваша логика обработки статусов: AwaitingClosure, Completed, QualityControl, Free и т.д.
+        Списывание комиссии, уведомления Sambot, всё, как было раньше.
+        """
+        previous_status = service_request.status
+
+        if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
+            # Пример: обновляем цену и списываем комиссию
+            if incoming_price is not None:
+                self.update_price_and_commission(service_request, incoming_price)
+
+            service_request.status = status_name
+            service_request.amo_status_code = new_status_id
+            fields_to_update = ['status', 'amo_status_code']
+            if incoming_price is not None:
+                fields_to_update.append('price')
+            if service_request.work_outcome_id:
+                fields_to_update.append('work_outcome')
+
+            service_request.save(update_fields=fields_to_update)
+            logger.info(f"ServiceRequest {service_request.id} status updated from {previous_status} to {status_name}.")
+
+            if status_name == 'AwaitingClosure':
+                # ваш вызов sambot
+                self.notify_awaiting_closure(service_request, lead_id)
+            elif status_name == 'Completed':
+                # ваш вызов handle_completed_deal
+                handle_completed_deal(
+                    service_request=service_request,
+                    operator_comment=operator_comment,
+                    previous_status=previous_status,
+                    lead_id=lead_id,
+                    skip_commission=True
+                )
+        elif status_name == 'Free':
+            handle_free_status(service_request, previous_status, new_status_id)
+        else:
+            logger.info(f"Ignoring status {status_name} (id={new_status_id}) for lead_id={lead_id}")
+
+    def update_price_and_commission(self, service_request, incoming_price):
+        """
+        Пример вашей логики списания комиссии, если цена изменилась.
+        """
+        new_price_val = Decimal(incoming_price)
+        if service_request.price != new_price_val:
+            diff = update_commission_transaction(service_request, incoming_price)
+            service_request.price = new_price_val
+
+            if service_request.master and service_request.master.user.telegram_id and diff is not None:
+                payload = {
+                    "master_telegram_id": service_request.master.user.telegram_id,
+                    "message": (
+                        f"С вас списана комиссия в размере {diff} монет по заявке "
+                        f"{service_request.amo_crm_lead_id}.\n\n"
+                        "Важно! Чтобы получать новые заказы, необходимо иметь положительный баланс."
+                    )
+                }
+                try:
+                    response_msg = requests.post(
+                        'https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj',
+                        json=payload,
+                        timeout=10
+                    )
+                    if response_msg.status_code != 200:
+                        logger.error(
+                            f"Failed to send commission info to sambot. "
+                            f"Status: {response_msg.status_code}, Response: {response_msg.text}"
+                        )
+                except Exception as ex:
+                    logger.error(f"Error sending commission info to sambot: {ex}")
+
+    def notify_awaiting_closure(self, service_request, lead_id):
+        """
+        Пример уведомления Sambot при AwaitingClosure
+        """
+        if service_request.master and service_request.master.user.telegram_id:
+            payload = {
+                "telegram_id": service_request.master.user.telegram_id,
+                "request_id": str(lead_id)
+            }
+            try:
+                response = requests.post(
+                    'https://sambot.ru/reactions/2939774/start?token=yhvtlmhlqbj',
+                    json=payload,
+                    timeout=10
+                )
+                if response.status_code != 200:
+                    logger.error(
+                        f"Failed to send data to sambot (AwaitingClosure) for Request {service_request.id}. "
+                        f"Status: {response.status_code}, Response: {response.text}"
+                    )
+            except Exception as ex:
+                logger.error(f"Error sending data to sambot: {ex}")
 
 def handle_free_status(service_request, previous_status, new_status_id):
     """
