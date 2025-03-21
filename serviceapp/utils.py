@@ -27,65 +27,70 @@ REVERSE_STATUS_MAPPING = {v: k for k, v in STATUS_MAPPING.items()}
 
 def parse_nested_form_data(form_data):
     """
-    Универсальное разбиение: ищем все фрагменты между '[' и ']' и первый фрагмент до них.
+    Преобразует плоские ключи формы с синтаксисом вложенных полей
+    в вложенный словарь.
+    
     Пример:
-      leads[status][0][custom_fields_values][0][field_id]
-    разложится в список:
-      ["leads", "status", "0", "custom_fields_values", "0", "field_id"]
-    И дальше мы постепенно строим вложенный словарь.
+        'leads[status][0][id]': '24753745'
+        превращается в:
+        {
+            'leads': {
+                'status': [
+                    {
+                        'id': 24753745,
+                        'status_id': 63819778,
+                        ...
+                    }
+                ]
+            },
+            'account': {
+                'id': 28733683,
+                'subdomain': 'servicecentru'
+            }
+        }
     """
+    nested_data = {}
+    status_pattern = re.compile(r'(\w+)\[(\w+)\]\[(\d+)\]\[(\w+)\]')
+    simple_pattern = re.compile(r'(\w+)\[(\w+)\]')
 
-    nested_dict = {}
+    for key, value in form_data.items():
+        status_match = status_pattern.match(key)
+        if status_match:
+            main_key, sub_key, index, field = status_match.groups()
+            index = int(index)
 
-    for full_key, value in form_data.items():
-        # Вытащим все куски, где \w включает буквы, цифры и _, и
-        # также отдельно возьмём ведущую часть до первой '['
-        # re.findall(r"\w+", key) обычно вытащит все подряд (включая подчеркивания).
-        # Например, 'leads[status][0][custom_fields_values][0][field_id]' -> ['leads','status','0','custom_fields_values','0','field_id']
-        path = re.findall(r"\w+", full_key)
-        if not path:
-            continue
+            if main_key not in nested_data:
+                nested_data[main_key] = {}
 
-        # Теперь идём по path и создаём структуры в виде словарей / списков
-        current_level = nested_dict
-        for i, key_part in enumerate(path):
-            is_last = (i == len(path) - 1)
+            if sub_key not in nested_data[main_key]:
+                nested_data[main_key][sub_key] = []
 
-            # Пытаемся понять, это индекс в списке (число) или обычный ключ словаря
-            try:
-                idx = int(key_part)
-                # Это индекс => значит, current_level должен быть списком
-                # если current_level ещё не список, превратим в список
-                if not isinstance(current_level, list):
-                    # Преобразуем current_level в список внутри текущего ключа.
-                    # Но чтобы это было корректно, нужно знать,
-                    # что предыдущая точка в path тоже являлась числом.
-                    # Часто перед этим идёт название ключа (который превращаем в список).
-                    # Однако, если логика simpler — можно делать "named lists", например:
-                    # nested_dict["some_list"] = [{}, {}, ...]
-                    pass
-                # Увеличиваем длину списка до нужного индекса
-                while len(current_level) <= idx:
-                    current_level.append({})
-                if is_last:
-                    current_level[idx] = value
-                else:
-                    # если ещё не последний уровень, нужно идти глубже
-                    if not isinstance(current_level[idx], (dict, list)):
-                        current_level[idx] = {}
-                    current_level = current_level[idx]
-            except ValueError:
-                # Не число => работаем как со словарём
-                if is_last:
-                    current_level[key_part] = value
-                else:
-                    if key_part not in current_level:
-                        # Определяем, создаём ли здесь dict или list
-                        # чаще всего dict, пока не встретим число
-                        current_level[key_part] = {}
-                    current_level = current_level[key_part]
+            # Расширяем список до нужного индекса
+            while len(nested_data[main_key][sub_key]) <= index:
+                nested_data[main_key][sub_key].append({})
 
-    return nested_dict
+            # Преобразуем числовые поля
+            if field in ['id', 'status_id', 'pipeline_id', 'old_status_id', 'old_pipeline_id']:
+                try:
+                    value = int(value)
+                except ValueError:
+                    pass  # Оставляем как строку, если не удалось преобразовать
+
+            nested_data[main_key][sub_key][index][field] = value
+        else:
+            # Обрабатываем простые поля, например, account[id]
+            simple_match = simple_pattern.match(key)
+            if simple_match:
+                main_key, field = simple_match.groups()
+                if main_key not in nested_data:
+                    nested_data[main_key] = {}
+                nested_data[main_key][field] = value
+            else:
+                # Обрабатываем любые другие поля
+                nested_data[key] = value
+
+    return nested_data
+
 
 from decimal import Decimal
 

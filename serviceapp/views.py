@@ -905,7 +905,7 @@ def update_commission_transaction(service_request, new_price):
 
 class AmoCRMWebhookView(APIView):
     """
-    API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов.
+    API-эндпоинт для приема вебхуков от AmoCRM о статусах лидов (без AmoCRMWebhookSerializer).
     """
     permission_classes = [AllowAny]
 
@@ -916,19 +916,17 @@ class AmoCRMWebhookView(APIView):
         except Exception as e:
             logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=400)
-        logger.debug(f"{raw_data}")
 
         nested_data = parse_nested_form_data(request.POST)
         logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
 
-        serializer = AmoCRMWebhookSerializer(data=nested_data)
-        if not serializer.is_valid():
-            logger.warning(f"Invalid AmoCRM webhook data: {serializer.errors}")
-            return Response(serializer.errors, status=400)
+        # Вместо сериализатора извлекаем напрямую
+        leads_data = nested_data.get("leads", {})
+        status_changes = leads_data.get("status", [])
 
-        # Извлекаем данные о лидах
-        embedded = serializer.validated_data.get('leads', {})
-        status_changes = embedded.get('status', [])
+        if not status_changes:
+            logger.warning("No 'status' leads in webhook data.")
+            return Response({"detail": "No leads found in webhook data."}, status=400)
 
         for lead in status_changes:
             try:
@@ -941,10 +939,17 @@ class AmoCRMWebhookView(APIView):
 
     def process_lead(self, lead: dict):
         """
-        Обрабатывает один лид из вебхука AmoCRM.
+        Обрабатывает один лид из вебхука.
+        Если ServiceRequest не найден => делаем get_lead(lead_id) в AmoCRM и создаём заявку.
+        Если статус не изменился => пропускаем бизнес-процессы.
+        Иначе — обновляем поля и вызываем handle_status_change.
         """
         lead_id = lead.get('id')
         new_status_id = lead.get('status_id')
+        if not lead_id or not new_status_id:
+            logger.warning(f"Invalid lead in webhook: {lead}")
+            return
+
         operator_comment = lead.get('748437', "")
         deal_success = lead.get('748715', "")
         quality_rating = lead.get('748771')
@@ -958,27 +963,53 @@ class AmoCRMWebhookView(APIView):
 
         with transaction.atomic():
             try:
-                # 1. Пытаемся найти ServiceRequest по amo_crm_lead_id
+                # 1. Ищем в локальной базе
                 service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
                 created = False
-                logger.info(f"Found existing ServiceRequest with lead_id={lead_id}")
+                logger.info(f"Found existing ServiceRequest with lead_id={lead_id} (ID={service_request.id})")
             except ServiceRequest.DoesNotExist:
                 logger.info(f"ServiceRequest for lead_id={lead_id} not found => creating new.")
                 created = True
                 service_request = None
 
             if created:
-                # Нужно вытащить контакт AmoCRM и найти/создать пользователя
-                user = self.find_or_create_user_from_lead_links(lead_id, lead)
-                # Теперь создаём ServiceRequest
+                # Если нет заявки в БД => дозапрашиваем полный лид в AmoCRM
+                amocrm_client = AmoCRMClient()
+                lead_full_info = amocrm_client.get_lead(lead_id)
+
+                # Создаём пользователя (через ссылки лида)
+                user = self.find_or_create_user_from_lead_links(lead_id, lead_full_info)
+
+                # Создаём ServiceRequest
                 service_request = self.create_new_service_request(
                     lead_id, status_name, new_status_id, incoming_price,
                     operator_comment, deal_success,
                     quality_rating, competence_rating, recommendation_rating,
                     user
                 )
+                # Теперь у нас есть service_request, заполняем custom_fields по полным данным лида
+                self.update_custom_fields(service_request, lead_full_info)
+
+                # Проставляем work_outcome, если есть
+                if work_outcome_name:
+                    self.set_work_outcome(service_request, work_outcome_name)
+
+                # Далее обрабатываем бизнес-логику (handle_status_change)
+                self.handle_status_change(
+                    service_request, status_name, new_status_id, incoming_price,
+                    operator_comment, lead_id
+                )
             else:
-                # Если уже есть заявка, просто обновляем нужные поля
+                # Если заявка уже была
+                if service_request.amo_status_code == new_status_id:
+                    # Статус не изменился => НЕ запускаем бизнес-процессы
+                    logger.info(
+                        f"Lead {lead_id}: статус {new_status_id} уже установлен (SR ID={service_request.id}), "
+                        f"пропускаем бизнес-процессы."
+                    )
+                    return
+
+                # Иначе статус поменялся => обновляем поля
                 self.update_existing_service_request(
                     service_request,
                     operator_comment,
@@ -988,29 +1019,31 @@ class AmoCRMWebhookView(APIView):
                     recommendation_rating
                 )
 
-            # Дополнительно - обрабатываем поля из custom_fields_values (Категория, Марка, Город и т.д.)
-            self.update_custom_fields(service_request, lead)
+                # Приходят ли у нас custom_fields_values в самом webhook? 
+                # Если нужно, можно дополнительно дернуть amocrm_client.get_lead(...), 
+                # но в вашей логике сейчас используется 'lead' (из webhook):
+                self.update_custom_fields(service_request, lead)
 
-            # Итог работы (если задан)
-            if work_outcome_name:
-                self.set_work_outcome(service_request, work_outcome_name)
+                # Итог работы
+                if work_outcome_name:
+                    self.set_work_outcome(service_request, work_outcome_name)
 
-            # Обработка статуса и цены, комиссий и пр.
-            self.handle_status_change(
-                service_request, status_name, new_status_id, incoming_price, 
-                operator_comment, lead_id
-            )
+                # Запускаем бизнес-процессы
+                self.handle_status_change(
+                    service_request, status_name, new_status_id, incoming_price,
+                    operator_comment, lead_id
+                )
 
     # --------------------- Методы для обработки пользователя и ServiceRequest ---------------------
 
-    def find_or_create_user_from_lead_links(self, lead_id: int, lead: dict) -> User:
+    def find_or_create_user_from_lead_links(self, lead_id: int, lead_full_info: dict) -> User:
         """
         1) Достаёт через AmoCRMClient связи лида (links),
         2) если есть contact_id, делает get_contact_by_id,
         3) парсит контакт,
         4) ищет/обновляет или создаёт пользователя локально.
-        
-        Если в лида вообще нет контактов, fallback — смотрим phone/telegram_id в самом lead (если есть).
+
+        Если в лида нет контактов, fallback — пробуем phone/telegram_id из lead_full_info -> custom_fields_values.
         """
         amocrm_client = AmoCRMClient()
         links_resp = amocrm_client.get_lead_links(lead_id)
@@ -1025,19 +1058,16 @@ class AmoCRMWebhookView(APIView):
         if contact_id:
             # Запрашиваем контакт
             contact_data = amocrm_client.get_contact_by_id(contact_id)
-            parsed = AmoCRMClient.parse_contact_data(contact_data)  # {"amo_crm_contact_id":..., "phone":..., "telegram_id":..., ...}
+            parsed = AmoCRMClient.parse_contact_data(contact_data)  
             user = self.find_or_update_user_from_amo(parsed)
             return user
         else:
-            # Если контакта нет, fallback - берём phone/telegram_id из самого lead
-            return self.find_or_create_user_from_lead(lead)
+            # Если контакта нет, fallback - берём phone/telegram_id из полных данных лида
+            return self.find_or_create_user_from_lead(lead_full_info)
 
     def find_or_update_user_from_amo(self, parsed_data: dict) -> User:
         """
-        Ищем пользователя по amo_crm_contact_id.
-        Если не нашли, ищем по телефону.
-        Если не нашли, создаём нового.
-        Обновляем поля (telegram_id, name, city_name, role...), если они не пусты.
+        (Без изменений) – ваша старая логика
         """
         contact_id = parsed_data.get("amo_crm_contact_id")
         phone = parsed_data.get("phone")
@@ -1046,11 +1076,9 @@ class AmoCRMWebhookView(APIView):
         role = parsed_data.get("role") or "Client"
         city_name = parsed_data.get("city_name")
 
-        # 1) Ищем по amo_crm_contact_id
         user = User.objects.filter(amo_crm_contact_id=contact_id).first()
         if user:
             logger.info(f"User found by amo_crm_contact_id={contact_id}, updating data.")
-            # Обновляем
             if phone:
                 user.phone = phone
             if tg_id:
@@ -1062,7 +1090,6 @@ class AmoCRMWebhookView(APIView):
             user.save()
             return user
 
-        # 2) Не нашли, но у нас есть телефон -> ищем по телефону
         if phone:
             user = User.objects.filter(phone=phone).first()
             if user:
@@ -1077,7 +1104,6 @@ class AmoCRMWebhookView(APIView):
                 user.save()
                 return user
 
-        # 3) Вообще не нашли -> создаём
         logger.info(f"No user found by contact_id={contact_id} or phone={phone}, creating new user.")
         user = User.objects.create(
             name=name,
@@ -1089,28 +1115,35 @@ class AmoCRMWebhookView(APIView):
         )
         return user
 
-    def find_or_create_user_from_lead(self, lead: dict) -> User:
+    def find_or_create_user_from_lead(self, lead_full_info: dict) -> User:
         """
-        Запасной вариант, если у лида нет связанного контакта в AmoCRM.
-        Ищем пользователя по phone/telegram_id, иначе создаём.
+        Фолбэк, если в лида нет контактов. Можно вытащить phone из custom_fields.
+        Для простоты берём name = lead_full_info['name'], phone = None и т.д.
         """
-        phone = lead.get('phone')
-        tg_id = lead.get('telegram_id')
-        name = lead.get('name', 'Новый клиент')
+        name = lead_full_info.get("name", "Новый клиент")
+        phone = None
+        tg_id = None
 
-        if phone or tg_id:
-            user = User.objects.filter(Q(phone=phone) | Q(telegram_id=tg_id)).first()
-            if user:
-                logger.info(f"Found user by phone/telegram from lead. Updating name.")
-                user.name = name
-                if phone:
-                    user.phone = phone
-                if tg_id:
-                    user.telegram_id = tg_id
-                user.save()
-                return user
+        # Пример как вытащить телефон из кастомного поля "PHONE" (field_code="PHONE") – если есть
+        cfields = lead_full_info.get("custom_fields_values", [])
+        for cf in cfields:
+            if cf.get("field_code") == "PHONE":
+                vals = cf.get("values", [])
+                if vals:
+                    phone = vals[0].get("value")
+                break
 
-        # Иначе создаём
+        user = User.objects.filter(Q(phone=phone) | Q(telegram_id=tg_id)).first()
+        if user:
+            logger.info(f"Found user by phone/telegram from lead_full_info. Updating name.")
+            user.name = name
+            if phone:
+                user.phone = phone
+            if tg_id:
+                user.telegram_id = tg_id
+            user.save()
+            return user
+
         logger.info("No contact_id in lead links, no user found by phone/tg => creating new user.")
         return User.objects.create(
             name=name,
@@ -1125,7 +1158,7 @@ class AmoCRMWebhookView(APIView):
                                    quality_rating, competence_rating, recommendation_rating,
                                    user: User) -> ServiceRequest:
         """
-        Создаёт новый ServiceRequest, привязывая к переданному user.
+        (Без изменений) – ваша старая логика создания новой заявки
         """
         logger.info(f"Creating new ServiceRequest for lead_id={lead_id}, user_id={user.id}")
         sreq = ServiceRequest.objects.create(
@@ -1150,7 +1183,7 @@ class AmoCRMWebhookView(APIView):
                                         competence_rating,
                                         recommendation_rating):
         """
-        Обновляет поля ServiceRequest, если заявка уже существовала.
+        (Без изменений) – ваша старая логика обновления полей заявки
         """
         service_request.crm_operator_comment = operator_comment
         service_request.deal_success = deal_success
@@ -1166,13 +1199,10 @@ class AmoCRMWebhookView(APIView):
 
     def update_custom_fields(self, service_request: ServiceRequest, lead: dict):
         """
-        Сохраняем "Категория услуг" (field_id=743839), 
-        "Тип оборудования" (field_id=240631), 
-        "Марка" (field_id=240635), 
-        "Адрес город" (field_id=240623), 
-        "Адрес улица" (field_id=743447).
+        (Без изменений) – но обратите внимание:
+         если мы создаём SR с нуля, мы передаём сюда "lead_full_info" (полное),
+         а если SR уже был, то передаём 'lead' из вебхука (короткий).
         """
-        # Можно завести "мапу" field_id -> название нужного поля ServiceRequest
         FIELD_ID_TO_MODEL_FIELD = {
             743839: 'service_name',       # Категория услуг
             240631: 'equipment_type',     # Тип оборудования
@@ -1189,12 +1219,8 @@ class AmoCRMWebhookView(APIView):
             values = field_data.get("values", [])
             if not values:
                 continue
-            
-            # Для простого select/text берём первое значение
-            # (если у вас multiselect, возможно, придётся дополнительно собирать в список)
             field_value = values[0].get("value", "")
             
-            # Смотрим, есть ли такое поле в нашей мапе
             if field_id in FIELD_ID_TO_MODEL_FIELD:
                 setattr(service_request, FIELD_ID_TO_MODEL_FIELD[field_id], field_value)
                 fields_to_update.append(FIELD_ID_TO_MODEL_FIELD[field_id])
@@ -1203,10 +1229,9 @@ class AmoCRMWebhookView(APIView):
             service_request.save(update_fields=fields_to_update)
             logger.info(f"Updated custom fields {fields_to_update} for ServiceRequest ID={service_request.id}")
 
-
     def set_work_outcome(self, service_request: ServiceRequest, work_outcome_name: str):
         """
-        Проставляет итог работы (WorkOutcome), если есть.
+        (Без изменений)
         """
         try:
             outcome = WorkOutcome.objects.get(outcome_name=work_outcome_name)
@@ -1217,7 +1242,7 @@ class AmoCRMWebhookView(APIView):
 
     def get_status_name(self, new_status_id):
         """
-        Поиск имени статуса по STATUS_MAPPING. Если не найдено, возвращаем 'Open'.
+        (Без изменений) – ищем локальное имя по STATUS_MAPPING
         """
         for k, v in STATUS_MAPPING.items():
             if v == new_status_id:
@@ -1227,13 +1252,11 @@ class AmoCRMWebhookView(APIView):
 
     def handle_status_change(self, service_request, status_name, new_status_id, incoming_price, operator_comment, lead_id):
         """
-        Ваша логика обработки статусов: AwaitingClosure, Completed, QualityControl, Free и т.д.
-        Списывание комиссии, уведомления Sambot, всё, как было раньше.
+        (Без изменений) – ваша логика обработки статусов, комиссий, уведомлений и т.д.
         """
         previous_status = service_request.status
 
         if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
-            # Пример: обновляем цену и списываем комиссию
             if incoming_price is not None:
                 self.update_price_and_commission(service_request, incoming_price)
 
@@ -1249,10 +1272,8 @@ class AmoCRMWebhookView(APIView):
             logger.info(f"ServiceRequest {service_request.id} status updated from {previous_status} to {status_name}.")
 
             if status_name == 'AwaitingClosure':
-                # ваш вызов sambot
                 self.notify_awaiting_closure(service_request, lead_id)
             elif status_name == 'Completed':
-                # ваш вызов handle_completed_deal
                 handle_completed_deal(
                     service_request=service_request,
                     operator_comment=operator_comment,
@@ -1267,7 +1288,7 @@ class AmoCRMWebhookView(APIView):
 
     def update_price_and_commission(self, service_request, incoming_price):
         """
-        Пример вашей логики списания комиссии, если цена изменилась.
+        (Без изменений)
         """
         new_price_val = Decimal(incoming_price)
         if service_request.price != new_price_val:
@@ -1299,7 +1320,7 @@ class AmoCRMWebhookView(APIView):
 
     def notify_awaiting_closure(self, service_request, lead_id):
         """
-        Пример уведомления Sambot при AwaitingClosure
+        (Без изменений)
         """
         if service_request.master and service_request.master.user.telegram_id:
             payload = {
@@ -1319,6 +1340,7 @@ class AmoCRMWebhookView(APIView):
                     )
             except Exception as ex:
                 logger.error(f"Error sending data to sambot: {ex}")
+                
 
 def handle_free_status(service_request, previous_status, new_status_id):
     """
