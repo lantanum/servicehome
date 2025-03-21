@@ -2203,15 +2203,19 @@ def get_short_address(address: str) -> str:
     result_parts = []
 
     for part in parts:
-        # Если в «слове» есть дефис, считаем, что это часть названия улицы и не трогаем
-        if "-" in part:
-            result_parts.append(part)
-        else:
-            # Если нет дефиса, но есть цифра — убираем (это номер дома)
-            if any(ch.isdigit() for ch in part):
-                continue
-            # Иначе (только буквы или условные знаки без цифр) — оставляем
-            result_parts.append(part)
+        # Убираем все запятые
+        cleaned_part = part.replace(",", "")
+        
+        has_digit = any(ch.isdigit() for ch in cleaned_part)
+        has_dash = "-" in cleaned_part
+        
+        # Условие:
+        #  - если есть цифры, но нет дефиса -> пропускаем слово (номер дома)
+        #  - иначе оставляем
+        if has_digit and not has_dash:
+            continue
+        
+        result_parts.append(cleaned_part)
 
     return " ".join(result_parts)
 
