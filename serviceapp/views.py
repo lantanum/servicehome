@@ -2194,38 +2194,26 @@ class MasterFreeRequestsView(APIView):
 
 
 def get_short_address(address: str) -> str:
-    # Убираем лишние пробелы по краям
+    # Убираем пробелы по краям и сразу проверяем
     address = (address or "").strip()
     if not address:
         return ""
-    
-    # Разбиваем адрес по пробелам
+
     parts = address.split()
-    if not parts:
-        return ""
+    result_parts = []
 
-    # Забираем последнее "слово"
-    last_part = parts[-1]
+    for part in parts:
+        # Если в «слове» есть дефис, считаем, что это часть названия улицы и не трогаем
+        if "-" in part:
+            result_parts.append(part)
+        else:
+            # Если нет дефиса, но есть цифра — убираем (это номер дома)
+            if any(ch.isdigit() for ch in part):
+                continue
+            # Иначе (только буквы или условные знаки без цифр) — оставляем
+            result_parts.append(part)
 
-    # Проверяем, что последнее слово:
-    # 1) начинается с цифр
-    # 2) может содержать буквы (например, "14б"), но
-    # 3) не содержит дефисов (чтобы не убирать "14-кольцевая")
-    # 
-    # Регулярное выражение ^\d+[a-zA-Zа-яА-Я]*$ означает:
-    #    - ^ — начало строки
-    #    - \d+ — одна или более цифр
-    #    - [a-zA-Zа-яА-Я]* — ноль или более букв (латинских или кириллических)
-    #    - $ — конец строки
-    #
-    # Если это условие выполняется, удаляем последнее слово (номер дома).
-    #
-    if re.match(r"^\d+[a-zA-Zа-яА-Я]*$", last_part):
-        parts.pop()
-
-    # Склеиваем обратно в строку
-    return " ".join(parts)
-
+    return " ".join(result_parts)
 
 class ClientRequestsView(APIView):
     """
