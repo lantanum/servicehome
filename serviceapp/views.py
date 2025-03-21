@@ -532,7 +532,8 @@ class AssignRequestView(APIView):
                     "message_for_admin": message_for_admin,
                     "finish_button_text": finish_button_text,
                     "client_telegram_id": client_user.telegram_id,
-                    "request_id": service_request.amo_crm_lead_id
+                    "request_id": service_request.amo_crm_lead_id,
+                    "master_rating": master_user.rating
                 }
                 return JsonResponse(response_data, status=200)
 
@@ -1608,8 +1609,8 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
         "request_id": lead_id,
         "telegram_id": master_profile.user.telegram_id,
         "penalty_message": "",
-        "request_amount": deal_amount,
-        "comission_amount": commission_amount,
+        "request_amount": int(deal_amount),
+        "comission_amount": int(commission_amount),
         "previous_status": previous_status,
         "crm_operator_comment": operator_comment
     }
