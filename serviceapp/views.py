@@ -916,6 +916,7 @@ class AmoCRMWebhookView(APIView):
         except Exception as e:
             logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=400)
+        logger.debug(f"{raw_data}")
 
         nested_data = parse_nested_form_data(request.POST)
         logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
