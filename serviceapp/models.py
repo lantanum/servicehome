@@ -35,7 +35,7 @@ class User(models.Model):
     )
     is_active = models.BooleanField(default=True, help_text="Активен ли пользователь")
     joined_group = models.BooleanField(default=False, help_text="Вступил ли клиент в группу")
-    client_level = models.PositiveSmallIntegerField(default=0, help_text="Уровень клиента (0 — пока не присвоен)")
+    client_level = models.PositiveSmallIntegerField(default=1, help_text="Уровень клиента (0 — пока не присвоен)")
 
     def __str__(self):
         return f"{self.name} ({self.role})"

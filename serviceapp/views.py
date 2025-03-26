@@ -795,7 +795,7 @@ class AssignRequestView(APIView):
                     "finish_button_text": finish_button_text,
                     "client_telegram_id": client_user.telegram_id,
                     "request_id": service_request.amo_crm_lead_id,
-                    "master_rating": master_user.rating
+                    "master_rating": master.rating
                 }
                 return JsonResponse(response_data, status=200)
 
@@ -1792,7 +1792,7 @@ def generate_free_status_data(service_request):
         f"<b>Заявка</b> {service_request.amo_crm_lead_id}\n"
         f"<b>Дата заявки:</b> {created_date_str}\n"
         f"<b>Город:</b> {city_name}\n"
-        f"<b>Адрес:</b> {raw_address}\n"
+        f"<b>Адрес:</b> {short_address}\n"
         f"<b>Тип оборудования:</b> {service_request.equipment_type or ''}\n"
         "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
         f"<b>Комментарий:</b> {service_request.description or ''}"
