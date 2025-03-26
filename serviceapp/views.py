@@ -699,8 +699,6 @@ class AssignRequestView(APIView):
                         status=400
                     )
                 amocrm_client = AmoCRMClient()
-                category_service = master.service_name or ""
-                equipment_type_value = master.equipment_type_name or ""
 
                 amocrm_client.update_lead(
                     lead_id,
@@ -708,32 +706,20 @@ class AssignRequestView(APIView):
                         "status_id": STATUS_MAPPING["In Progress"],
                         "custom_fields_values": [
                             {
-                                "field_id": 748205,
-                                "values": [{"value": category_service}]
+                                "field_id": 743669,
+                                "values": [{"value": str(master.user.phone)}]
                             },
                             {
-                                "field_id": 748321,
-                                "values": [{"value": equipment_type_value}]
+                                "field_id": 743667,
+                                "values": [{"value": str(master.user.name)}]
                             },
                             {
-                                "field_id": 748327,
-                                "values": [{"value": "подходящее значение"}]
+                                "field_id": 745549,
+                                "values": [{"value": str(master.user.telegram_id)}]
                             },
                             {
-                                "field_id": 748213,
-                                "values": [{"value": "подходящее значение"}]
-                            },
-                            {
-                                "field_id": 748329,
-                                "values": [{"value": str(master.balance)}]
-                            },
-                            {
-                                "field_id": 748329,
-                                "values": [{"value": str(master.balance)}]
-                            },
-                            {
-                                "field_id": 748329,
-                                "values": [{"value": str(master.balance)}]
+                                "field_id": 743671,
+                                "values": [{"value": str(master.address)}]
                             },
                         ]
                     }
