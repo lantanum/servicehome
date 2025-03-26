@@ -721,6 +721,10 @@ class AssignRequestView(APIView):
                                 "field_id": 743671,
                                 "values": [{"value": str(master.address)}]
                             },
+                            {
+                                "field_id": 749109,
+                                "values": [{"value": str(master.city_name)}]
+                            },
                         ]
                     }
                 )
@@ -2147,9 +2151,12 @@ class FinishRequestView(APIView):
                 service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=request_id)
 
                 # Проверяем, что заявка находится в статусе "In Progress" (В работе)
-                if service_request.status != 'In Progress':
-                    return JsonResponse({"detail": "Заявка должна быть в статусе 'В работе' для завершения."},
-                                        status=400)
+                valid_statuses = ['In Progress', 'AwaitingClosure']
+                if service_request.status not in valid_statuses:
+                    return JsonResponse(
+                        {"detail": "Заявка должна быть в статусах 'В работе' или 'Ожидает закрытия' для завершения."},
+                        status=400
+                    )
 
                 price_value = Decimal(finalAnsw3) if finalAnsw3 else Decimal("0")
                 spare_parts_value = Decimal(finalAnsw4) if finalAnsw4 else Decimal("0")
