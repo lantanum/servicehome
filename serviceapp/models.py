@@ -35,6 +35,7 @@ class User(models.Model):
     )
     is_active = models.BooleanField(default=True, help_text="Активен ли пользователь")
     joined_group = models.BooleanField(default=False, help_text="Вступил ли клиент в группу")
+    client_level = models.PositiveSmallIntegerField(default=0, help_text="Уровень клиента (0 — пока не присвоен)")
 
     def __str__(self):
         return f"{self.name} ({self.role})"
@@ -338,6 +339,55 @@ class Settings(models.Model):
     )
 
     allowed_hosts = models.TextField(default="", help_text="Список разрешенных источников запросов (через запятую)")
+
+    invites_needed_level2 = models.PositiveIntegerField(
+        default=3,
+        help_text="Сколько рефералов (приглашённых) нужно для уровня 2"
+    )
+    invites_needed_level3 = models.PositiveIntegerField(
+        default=10,
+        help_text="Сколько рефералов нужно для уровня 3"
+    )
+    invites_needed_level4 = models.PositiveIntegerField(
+        default=20,
+        help_text="Сколько рефералов нужно для уровня 4 (Амбассадор)"
+    )
+    orders_needed_level4 = models.PositiveIntegerField(
+        default=3,
+        help_text="Сколько завершённых заказов нужно (вместе с invites_needed_level4) для уровня 4"
+    )
+
+    bonus_level1 = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('500'),
+        help_text="Базовый бонус при достижении уровня 1 (Новичок)"
+    )
+    bonus_level2 = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('3000'),
+        help_text="Базовый бонус при достижении уровня 2 (Активный)"
+    )
+    bonus_level3 = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('5000'),
+        help_text="Базовый бонус при достижении уровня 3 (Лид)"
+    )
+    bonus_level4 = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('10000'),
+        help_text="Базовый бонус при достижении уровня 4 (Амбассадор)"
+    )
+
+    bonus_per_invite = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('500'),
+        help_text="Сколько начислять дополнительно за каждого приглашённого (для клиента)"
+    )
 
     def __str__(self):
         return (

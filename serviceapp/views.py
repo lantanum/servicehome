@@ -44,7 +44,101 @@ from .models import EquipmentType, Master, RatingLog, ReferralLink, ServiceReque
 
 logger = logging.getLogger(__name__)
 
+def get_client_level(user: User) -> int:
+    """
+    Определяем уровень клиента (1..4) на основе значений из Settings.
+      - Уровень 4: 
+          invites >= s.invites_needed_level4 
+          И completed_orders >= s.orders_needed_level4
+      - Уровень 3: 
+          invites >= s.invites_needed_level3
+      - Уровень 2: 
+          invites >= s.invites_needed_level2 
+          И joined_group = True
+      - Иначе уровень 1.
+    Если user.role != 'Client', возвращаем 0.
+    """
+    if user.role != 'Client':
+        return 0
+
+    # Берём первую (и, как правило, единственную) запись Settings
+    s = Settings.objects.first()
+    if not s:
+        logger.warning("Внимание! В таблице Settings нет записей, берём заглушку.")
+        # Можно выдать «заглушку» — или выбросить ошибку
+        return 1
+
+    invites_count = user.referrer_links.count()
+    completed_orders = user.client_requests.filter(status='Completed').count()
+    joined_group = user.joined_group
+
+    # Уровень 4 (Амбассадор)
+    if invites_count >= s.invites_needed_level4 and completed_orders >= s.orders_needed_level4:
+        return 4
+    # Уровень 3 (Лид)
+    if invites_count >= s.invites_needed_level3:
+        return 3
+    # Уровень 2 (Активный участник)
+    if invites_count >= s.invites_needed_level2 and joined_group:
+        return 2
+    # Иначе (по умолчанию) Уровень 1
+    return 1
+
+
+def award_level_bonus(user: User, new_level: int):
+    """
+    Начисляет бонус за достижение уровня new_level (если он выше, чем текущий).
+    Все суммы берём из Settings (bonus_levelX и bonus_per_invite).
+    """
+    s = Settings.objects.first()
+    if not s:
+        logger.warning("Внимание! Не найден Settings, бонус не выдан.")
+        return
+
+    invites_count = user.referrer_links.count()
+
+    # Извлекаем «базовый» бонус для уровня
+    if new_level == 1:
+        base_bonus = s.bonus_level1
+    elif new_level == 2:
+        base_bonus = s.bonus_level2
+    elif new_level == 3:
+        base_bonus = s.bonus_level3
+    elif new_level == 4:
+        base_bonus = s.bonus_level4
+    else:
+        base_bonus = Decimal('0')
+
+    total_bonus = base_bonus + (s.bonus_per_invite * invites_count)
+
+    user.balance += total_bonus
+    user.client_level = new_level
+    user.save()
+
+    logger.info(
+        f"[Levels] User ID={user.id} повысил уровень до {new_level}. "
+        f"Начислено: {total_bonus} (бонус + {invites_count} * {s.bonus_per_invite})."
+    )
+
+
 class UserRegistrationView(APIView):
+    """
+    Регистрирует пользователя (Client или Master), создает/обновляет мастера,
+    обрабатывает реферальную логику и уровни клиента, интегрируется с AmoCRM.
+    """
+
+    @staticmethod
+    def parse_referral(referral_link: str) -> str:
+        """
+        Извлекает из "/start ref844860156_kl" -> '844860156',
+        либо из "ref844860156_kl" -> '844860156'.
+        """
+        text = referral_link.strip()
+        match = re.match(r"^(/start\s+)?ref(\d+)_", text)
+        if match:
+            return match.group(2)  # вторая группа — это \d+
+        return None
+
     @swagger_auto_schema(
         operation_description="Регистрация пользователя или мастера.",
         request_body=UserRegistrationSerializer,
@@ -64,7 +158,6 @@ class UserRegistrationView(APIView):
                     type=openapi.TYPE_OBJECT,
                     properties={
                         'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
-                        # Добавьте другие поля ошибок, если необходимо
                     }
                 )
             )
@@ -72,11 +165,172 @@ class UserRegistrationView(APIView):
     )
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"detail": "Registration successful"}, status=status.HTTP_201_CREATED)
-        else:
+        if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        phone = validated_data['phone']
+        name = validated_data['name']
+        telegram_id = validated_data.get('telegram_id')
+        telegram_login = validated_data.get('telegram_login')
+        role = validated_data.get('role', 'Client')
+        city_name = validated_data.get('city_name', '')
+
+        referral_link = validated_data.get('referral_link', '')
+        service_name = validated_data.get('service_name', '')
+        address = validated_data.get('address', '')
+        equipment_type_name = validated_data.get('equipment_type_name', '')
+
+        # Парсим /start refXXX_
+        telegram_ref_id = self.parse_referral(referral_link)
+
+        with transaction.atomic():
+            # 1) Создание / обновление User
+            user = User.objects.filter(phone=phone, role=role).first()
+            is_new = (user is None)
+
+            if is_new:
+                logger.info(f"[Registration] Creating new user with phone={phone}, role={role}")
+                user = User.objects.create(
+                    phone=phone,
+                    name=name,
+                    telegram_id=telegram_id,
+                    telegram_login=telegram_login,
+                    role=role,
+                    city_name=city_name
+                )
+            else:
+                logger.info(f"[Registration] Updating user id={user.id}, phone={phone}, role={role}")
+                user.name = name
+                user.telegram_id = telegram_id
+                user.telegram_login = telegram_login
+                user.city_name = city_name
+                user.save()
+
+            # Сохраняем raw referral link
+            user.referral_link = referral_link
+            user.save()
+
+            # 2) Реферальная логика: кто пригласил
+            referrer_user = None
+            if telegram_ref_id:
+                try:
+                    referrer_user = User.objects.get(telegram_id=telegram_ref_id)
+                    user.referrer = referrer_user
+                    user.save()
+                    ReferralLink.objects.create(
+                        referred_user=user,
+                        referrer_user=referrer_user
+                    )
+                except User.DoesNotExist:
+                    logger.warning(f"Referrer with telegram_id={telegram_ref_id} not found.")
+
+            # 3) Если роль Master, то создаём / обновляем профиль мастера
+            if role == 'Master':
+                if not hasattr(user, 'master_profile'):
+                    logger.info(f"[Registration] Creating Master profile for user={user.id}")
+                    Master.objects.create(
+                        user=user,
+                        city_name=city_name,
+                        service_name=service_name,
+                        address=address,
+                        equipment_type_name=equipment_type_name
+                    )
+                else:
+                    master_prof = user.master_profile
+                    master_prof.city_name = city_name
+                    master_prof.service_name = service_name
+                    master_prof.address = address
+                    master_prof.equipment_type_name = equipment_type_name
+                    master_prof.save()
+
+            # 4) Реферальные бонусы (пример логики — только если пользователь новый)
+            if is_new and referrer_user:
+                sponsor_1 = referrer_user
+                sponsor_2 = sponsor_1.referrer if sponsor_1 else None
+
+                if role == 'Master':
+                    # Мастеру при регистрации +500 (пример)
+                    if hasattr(user, 'master_profile'):
+                        user.master_profile.balance += Decimal('500')
+                        user.master_profile.save()
+                else:
+                    # role == 'Client'
+                    # Клиенту +500 (примерная логика)
+                    user.balance += Decimal('500')
+                    user.save()
+
+                    # Рефереру (1-я линия) +500
+                    sponsor_1.balance += Decimal('500')
+                    sponsor_1.save()
+
+                    # 2-я линия +250
+                    if sponsor_2:
+                        sponsor_2.balance += Decimal('250')
+                        sponsor_2.save()
+
+            # 5) Интеграция с AmoCRM: создаём контакт
+            amo_client = AmoCRMClient()
+            contact_data = {
+                "name": user.name,
+                "custom_fields_values": []
+            }
+
+            if user.phone:
+                contact_data["custom_fields_values"].append({
+                    "field_code": "PHONE",
+                    "values": [{"value": user.phone, "enum_code": "WORK"}]
+                })
+            if user.telegram_id:
+                contact_data["custom_fields_values"].append({
+                    "field_id": 744499,  # Ваш ID поля для Telegram ID
+                    "values": [{"value": user.telegram_id}]
+                })
+            if user.role:
+                contact_data["custom_fields_values"].append({
+                    "field_id": 744523,  # Ваш ID поля для "Роль"
+                    "values": [{"value": user.role}]
+                })
+            if service_name:
+                contact_data["custom_fields_values"].append({
+                    "field_id": 744503,  # Ваше поле для "Услуга"
+                    "values": [{"value": service_name}]
+                })
+            if equipment_type_name:
+                contact_data["custom_fields_values"].append({
+                    "field_id": 744495,  # Ваше поле для "Тип оборудования"
+                    "values": [{"value": equipment_type_name}]
+                })
+            # Примеры дополнительных полей:
+            contact_data["custom_fields_values"].append({
+                "field_id": 744509,
+                "values": [{"value": 0}]
+            })
+            contact_data["custom_fields_values"].append({
+                "field_id": 744521,
+                "values": [{"value": 5}]
+            })
+            if user.city_name:
+                contact_data["custom_fields_values"].append({
+                    "field_id": 744219,
+                    "values": [{"value": user.city_name}]
+                })
+
+            created_contact = amo_client.create_contact(contact_data)
+            user.amo_crm_contact_id = created_contact["id"]
+            user.save()
+
+            # 6) Пересчёт уровня (только для клиентов)
+            if user.role == 'Client':
+                old_level = user.client_level
+                new_level = get_client_level(user)  # Смотрим, какой уровень подходит
+
+                if new_level > old_level:
+                    # Повышаем уровень и выдаём бонус
+                    award_level_bonus(user, new_level)
+
+        # Конец transaction.atomic()
+        return Response({"detail": "Registration successful"}, status=status.HTTP_201_CREATED)
 
 
 class ServiceRequestCreateView(APIView):
