@@ -44,7 +44,7 @@ class Master(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='master_profile')
     address = models.TextField(null=True, blank=True)
     level = models.IntegerField(default=1, help_text="Уровень мастера")
-    rating = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    rating = models.DecimalField(max_digits=5, decimal_places=2, default=5)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     city_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название города")
     service_name = models.CharField(max_length=255, null=True, blank=True, help_text="Название услуги")
@@ -116,7 +116,7 @@ class ServiceRequest(models.Model):
     client_review = models.TextField(null=True, blank=True, help_text="Отзыв клиента")
 
     def __str__(self):
-        return f"Request {self.id} by {self.client.name}"
+        return f"Заявка {self.id} (AMOID {self.amo_crm_lead_id}) от {self.client.name} статус {self.status}"
 
 class WorkOutcome(models.Model):
     is_penalty = models.BooleanField(default=False, help_text="Признак штрафа")
@@ -183,7 +183,7 @@ class Transaction(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        linked_to = f"Client: {self.client.id}" if self.client else f"Master: {self.master.id}"
+        linked_to = f"Клиент: {self.client.id}" if self.client else f"Мастер: {self.master.id}"
         return f"{self.transaction_type} {self.amount} ({self.status}) for {linked_to}"
 
 

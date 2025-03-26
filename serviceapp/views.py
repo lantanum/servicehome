@@ -472,11 +472,19 @@ class AssignRequestView(APIView):
                             {
                                 "field_id": 748329,
                                 "values": [{"value": str(master.balance)}]
-                            }
+                            },
+                            {
+                                "field_id": 748329,
+                                "values": [{"value": str(master.balance)}]
+                            },
+                            {
+                                "field_id": 748329,
+                                "values": [{"value": str(master.balance)}]
+                            },
                         ]
                     }
                 )
-                amocrm_client.attach_contact_to_lead(lead_id, master_user.amo_crm_contact_id)
+                
 
                 # Формируем три нужных поля: два сообщения и текст кнопки
                 created_date_str = (
@@ -700,7 +708,7 @@ class UserProfileView(APIView):
             "phone": user.phone or "",
             "balance": str(int(user.balance)),
             "daily_income": "0",   # заглушка, поменяйте под логику
-            "level": user.level,          # заглушка
+            "level": "",          # заглушка
             "referral_count": total_referrals,
             "referral_count_1_line": count_1_line,
             "referral_count_2_line": count_2_line
@@ -1216,6 +1224,7 @@ class AmoCRMWebhookView(APIView):
             240635: 'equipment_brand',
             240623: 'city_name',
             743447: 'address',
+            748437: 'crm_operator_comment'
         }
     
         fields_to_update = []
@@ -2383,8 +2392,8 @@ class ClientRequestInfoView(APIView):
         finished_statuses = ['Completed', 'AwaitingClosure', 'Closed', 'QualityControl']
         if req.master and req.status in finished_statuses:
             master_name = f"{req.master.user.name}" if req.master.user else ""
-            start_date = ""  # Нет данных о дате начала работ
-            end_date = ""    # Нет данных о дате окончания работ
+            start_date = req.start_date  # Нет данных о дате начала работ
+            end_date = req.end_date   # Нет данных о дате окончания работ
             warranty = req.warranty or ""
             if req.price is not None:
                 # Округление стоимости до целого числа без дробной части
