@@ -962,7 +962,7 @@ class UserProfileView(APIView):
             "phone": user.phone or "",
             "balance": str(int(user.balance)),
             "daily_income": "0",   # заглушка, поменяйте под логику
-            "level": "",          # заглушка
+            "level": user.client_level,          # заглушка
             "referral_count": total_referrals,
             "referral_count_1_line": count_1_line,
             "referral_count_2_line": count_2_line
