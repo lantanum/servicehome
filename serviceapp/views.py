@@ -1465,10 +1465,12 @@ class AmoCRMWebhookView(APIView):
         FIELD_ID_TO_MODEL_FIELD = {
             743839: 'service_name',
             240631: 'equipment_type',
+            240637: 'equipment_model',
             240635: 'equipment_brand',
             240623: 'city_name',
             743447: 'address',
-            748437: 'crm_operator_comment'
+            748437: 'crm_operator_comment',
+            725136: 'description'
         }
     
         fields_to_update = []
