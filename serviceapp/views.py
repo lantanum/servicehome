@@ -1206,15 +1206,18 @@ class AmoCRMWebhookView(APIView):
         if not lead_id or not new_status_id:
             logger.warning(f"Invalid lead in webhook: {lead}")
             return
-
-        # Извлекаем поля, которые приходят "прямо" из вебхука
-        operator_comment = lead.get('748437', "")
-        deal_success = lead.get('748715', "")
-        quality_rating = lead.get('748771')
-        competence_rating = lead.get('748773')
-        recommendation_rating = lead.get('748775')
         incoming_price = lead.get('price')
-        work_outcome_name = lead.get('745353')
+        work_outcome_name = None
+        custom_fields = lead.get("custom_fields_values", [])
+
+        for cf in custom_fields:
+            if cf.get("field_id") == 745353:
+                values = cf.get("values", [])
+                if values:
+                    work_outcome_name = values[0].get("value")
+                break
+
+
 
         status_name = self.get_status_name(new_status_id)
 
@@ -1239,9 +1242,7 @@ class AmoCRMWebhookView(APIView):
 
                 # Создаём новую заявку
                 service_request = self.create_new_service_request(
-                    lead_id, status_name, new_status_id, incoming_price,
-                    operator_comment, deal_success,
-                    quality_rating, competence_rating, recommendation_rating,
+                    lead_id, status_name, new_status_id,
                     user
                 )
 
@@ -1255,7 +1256,7 @@ class AmoCRMWebhookView(APIView):
                 # Запускаем бизнес-процессы (handle_status_change)
                 self.handle_status_change(
                     service_request, status_name, new_status_id, incoming_price,
-                    operator_comment, lead_id
+                    service_request.crm_operator_comment, lead_id
                 )
             else:
                 # -------------------- Если заявка есть --------------------
@@ -1267,15 +1268,7 @@ class AmoCRMWebhookView(APIView):
                     )
                     return
 
-                # Статус изменился => обновляем поля
-                self.update_existing_service_request(
-                    service_request,
-                    operator_comment,
-                    deal_success,
-                    quality_rating,
-                    competence_rating,
-                    recommendation_rating
-                )
+                
 
                 # Если в коротком webhook (lead) есть какие-то custom_fields_values – обновим.
                 # (Обычно там мало полей, но оставляем как раньше)
@@ -1288,7 +1281,7 @@ class AmoCRMWebhookView(APIView):
                 # И вызываем бизнес-процессы
                 self.handle_status_change(
                     service_request, status_name, new_status_id, incoming_price,
-                    operator_comment, lead_id
+                    service_request.crm_operator_comment, lead_id
                 )
 
     # --------------------- Методы для обработки пользователя и ServiceRequest ---------------------
@@ -1431,26 +1424,6 @@ class AmoCRMWebhookView(APIView):
         )
         return sreq
 
-    def update_existing_service_request(self,
-                                        service_request: ServiceRequest,
-                                        operator_comment: str,
-                                        deal_success: str,
-                                        quality_rating,
-                                        competence_rating,
-                                        recommendation_rating):
-        """
-        Ваша логика обновления полей уже существующей заявки (как в исходном коде).
-        """
-        service_request.crm_operator_comment = operator_comment
-        service_request.deal_success = deal_success
-        if quality_rating is not None:
-            service_request.quality_rating = int(quality_rating)
-        if competence_rating is not None:
-            service_request.competence_rating = int(competence_rating)
-        if recommendation_rating is not None:
-            service_request.recommendation_rating = int(recommendation_rating)
-        service_request.save()
-
     # --------------------- Остальная логика (обновление полей, статусов, комиссий...) ---------------------
 
     def update_custom_fields(self, service_request: ServiceRequest, lead: dict):
@@ -1470,7 +1443,10 @@ class AmoCRMWebhookView(APIView):
             240623: 'city_name',
             743447: 'address',
             748437: 'crm_operator_comment',
-            725136: 'description'
+            725136: 'description',
+            748771: 'quality_rating',
+            748773: 'competence_rating',
+            748775: 'recommendation_rating',
         }
     
         fields_to_update = []
