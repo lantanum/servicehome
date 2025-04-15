@@ -97,7 +97,7 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.parse('postgresql://servicehome_user:U80ZyloODXBswx1kYz6f5YZDIJoG4ruw@dpg-cv6s8o3tq21c73dlu17g-a.oregon-postgres.render.com/servicehomedb')
+    'default': dj_database_url.parse('postgresql://servicehome_user:Ba1g4oq1UYiF8FA4zSJgItddmufBZ30t@dpg-cvvadf9r0fns73dt94eg-a.oregon-postgres.render.com/servicehomedb_flzw')
 }
 
 
