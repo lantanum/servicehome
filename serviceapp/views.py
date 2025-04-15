@@ -1194,33 +1194,31 @@ class AmoCRMWebhookView(APIView):
         return Response({"detail": "Webhook processed."}, status=200)
 
     def process_lead(self, lead: dict):
-        """
-        Обработка одного лида из вебхука.
-          1) Проверяем, есть ли в базе заявка по lead_id.
-          2) Если нет -> делаем get_lead(lead_id) в AmoCRM, создаём заявку и юзера (если нужно).
-          3) Если есть, но статус совпадает -> пропускаем бизнес-процессы.
-          4) Если есть и статус сменился -> обновляем нужные поля + handle_status_change.
-        """
         lead_id = lead.get('id')
         new_status_id = lead.get('status_id')
         if not lead_id or not new_status_id:
             logger.warning(f"Invalid lead in webhook: {lead}")
             return
+    
+        # Исходная (короткая) цена — можно взять из короткого вебхука, если нужно
         incoming_price = lead.get('price')
+    
+        # Получаем полную информацию независимо от того, есть ли лид в базе
+        amocrm_client = AmoCRMClient()
+        lead_full_info = amocrm_client.get_lead(lead_id)
+    
+        # Ищем work_outcome_name в custom fields ПОЛНОЙ карточки
         work_outcome_name = None
-        custom_fields = lead.get("custom_fields_values", [])
-
-        for cf in custom_fields:
-            if cf.get("field_id") == 745353:
+        custom_fields_full = lead_full_info.get("custom_fields_values", [])
+        for cf in custom_fields_full:
+            if cf.get("field_id") == 745353:  # ваш ID поля
                 values = cf.get("values", [])
                 if values:
                     work_outcome_name = values[0].get("value")
                 break
-
-
-
+            
         status_name = self.get_status_name(new_status_id)
-
+    
         with transaction.atomic():
             try:
                 # Ищем SR в локальной базе
@@ -1231,58 +1229,59 @@ class AmoCRMWebhookView(APIView):
                 logger.info(f"ServiceRequest for lead_id={lead_id} not found => creating new.")
                 created = True
                 service_request = None
-
+    
             if created:
-                # -------------------- Если заявки НЕТ, делаем дозапрос в AmoCRM --------------------
-                amocrm_client = AmoCRMClient()
-                lead_full_info = amocrm_client.get_lead(lead_id)  # тянем все поля
-
-                # Создаём пользователя (находим contact_id в связях лида)
+                # -------------------- Создаем новую заявку --------------------
                 user = self.find_or_create_user_from_lead_links(lead_id, lead_full_info)
-
-                # Создаём новую заявку
+    
                 service_request = self.create_new_service_request(
-                    lead_id, status_name, new_status_id,
-                    user
+                    lead_id, status_name, new_status_id, user
                 )
-
+    
                 # Заполняем кастомные поля (город, адрес и т.д.) из полного lead_full_info
                 self.update_custom_fields(service_request, lead_full_info)
-
-                # Итог работы (если задан)
+    
+                # work_outcome_name берём из полного лида
                 if work_outcome_name:
                     self.set_work_outcome(service_request, work_outcome_name)
-
-                # Запускаем бизнес-процессы (handle_status_change)
+    
+                # Запускаем бизнес-процессы
                 self.handle_status_change(
-                    service_request, status_name, new_status_id, incoming_price,
-                    service_request.crm_operator_comment, lead_id
+                    service_request,
+                    status_name,
+                    new_status_id,
+                    incoming_price,
+                    service_request.crm_operator_comment,
+                    lead_id
                 )
             else:
-                # -------------------- Если заявка есть --------------------
+                # -------------------- Лид уже есть в базе --------------------
+                # Обновляем кастомные поля полной инфой
+                self.update_custom_fields(service_request, lead_full_info)
+    
+                # work_outcome_name берём из полного лида
+                if work_outcome_name:
+                    self.set_work_outcome(service_request, work_outcome_name)
+    
+                # Проверяем статус
                 if service_request.amo_status_code == new_status_id:
-                    # Если статус не изменился -> пропускаем дальнейшую логику
                     logger.info(
                         f"Lead {lead_id}: статус {new_status_id} уже установлен (SR ID={service_request.id}), "
                         f"пропускаем бизнес-процессы."
                     )
                     return
-
-                
-
-                # Если в коротком webhook (lead) есть какие-то custom_fields_values – обновим.
-                # (Обычно там мало полей, но оставляем как раньше)
-                self.update_custom_fields(service_request, lead)
-
-                # Итог работы
-                if work_outcome_name:
-                    self.set_work_outcome(service_request, work_outcome_name)
-
-                # И вызываем бизнес-процессы
+    
+                # Если статус изменился
                 self.handle_status_change(
-                    service_request, status_name, new_status_id, incoming_price,
-                    service_request.crm_operator_comment, lead_id
+                    service_request,
+                    status_name,
+                    new_status_id,
+                    incoming_price,
+                    service_request.crm_operator_comment,
+                    lead_id
                 )
+
+
 
     # --------------------- Методы для обработки пользователя и ServiceRequest ---------------------
 
