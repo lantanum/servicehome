@@ -5,7 +5,9 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from rest_framework.renderers import JSONRenderer
 
-from .models import ServiceType, EquipmentType, Transaction
+from serviceapp.views import recalc_master_rating
+
+from .models import ServiceRequest, ServiceType, EquipmentType, Transaction
 from .serializers import ServiceTypeSerializer
 import logging
 
@@ -93,3 +95,13 @@ def update_balance_on_transaction_delete(sender, instance, **kwargs):
         recalc_client_balance(instance.client)
     elif instance.master:
         recalc_master_balance(instance.master)
+
+@receiver(post_save, sender=ServiceRequest)
+@receiver(post_delete, sender=ServiceRequest)
+def update_master_rating_on_service_request_change(sender, instance, **kwargs):
+    """
+    Срабатывает при любом сохранении или удалении ServiceRequest.
+    Пересчитывает рейтинг мастера, если у заявки есть мастер.
+    """
+    if instance.master:
+        recalc_master_rating(instance.master)

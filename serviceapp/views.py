@@ -1199,14 +1199,14 @@ class AmoCRMWebhookView(APIView):
         if not lead_id or not new_status_id:
             logger.warning(f"Invalid lead in webhook: {lead}")
             return
-    
+
         # Исходная (короткая) цена — можно взять из короткого вебхука, если нужно
         incoming_price = lead.get('price')
-    
+
         # Получаем полную информацию независимо от того, есть ли лид в базе
         amocrm_client = AmoCRMClient()
         lead_full_info = amocrm_client.get_lead(lead_id)
-    
+
         # Ищем work_outcome_name в custom fields ПОЛНОЙ карточки
         work_outcome_name = None
         custom_fields_full = lead_full_info.get("custom_fields_values", [])
@@ -1216,9 +1216,9 @@ class AmoCRMWebhookView(APIView):
                 if values:
                     work_outcome_name = values[0].get("value")
                 break
-            
+
         status_name = self.get_status_name(new_status_id)
-    
+
         with transaction.atomic():
             try:
                 # Ищем SR в локальной базе
@@ -1229,22 +1229,22 @@ class AmoCRMWebhookView(APIView):
                 logger.info(f"ServiceRequest for lead_id={lead_id} not found => creating new.")
                 created = True
                 service_request = None
-    
+
             if created:
                 # -------------------- Создаем новую заявку --------------------
                 user = self.find_or_create_user_from_lead_links(lead_id, lead_full_info)
-    
+
                 service_request = self.create_new_service_request(
                     lead_id, status_name, new_status_id, user
                 )
-    
+
                 # Заполняем кастомные поля (город, адрес и т.д.) из полного lead_full_info
                 self.update_custom_fields(service_request, lead_full_info)
-    
+
                 # work_outcome_name берём из полного лида
                 if work_outcome_name:
                     self.set_work_outcome(service_request, work_outcome_name)
-    
+
                 # Запускаем бизнес-процессы
                 self.handle_status_change(
                     service_request,
@@ -1258,11 +1258,11 @@ class AmoCRMWebhookView(APIView):
                 # -------------------- Лид уже есть в базе --------------------
                 # Обновляем кастомные поля полной инфой
                 self.update_custom_fields(service_request, lead_full_info)
-    
+
                 # work_outcome_name берём из полного лида
                 if work_outcome_name:
                     self.set_work_outcome(service_request, work_outcome_name)
-    
+
                 # Проверяем статус
                 if service_request.amo_status_code == new_status_id:
                     logger.info(
@@ -1270,7 +1270,7 @@ class AmoCRMWebhookView(APIView):
                         f"пропускаем бизнес-процессы."
                     )
                     return
-    
+
                 # Если статус изменился
                 self.handle_status_change(
                     service_request,
@@ -1648,57 +1648,88 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
     except Exception as ex:
         logger.error(f"[ServiceRequest {service_request.id}] Ошибка при отправке данных в Sambot: {ex}")
 
-def find_suitable_masters(service_request_id, round_num):
+
+ACTIVE_STATUSES = (
+    'In Progress',
+    'AwaitingClosure',
+    'QualityControl'
+)
+
+def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     """
-    Подбирает мастеров для рассылки в зависимости от номера круга.
-    Условия для кругов берутся из настроек (Settings).
-    Если Settings не заданы, используются значения по умолчанию.
+    Возвращает список telegram‑ID мастеров, подходящих для рассылки
+    на основании:
+      • географии и типа оборудования заявки
+      • номера круга рассылки (1 / 2 / 3)
+      • положительного баланса мастера
+      • лимита активных заявок для уровня мастера
     """
     service_request = ServiceRequest.objects.get(id=service_request_id)
+    city_name = (service_request.city_name or '').lower()
+    equipment_type = (service_request.equipment_type or '').lower()
 
-    city_name = service_request.city_name.lower()
-    equipment_type = (service_request.equipment_type or "").lower()
+    # only active users
+    masters_qs = Master.objects.select_related('user').filter(user__is_active=True)
 
-    # Выбираем мастеров, у которых пользователь активен
-    masters = Master.objects.select_related('user').filter(user__is_active=True)
-    selected_masters = []
-
-    now_time = now()
-    last_24_hours = now_time - timedelta(hours=24)
-
-    # Получаем настройки для кругов
+    # Глобальные настройки (или дефолты)
     settings_obj = Settings.objects.first()
-    if settings_obj:
-        round1_success_ratio = settings_obj.round1_success_ratio or Decimal("0.8")
-        round1_cost_ratio_max = settings_obj.round1_cost_ratio_max or Decimal("0.3")
-        round2_success_ratio = settings_obj.round2_success_ratio or Decimal("0.8")
-        round2_cost_ratio_min = settings_obj.round2_cost_ratio_min or Decimal("0.3")
-        round2_cost_ratio_max = settings_obj.round2_cost_ratio_max or Decimal("0.5")
-    else:
-        round1_success_ratio, round1_cost_ratio_max = Decimal("0.8"), Decimal("0.3")
-        round2_success_ratio, round2_cost_ratio_min, round2_cost_ratio_max = Decimal("0.8"), Decimal("0.3"), Decimal("0.5")
+    round1_success_ratio  = settings_obj.round1_success_ratio  if settings_obj else Decimal('0.80')
+    round1_cost_ratio_max = settings_obj.round1_cost_ratio_max if settings_obj else Decimal('0.30')
+    round2_success_ratio  = settings_obj.round2_success_ratio  if settings_obj else Decimal('0.80')
+    round2_cost_ratio_min = settings_obj.round2_cost_ratio_min if settings_obj else Decimal('0.30')
+    round2_cost_ratio_max = settings_obj.round2_cost_ratio_max if settings_obj else Decimal('0.50')
 
-    for master in masters:
-        master_cities = (master.city_name or "").lower()
-        master_equips = (master.equipment_type_name or "").lower()
+    # лимиты активных заявок по уровням
+    default_limits = {1: 1, 2: 3, 3: 5}
+    limits = {
+        1: settings_obj.max_requests_level1 if settings_obj else default_limits[1],
+        2: settings_obj.max_requests_level2 if settings_obj else default_limits[2],
+        3: settings_obj.max_requests_level3 if settings_obj else default_limits[3],
+    }
 
-        if city_name in master_cities and equipment_type in master_equips:
-            success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
-            if round_num == 1:
-                if (success_ratio >= round1_success_ratio and
-                    cost_ratio <= round1_cost_ratio_max and
-                    last_deposit >= last_24_hours):
-                    selected_masters.append(master.user.telegram_id)
-            elif round_num == 2:
-                if (success_ratio >= round2_success_ratio and
-                    cost_ratio > round2_cost_ratio_min and
-                    cost_ratio <= round2_cost_ratio_max):
-                    selected_masters.append(master.user.telegram_id)
-            elif round_num == 3:
-                # Во 3‑й круг можно включить всех оставшихся (без дополнительных условий)
-                selected_masters.append(master.user.telegram_id)
+    selected_ids   = []
+    last_24_hours  = now() - timedelta(hours=24)
 
-    return selected_masters
+    for master in masters_qs:
+        # --- фильтр: баланс ---
+        if master.balance < 0:
+            continue
+
+        # --- фильтр: лимит активных заявок ---
+        active_cnt = ServiceRequest.objects.filter(
+            master=master,
+            status__in=ACTIVE_STATUSES
+        ).count()
+        max_allowed = limits.get(master.level, limits[3])
+        if active_cnt >= max_allowed:
+            continue
+
+        # --- фильтр: гео и тип оборудования ---
+        if city_name not in (master.city_name or '').lower():
+            continue
+        if equipment_type not in (master.equipment_type_name or '').lower():
+            continue
+
+        # --- метрики мастера (ваша функция) ---
+        success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
+
+        # --- условия по кругам ---
+        if round_num == 1:
+            if (success_ratio >= round1_success_ratio and
+                cost_ratio   <= round1_cost_ratio_max and
+                last_deposit >= last_24_hours):
+                selected_ids.append(master.user.telegram_id)
+
+        elif round_num == 2:
+            if (success_ratio >= round2_success_ratio and
+                round2_cost_ratio_min < cost_ratio <= round2_cost_ratio_max):
+                selected_ids.append(master.user.telegram_id)
+
+        elif round_num == 3:
+            # 3‑й круг: все, кто прошёл базовые фильтры
+            selected_ids.append(master.user.telegram_id)
+
+    return selected_ids
 
 
 
@@ -2340,43 +2371,77 @@ class MasterFreeRequestsView(APIView):
 
         telegram_id = serializer.validated_data['telegram_id']
 
-        # 1) Проверяем пользователя
+        # 1) Ищем пользователя‑мастера
         try:
-            user = User.objects.get(telegram_id=telegram_id, role="Master")
-        except User.DoesNotExist:
-            return Response({"detail": "Пользователь с указанным telegram_id не найден."},
-                            status=status.HTTP_404_NOT_FOUND)
+            user = User.objects.get(telegram_id=telegram_id, role='Master')
+            master = user.master_profile
+        except (User.DoesNotExist, AttributeError):
+            return Response(
+                {"detail": "Мастер с указанным telegram_id не найден."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        if user.role != 'Master':
-            return Response({"detail": "Доступно только для пользователей с ролью 'Master'."},
-                            status=status.HTTP_403_FORBIDDEN)
+        # ───────────────────────────
+        # ➊ Проверка баланса мастера
+        # ───────────────────────────
+        if master.balance < 0:
+            return Response(
+                {
+                    "request_1": {
+                        "message_text": (
+                            "❗️У вас отрицательный баланс. "
+                            "Пополните счёт, чтобы брать новые заявки."
+                        ),
+                        "take_button_text": ""
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
 
-        # 2) Получаем master_profile
-        try:
-            master = user.master_profile  # или user.master
-        except AttributeError:
-            return Response({"detail": "Мастер не найден для данного пользователя."},
-                            status=status.HTTP_404_NOT_FOUND)
+        # ──────────────────────────────────────────────
+        # ➋ Проверка лимита активных заявок у мастера
+        # ──────────────────────────────────────────────
+        settings_obj = Settings.objects.first()
+        default_limits = {1: 1, 2: 3, 3: 5}
+        max_allowed = {
+            1: settings_obj.max_requests_level1 if settings_obj else default_limits[1],
+            2: settings_obj.max_requests_level2 if settings_obj else default_limits[2],
+            3: settings_obj.max_requests_level3 if settings_obj else default_limits[3],
+        }.get(master.level, default_limits[3])
 
-        # Предполагаем, что у мастера в полях city_name / equipment_type_name может быть перечислено через запятую
-        master_cities_str = (master.city_name or "").lower()          
-        master_equip_str = (master.equipment_type_name or "").lower() 
+        active_cnt = ServiceRequest.objects.filter(
+            master=master,
+            status__in=self.ACTIVE_STATUSES
+        ).count()
 
-        # 3) Собираем заявки Free, сортируем по created_at (ASC)
+        if active_cnt >= max_allowed:
+            return Response(
+                {
+                    "request_1": {
+                        "message_text": (
+                            f"❗️У вас уже {active_cnt} активных заявок — "
+                            f"это максимум для вашего уровня ({master.level}). "
+                            "Закройте текущие заявки, чтобы брать новые."
+                        ),
+                        "take_button_text": ""
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
+
+        # 2) Фильтры по городу и оборудованию
+        master_cities_str = (master.city_name or '').lower()
+        master_equip_str  = (master.equipment_type_name or '').lower()
+
         free_requests = ServiceRequest.objects.filter(status='Free').order_by('created_at')
 
-        # 4) Фильтруем (если req.city_name и req.equipment_type входят в master'ские строки)
-        matched_requests = []
-        for req in free_requests:
-            req_city = (req.city_name or "").lower()
-            req_equip = (req.equipment_type or "").lower()
-            if req_city in master_cities_str and req_equip in master_equip_str:
-                matched_requests.append(req)
+        matched_requests = [
+            req for req in free_requests
+            if (req.city_name or '').lower() in master_cities_str
+            and (req.equipment_type or '').lower() in master_equip_str
+        ][:10]
 
-        # Берём первые 10
-        matched_requests = matched_requests[:10]
-
-        # Если нет подходящих заявок
+        # 3) Если подходящих нет
         if not matched_requests:
             return Response(
                 {
@@ -2388,40 +2453,29 @@ class MasterFreeRequestsView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        # Формируем ответ { "request_1": {...}, "request_2": {...}, ... }
+        # 4) Формируем ответ
         result = {}
         for i, req in enumerate(matched_requests):
-            field_name = f"request_{i+1}"
+            date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ''
+            short_address = get_short_address((req.address or '').strip())
 
-            # Форматированная дата
-            date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
-
-            # Берём только первое слово адреса
-            raw_address = (req.address or "").strip()
-            short_address = get_short_address(raw_address)
-
-            # Формируем текст по образцу:
-            message_text = (
-                f"<b>Заявка </b> {req.amo_crm_lead_id}\n"
-                f"<b>Дата заявки:</b> {date_str} г.\n"
-                f"<b>Город:</b> {req.city_name or ''}\n"
-                f"<b>Адрес: </b> {short_address}\n"
-                f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
-                f"<b>Модель:</b> {req.equipment_brand or '-'}\n"
-                f"<b>Марка:</b> {req.equipment_model or '-'}\n"
-                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-                f"<b>Комментарий:</b> {req.description or ''}\n"
-                "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
-                "<b>Бесплатный выезд и диагностика*</b> - Бесплатный выезд и диагностика "
-                "только при оказание ремонта. ВНИМАНИЕ! - В случае отказа от ремонта - "
-                "Диагностика и выезд платные берется с клиента (Цену формирует мастер)"
-            )
-
-            take_button_text = f"Взять заявку {req.amo_crm_lead_id}"
-
-            result[field_name] = {
-                "message_text": message_text,
-                "take_button_text": take_button_text
+            result[f"request_{i+1}"] = {
+                "message_text": (
+                    f"<b>Заявка</b> {req.amo_crm_lead_id}\n"
+                    f"<b>Дата заявки:</b> {date_str} г.\n"
+                    f"<b>Город:</b> {req.city_name or ''}\n"
+                    f"<b>Адрес:</b> {short_address}\n"
+                    f"<b>Тип оборудования:</b> {req.equipment_type or ''}\n"
+                    f"<b>Марка:</b> {req.equipment_brand or '-'}\n"
+                    f"<b>Модель:</b> {req.equipment_model or '-'}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    f"<b>Комментарий:</b> {req.description or ''}\n"
+                    "🔸🔸🔸🔸🔸🔸🔸🔸🔸🔸\n"
+                    "<b>Бесплатный выезд и диагностика*</b> – Бесплатный выезд и диагностика "
+                    "только при оказании ремонта. В случае отказа от ремонта диагностика платная "
+                    "(цену формирует мастер)."
+                ),
+                "take_button_text": f"Взять заявку {req.amo_crm_lead_id}"
             }
 
         return Response(result, status=status.HTTP_200_OK)
@@ -4155,48 +4209,45 @@ class UpdateServiceRequestRatingView(APIView):
         quality_rating_str = data.get("quality_rating")
         competence_rating_str = data.get("competence_rating")
         recommendation_rating_str = data.get("recommendation_rating")
-        
+
         if not raw_request_id or quality_rating_str is None or competence_rating_str is None or recommendation_rating_str is None:
             return Response({"detail": "Параметры 'request_id' и все три рейтинга обязательны."},
                             status=status.HTTP_400_BAD_REQUEST)
-        
+
         # 1. Извлекаем числовую часть ID заявки
         match = re.search(r"(\d+)$", raw_request_id)
         if not match:
             return Response({"detail": "Не удалось извлечь ID заявки из входных данных."},
                             status=status.HTTP_400_BAD_REQUEST)
         request_id = match.group(1)
-        
+
         # 2. Ищем заявку
         try:
             service_request = ServiceRequest.objects.get(amo_crm_lead_id=request_id)
         except ServiceRequest.DoesNotExist:
             return Response({"detail": f"Заявка с request_id {request_id} не найдена."},
                             status=status.HTTP_404_NOT_FOUND)
-        
+
         # 3. Преобразуем строки "1⭐" => int(1..5)
         quality_value = stars_to_int(quality_rating_str)
         competence_value = stars_to_int(competence_rating_str)
         recommendation_value = stars_to_int(recommendation_rating_str)
-        
+
         # 4. Проверяем диапазон от 1 до 5
         if not (1 <= quality_value <= 5 and 1 <= competence_value <= 5 and 1 <= recommendation_value <= 5):
             return Response({"detail": "Все рейтинговые параметры должны быть в диапазоне от 1 до 5."},
                             status=status.HTTP_400_BAD_REQUEST)
-        
+
         # 5. Сохраняем рейтинги в базе
         service_request.quality_rating = quality_value
         service_request.competence_rating = competence_value
         service_request.recommendation_rating = recommendation_value
         service_request.save(update_fields=["quality_rating", "competence_rating", "recommendation_rating"])
-        
-        # 6. Пересчитываем рейтинг мастера (если есть)
-        if service_request.master:
-            recalc_master_rating(service_request.master)
 
-        # 7. Теперь обновим поля рейтинга в AmoCRM
-        #    ID полей, по вашему указанию: 
-        #    Качество работ = 748771, Компетентность = 748773, Рекомендовать = 748775
+        # 6. Раньше здесь был вызов recalc_master_rating(service_request.master),
+        #    теперь он перенесён в сигналы, поэтому вызов убираем.
+
+        # 7. Обновим поля рейтинга в AmoCRM
         lead_id = service_request.amo_crm_lead_id
         if lead_id:
             try:
@@ -4229,6 +4280,7 @@ class UpdateServiceRequestRatingView(APIView):
                 "request_id": request_id
             },
             status=status.HTTP_200_OK
+
         )
 
 
