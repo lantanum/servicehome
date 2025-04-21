@@ -433,7 +433,6 @@ class CloseRequestSerializer(serializers.Serializer):
     def create(self, validated_data):
         telegram_id = validated_data['telegram_id']
         request_id = validated_data['request_id']
-        # comment = validated_data.get('comment', '')  # Если используется комментарий
 
         master_user = User.objects.get(telegram_id=telegram_id)
         master = master_user.master
@@ -442,7 +441,6 @@ class CloseRequestSerializer(serializers.Serializer):
         with transaction.atomic():
             service_request.status = 'Completed'
             service_request.completed_at = timezone.now()
-            # service_request.comment = comment  # Если используется комментарий
             service_request.save()
 
         return service_request
@@ -589,3 +587,58 @@ class AmoCRMWebhookSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each lead must have 'id' and 'status_id'.")
         
         return attrs
+    
+
+class MasterMigrationSerializer(serializers.Serializer):
+    # ----------- User -----------
+    name           = serializers.CharField(max_length=255)
+    phone          = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    telegram_id    = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    telegram_login = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    city_name      = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    is_active      = serializers.BooleanField(required=False, default=True)
+    referral_link  = serializers.CharField(required=False, allow_blank=True)
+
+    # ----------- Master -----------
+    address              = serializers.CharField(required=False, allow_blank=True)
+    service_name         = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    equipment_type_name  = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    joined_group         = serializers.BooleanField(required=False, default=False)
+    # rating и level больше не принимаем — сохраняются дефолты модели
+
+    # ---------- helpers ----------
+    @staticmethod
+    def parse_referral(text: str) -> str | None:
+        match = re.match(r"^(/start\s+)?ref(\d+)_", text.strip())
+        return match.group(2) if match else None
+
+    @transaction.atomic
+    def create(self, validated):
+        lookup = {k: v for k, v in {
+            'phone':       validated.get('phone') or None,
+            'telegram_id': validated.get('telegram_id') or None,
+        }.items() if v}
+
+        user_defaults = dict(
+            name           = validated['name'],
+            telegram_login = validated.get('telegram_login'),
+            city_name      = validated.get('city_name'),
+            role           = 'Master',
+            is_active      = validated.get('is_active', True),
+            referral_link  = self.parse_referral(validated.get('referral_link', '')),
+        )
+
+        user, _ = User.objects.update_or_create(
+            **lookup or {'name': validated['name']},
+            defaults=user_defaults
+        )
+
+        master_defaults = {
+            'address'             : validated.get('address'),
+            'service_name'        : validated.get('service_name'),
+            'equipment_type_name' : validated.get('equipment_type_name'),
+            'city_name'           : validated.get('city_name'),
+        }
+
+        Master.objects.update_or_create(user=user, defaults=master_defaults)
+        return user.master_profile

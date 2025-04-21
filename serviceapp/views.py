@@ -10,7 +10,7 @@ from django.http import JsonResponse
 import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, generics, permissions
 from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -27,6 +27,7 @@ from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
 from .serializers import (
     AmoCRMWebhookSerializer,
+    MasterMigrationSerializer,
     MasterStatisticsRequestSerializer,
     MasterStatisticsResponseSerializer,
     ServiceTypeSerializer,
@@ -136,7 +137,7 @@ class UserRegistrationView(APIView):
         text = referral_link.strip()
         match = re.match(r"^(/start\s+)?ref(\d+)_", text)
         if match:
-            return match.group(2)  # вторая группа — это \d+
+            return match.group(2)  
         return None
 
     @swagger_auto_schema(
@@ -181,11 +182,9 @@ class UserRegistrationView(APIView):
         address = validated_data.get('address', '')
         equipment_type_name = validated_data.get('equipment_type_name', '')
 
-        # Парсим /start refXXX_
         telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
-            # 1) Создание / обновление User
             user = User.objects.filter(phone=phone, role=role).first()
             is_new = (user is None)
 
@@ -4590,16 +4589,10 @@ def check_master_in_group(telegram_id: str) -> bool:
     Ждёт до 10 секунд, пока SamBot отправит колбэк в MasterGroupCheckCallbackView.
     Возвращает True, если в итоге joined = True, иначе False.
     """
-    # (1) Готовим URL SamBot. Предположим, token тот же:
     url = "https://sambot.ru/reactions/3011532/start?token=yhvtlmhlqbj"
-
-    # (2) Передаём данные, в том числе callback_url:
-    #  callback_url — это ваш эндпоинт, где вы ожидаете joined: true/false
     payload = {
        "telegram_id": telegram_id,  
     }
-
-    # (3) Посылаем запрос
     try:
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
@@ -4614,11 +4607,9 @@ def check_master_in_group(telegram_id: str) -> bool:
     total_wait = 10
     for _ in range(total_wait):
         time.sleep(1)
-        # Проверяем, пришёл ли ответ
         if telegram_id in group_check_results:
             return group_check_results[telegram_id]
 
-    # Если за 10 секунд колбэк не пришёл, считаем, ч
 
 
 class MasterGroupCheckCallbackView(APIView):
@@ -4748,3 +4739,32 @@ class ClientGroupMembershipUpdateView(APIView):
         user.save(update_fields=["joined_group"])
         return Response({"detail": "Признак вступления в группу для клиента обновлён."},
                         status=status.HTTP_200_OK)
+
+
+class MasterMigrationAPIView(generics.CreateAPIView):
+    """
+    Принимает данные миграции мастеров.
+    Доступ лучше ограничить API‑ключом или VPN.
+    """
+    serializer_class = MasterMigrationSerializer
+    permission_classes = [permissions.AllowAny]      
+
+    def get_serializer(self, *args, **kwargs):
+        if isinstance(self.request.data, list):
+            kwargs.setdefault('many', True)
+        return super().get_serializer(*args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        """
+        DRF‑овский .create() выдаёт 201 + сериализованные данные.
+        Для миграции обычно достаточно вернуть количество импортированных.
+        """
+        serializer = self.get_serializer(data=request.data, many=isinstance(request.data, list))
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(
+            {
+                "imported": len(serializer.validated_data)
+            },
+            status=201,
+        )

@@ -118,3 +118,5 @@ requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://s
 [2025-03-10 21:16:26,416] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: []
 [2025-03-10 21:17:54,568] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: [517608026]
 [2025-03-10 21:21:50,346] INFO serviceapp.management.commands.notify_negative_balance Уведомление отправлено успешно для мастеров: [517608026, 844860156]
+[2025-04-21 23:21:24,425] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-04-21 23:21:26,193] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/favicon.ico', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
