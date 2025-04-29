@@ -2,7 +2,6 @@ import logging
 from django.http import JsonResponse
 from serviceapp.models import Settings
 
-# Настраиваем логирование
 logger = logging.getLogger(__name__)
 
 class AllowedHostsAndTokenMiddleware:
@@ -19,7 +18,6 @@ class AllowedHostsAndTokenMiddleware:
     def __call__(self, request):
         settings_obj = self.get_settings()
         
-        # Получаем информацию о запросе
         request_info = {
             "path": request.path,
             "method": request.method,
@@ -27,7 +25,6 @@ class AllowedHostsAndTokenMiddleware:
             "ip": request.META.get("REMOTE_ADDR", "Неизвестен"),
         }
 
-        # Если запрос в админку, пропускаем его без проверки
         if request.path.startswith('/admin'):
             logger.info(f"Админ-доступ разрешён: {request_info}")
             return self.get_response(request)
@@ -56,7 +53,7 @@ class AllowedHostsAndTokenMiddleware:
         """
         parts = authorization_header.split()
         if len(parts) == 2 and parts[0].lower() == "bearer":
-            return parts[1]  # Возвращаем сам токен
+            return parts[1] 
         return None
 
     def get_settings(self):

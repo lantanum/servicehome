@@ -9,15 +9,13 @@ class Command(BaseCommand):
     help = "Отправляет уведомление о мастерах с отрицательным балансом"
 
     def handle(self, *args, **options):
-        # Находим мастеров с отрицательным балансом
         masters = Master.objects.filter(balance__lt=0)
         telegram_ids = [m.user.telegram_id for m in masters if m.user and m.user.telegram_id]
-        telegram_ids = [517608026, 844860156]
         payload = {"masters": telegram_ids}
         
         try:
             response = requests.post(
-                'https://sambot.ru/reactions/3021038/start?token=yhvtlmhlqbj',
+                'https://sambot.ru/reactions/3138790/start?token=yhvtlmhlqbj',
                 json=payload,
                 timeout=10
             )

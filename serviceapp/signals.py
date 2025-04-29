@@ -21,7 +21,7 @@ def send_service_equipment_data():
         "service_types": serializer.data
     }
     
-    url = "https://sambot.ru/reactions/2986626/start"
+    url = "https://sambot.ru/reactions/3138748/start"
     
     # Логируем, какие данные пытаемся отправить
     logger.info("Отправка данных на %s: %s", url, data)

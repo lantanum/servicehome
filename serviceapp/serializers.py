@@ -1,16 +1,15 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import transaction
-from .models import EquipmentType, ServiceType, User, Master, ServiceRequest, ReferralLink  # Предполагается, что ReferralLink существует
+from .models import EquipmentType, ServiceType, User, Master, ServiceRequest, ReferralLink  
 from rest_framework import serializers
 from django.conf import settings
 from .models import User, Master
-from .amocrm_client import AmoCRMClient  # Импорт клиента, где Bearer-токен
+from .amocrm_client import AmoCRMClient  
 import logging
 import re
 
 
-# Минимальный сериализатор для отображения информации о пользователе
 class MinimalUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -50,10 +49,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         либо из "ref844860156_kl" -> '844860156'.
         """
         text = referral_link.strip()
-        # Регулярка учитывает, что может быть "/start " в начале
         match = re.match(r"^(/start\s+)?ref(\d+)_", text)
         if match:
-            return match.group(2)  # вторая группа — это \d+
+            return match.group(2)  
         return None
 
     def validate(self, attrs):
@@ -86,13 +84,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         service_name = validated_data.pop('service_name', '')
         address = validated_data.pop('address', '')
         equipment_type_name = validated_data.pop('equipment_type_name', '')
-
-        # Парсим /start refXXX_ формулу
         telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
-            # 1) Ищем пользователя по сочетанию телефона и роли.
-            # Это позволяет одному номеру/telegram_id иметь две записи — для клиента и мастера.
             user = User.objects.filter(phone=phone, role=role).first()
             is_new = (user is None)
 
@@ -120,14 +114,11 @@ class UserRegistrationSerializer(serializers.Serializer):
 
             referrer_user = None
             if telegram_ref_id:
-                # Пытаемся найти реферера
                 try:
                     referrer_user = User.objects.get(telegram_id=telegram_ref_id)
-                    # Сохраняем в модели User, если нужно
                     user.referrer = referrer_user
                     user.save()
 
-                    # Создаём запись в ReferralLink
                     ReferralLink.objects.create(
                         referred_user=user,
                         referrer_user=referrer_user
@@ -135,7 +126,6 @@ class UserRegistrationSerializer(serializers.Serializer):
                 except User.DoesNotExist:
                     logger.warning(f"Referrer user with telegram_id={telegram_ref_id} not found.")
 
-            # 2) Если роль=Master, создаём/обновляем профиль мастера
             if role == 'Master':
                 if not hasattr(user, 'master_profile'):
                     logger.info(f"Creating Master profile for user={user.id}")
@@ -154,33 +144,26 @@ class UserRegistrationSerializer(serializers.Serializer):
                     master_prof.equipment_type_name = equipment_type_name
                     master_prof.save()
 
-            # 3) Реферальные бонусы (только если пользователь новый)
             if is_new and referrer_user:
                 sponsor_1 = referrer_user
                 sponsor_2 = sponsor_1.referrer if sponsor_1 else None
 
                 if role == 'Master':
-                    # Мастер сразу получает +500
                     if hasattr(user, 'master_profile'):
                         user.master_profile.balance = user.master_profile.balance + Decimal('500')
                         user.master_profile.save()
-                    # Рефереры пока ничего не получают (по условию: при пополнении)
+                    
                 else:
-                    # role = 'Client'
-                    # Клиенту +500 (Decimal)
                     user.balance = user.balance + Decimal('500')
                     user.save()
 
-                    # Рефереру (1-я линия) +500
                     sponsor_1.balance = sponsor_1.balance + Decimal('500')
                     sponsor_1.save()
 
-                    # 2-я линия +250
                     if sponsor_2:
                         sponsor_2.balance = sponsor_2.balance + Decimal('250')
                         sponsor_2.save()
 
-            # 4) Интеграция с AmoCRM: создаём контакт
             amo_client = AmoCRMClient()
             contact_data = {
                 "name": user.name,
@@ -261,7 +244,7 @@ class ServiceRequestCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         telegram_id = validated_data['telegram_id']
-        service_name = validated_data['service_name']  # Пример: "Ремонт бытовой техники"
+        service_name = validated_data['service_name'] 
         city_name = validated_data['city_name']
         address = validated_data['address']
         description = validated_data.get('description', '')
@@ -270,11 +253,9 @@ class ServiceRequestCreateSerializer(serializers.Serializer):
         equipment_brand = validated_data['equipment_brand']
         equipment_model = validated_data['equipment_model']
 
-        # 1. Находим клиента
         client = User.objects.get(telegram_id=telegram_id, role='Client')
 
         with transaction.atomic():
-            # 2. Создаём заявку в локальной базе
             service_request = ServiceRequest.objects.create(
                 client=client,
                 service_name=service_name,
@@ -288,12 +269,9 @@ class ServiceRequestCreateSerializer(serializers.Serializer):
                 equipment_model=equipment_model
             )
 
-            # 3. Готовим данные для лида
-            #    Пример: pipeline_id=7734406, status_id=65736946 (подставьте нужные)
             pipeline_id = 7734406
             status_id = 65736946
 
-            # Название лида: сначала service_name, затем тип, марка, модель
             lead_data = {
                 "name": f"{service_name} {equipment_type} {equipment_brand} {equipment_model}",
                 "status_id": status_id,
@@ -305,47 +283,44 @@ class ServiceRequestCreateSerializer(serializers.Serializer):
                 "custom_fields_values": []
             }
 
-            # Привязываем контакт, если у клиента есть amo_crm_contact_id
             if client.amo_crm_contact_id:
                 lead_data["_embedded"]["contacts"].append({"id": client.amo_crm_contact_id})
 
-            # Поля custom_fields_values (ID полей в AmoCRM берём из ваших настроек):
+            
             lead_data["custom_fields_values"].extend([
                 {
-                    "field_id": 240623,  # например City
+                    "field_id": 240623, 
                     "values": [{"value": city_name}]
                 },
                 {
-                    "field_id": 743447,  # например Street
+                    "field_id": 743447, 
                     "values": [{"value": address}]
                 },
                 {
-                    "field_id": 743839,  # для service_name
+                    "field_id": 743839, 
                     "values": [{"value": service_name}]
                 },
                 {
-                    "field_id": 725136,  # описание
+                    "field_id": 725136, 
                     "values": [{"value": description}]
                 },
                 {
-                    "field_id": 240637,  # модель оборудования
+                    "field_id": 240637, 
                     "values": [{"value": equipment_model}]
                 },
                 {
-                    "field_id": 240631,  # тип
+                    "field_id": 240631,  
                     "values": [{"value": equipment_type}]
                 },
                 {
-                    "field_id": 240635,  # марка
+                    "field_id": 240635,  
                     "values": [{"value": equipment_brand}]
                 }
             ])
 
-            # 4. Создаём лид в AmoCRM
             amo_client = AmoCRMClient()
             try:
                 created_lead = amo_client.create_lead(lead_data)  
-                # Сохраняем ID лида
                 service_request.amo_crm_lead_id = created_lead['id']
                 service_request.save()
             except Exception as e:
@@ -354,17 +329,14 @@ class ServiceRequestCreateSerializer(serializers.Serializer):
 
         return service_request
     
-# Сериализатор для запроса истории заявок
 class RequestHistorySerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID клиента")
 
 
-# Сериализатор для запроса активных заявок мастера
 class MasterActiveRequestsSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID мастера")
 
 
-# Сериализатор для назначения заявки мастеру
 class AssignRequestSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID мастера")
     request_id = serializers.IntegerField(required=True, help_text="ID заявки")
@@ -395,11 +367,9 @@ class AssignRequestSerializer(serializers.Serializer):
         return value
 
 
-# Сериализатор для закрытия заявки мастером
 class CloseRequestSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID мастера")
     request_id = serializers.IntegerField(required=True, help_text="ID заявки")
-    # comment = serializers.CharField(required=False, allow_blank=True, help_text="Комментарий мастера")
 
     def validate_telegram_id(self, value):
         try:
@@ -427,7 +397,6 @@ class CloseRequestSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        # Дополнительная валидация, если необходимо
         return attrs
 
     def create(self, validated_data):
@@ -446,7 +415,6 @@ class CloseRequestSerializer(serializers.Serializer):
         return service_request
 
 
-# Сериализатор для профиля пользователя
 class UserProfileSerializer(serializers.ModelSerializer):
     master = serializers.SerializerMethodField()
     referrer = serializers.SerializerMethodField()
@@ -485,12 +453,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return MinimalUserSerializer(users, many=True).data
 
 
-# Сериализатор для запроса профиля пользователя
 class UserProfileRequestSerializer(serializers.Serializer):
     telegram_id = serializers.CharField(required=True, help_text="Telegram ID пользователя")
 
 
-# Сериализатор для отображения мастера
 class MasterSerializer(serializers.ModelSerializer):
     user = MinimalUserSerializer(read_only=True)
 
@@ -559,8 +525,6 @@ class ServiceTypeSerializer(serializers.ModelSerializer):
         """
         Возвращаем массив (list) с названиями связанного оборудования.
         """
-        # Берём все связанные EquipmentType (через related_name='equipment_types')
-        # и вытаскиваем из них поле 'name'
         return list(obj.equipment_types.values_list('name', flat=True))
     
 class StatusChangeSerializer(serializers.Serializer):
@@ -604,7 +568,6 @@ class MasterMigrationSerializer(serializers.Serializer):
     service_name         = serializers.CharField(max_length=255, required=False, allow_blank=True)
     equipment_type_name  = serializers.CharField(max_length=255, required=False, allow_blank=True)
     joined_group         = serializers.BooleanField(required=False, default=False)
-    # rating и level больше не принимаем — сохраняются дефолты модели
 
     # ---------- helpers ----------
     @staticmethod
@@ -642,3 +605,5 @@ class MasterMigrationSerializer(serializers.Serializer):
 
         Master.objects.update_or_create(user=user, defaults=master_defaults)
         return user.master_profile
+    
+

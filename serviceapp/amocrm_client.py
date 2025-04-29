@@ -5,6 +5,7 @@ import requests
 import logging
 from django.conf import settings
 from serviceapp.utils import get_amocrm_bearer_token
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -315,4 +316,34 @@ class AmoCRMClient:
             "role": role,
             "city_name": city_name,
         }
+    def list_leads(
+        self, *,
+        page: int = 1,
+        limit: int = 250,
+        with_: str | None = None,
+        created_from_ts: int | None = None,      # <-- новое
+        extra: dict | None = None
+    ) -> list[dict]:
+        """
+        GET /api/v4/leads
+        Возвращает список лидов.
+
+        created_from_ts — UNIX-время (секунды) «c какого момента брать».
+                          Будет передано как filter[created_at][from].
+        """
+        url = f"{self.base_url}/leads"
+        params = {"page": page, "limit": limit}
+
+        if with_:
+            params["with"] = with_
+
+        if created_from_ts:
+            params["filter[created_at][from]"] = created_from_ts
+
+        if extra:
+            params.update(extra)
+
+        r = requests.get(url, headers=self._get_headers(), params=params, timeout=20)
+        r.raise_for_status()
+        return r.json().get("_embedded", {}).get("leads", [])
 

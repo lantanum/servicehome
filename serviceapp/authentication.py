@@ -10,15 +10,13 @@ class BearerTokenUser:
 
 class BearerTokenAuthentication(BaseAuthentication):
     def authenticate(self, request):
-        # 1. Разрешаем AmoCRM без аутентификации
         amocrm_allowed_domains = ["https://servicecentru.amocrm.ru"]
         origin = request.headers.get("Origin", "")
         referer = request.headers.get("Referer", "")
 
         if origin in amocrm_allowed_domains or referer.startswith("https://servicecentru.amocrm.ru"):
-            return None  # Пропускаем аутентификацию для AmoCRM
+            return None 
 
-        # 2. Если запрос не от AmoCRM, проверяем Bearer-токен
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
             raise exceptions.AuthenticationFailed("Authorization header missing.")

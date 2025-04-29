@@ -62,27 +62,21 @@ def get_client_level(user: User) -> int:
     if user.role != 'Client':
         return 0
 
-    # Берём первую (и, как правило, единственную) запись Settings
     s = Settings.objects.first()
     if not s:
         logger.warning("Внимание! В таблице Settings нет записей, берём заглушку.")
-        # Можно выдать «заглушку» — или выбросить ошибку
         return 1
 
     invites_count = user.referrer_links.count()
     completed_orders = user.client_requests.filter(status='Completed').count()
     joined_group = user.joined_group
 
-    # Уровень 4 (Амбассадор)
     if invites_count >= s.invites_needed_level4 and completed_orders >= s.orders_needed_level4:
         return 4
-    # Уровень 3 (Лид)
     if invites_count >= s.invites_needed_level3:
         return 3
-    # Уровень 2 (Активный участник)
     if invites_count >= s.invites_needed_level2 and joined_group:
         return 2
-    # Иначе (по умолчанию) Уровень 1
     return 1
 
 
@@ -124,213 +118,196 @@ def award_level_bonus(user: User, new_level: int):
 
 class UserRegistrationView(APIView):
     """
-    Регистрирует пользователя (Client или Master), создает/обновляет мастера,
-    обрабатывает реферальную логику и уровни клиента, интегрируется с AmoCRM.
+    Регистрирует пользователя (Client или Master), обрабатывает рефералку
+    и создаёт/обновляет контакт в AmoCRM.
     """
 
     @staticmethod
-    def parse_referral(referral_link: str) -> str:
+    def parse_referral(referral_link: str) -> str | None:
         """
-        Извлекает из "/start ref844860156_kl" -> '844860156',
-        либо из "ref844860156_kl" -> '844860156'.
+        Из «/start ref844860156_kl» → '844860156'
         """
-        text = referral_link.strip()
-        match = re.match(r"^(/start\s+)?ref(\d+)_", text)
-        if match:
-            return match.group(2)  
-        return None
+        match = re.match(r"^(/start\s+)?ref(\d+)_", referral_link.strip())
+        return match.group(2) if match else None
 
     @swagger_auto_schema(
-        operation_description="Регистрация пользователя или мастера.",
+        operation_description="Регистрация пользователя или мастера",
         request_body=UserRegistrationSerializer,
         responses={
-            201: openapi.Response(
-                description="Регистрация успешна",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешной регистрации')
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Некорректные данные",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
-                    }
-                )
-            )
-        }
+            201: openapi.Response(description="Регистрация успешна"),
+            400: openapi.Response(description="Некорректные данные"),
+        },
     )
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        validated_data = serializer.validated_data
-        phone = validated_data['phone']
-        name = validated_data['name']
-        telegram_id = validated_data.get('telegram_id')
-        telegram_login = validated_data.get('telegram_login')
-        role = validated_data.get('role', 'Client')
-        city_name = validated_data.get('city_name', '')
+        v = serializer.validated_data
+        phone: str = v["phone"]
+        name: str = v["name"]
+        telegram_id: str | None = v.get("telegram_id")
+        telegram_login: str | None = v.get("telegram_login")
+        role: str = v.get("role", "Client")
+        city_name: str = v.get("city_name", "")
 
-        referral_link = validated_data.get('referral_link', '')
-        service_name = validated_data.get('service_name', '')
-        address = validated_data.get('address', '')
-        equipment_type_name = validated_data.get('equipment_type_name', '')
+        referral_link = v.get("referral_link", "")
+        service_name = v.get("service_name", "")
+        address = v.get("address", "")
+        equipment_type_name = v.get("equipment_type_name", "")
 
         telegram_ref_id = self.parse_referral(referral_link)
 
         with transaction.atomic():
+            # ────────────────────────── Пользователь ──────────────────────────
             user = User.objects.filter(phone=phone, role=role).first()
-            is_new = (user is None)
+            is_new = user is None
 
             if is_new:
-                logger.info(f"[Registration] Creating new user with phone={phone}, role={role}")
+                logger.info("Создаём нового пользователя phone=%s role=%s", phone, role)
                 user = User.objects.create(
                     phone=phone,
                     name=name,
                     telegram_id=telegram_id,
                     telegram_login=telegram_login,
                     role=role,
-                    city_name=city_name
+                    city_name=city_name,
                 )
             else:
-                logger.info(f"[Registration] Updating user id={user.id}, phone={phone}, role={role}")
+                logger.info("Апдейтим пользователя id=%s", user.id)
                 user.name = name
                 user.telegram_id = telegram_id
                 user.telegram_login = telegram_login
                 user.city_name = city_name
                 user.save()
 
-            # Сохраняем raw referral link
             user.referral_link = referral_link
-            user.save()
+            user.save(update_fields=["referral_link"])
 
-            # 2) Реферальная логика: кто пригласил
+            # ────────────────────────── Рефералка ─────────────────────────────
             referrer_user = None
             if telegram_ref_id:
-                try:
-                    referrer_user = User.objects.get(telegram_id=telegram_ref_id)
+                referrer_user = User.objects.filter(telegram_id=telegram_ref_id).first()
+                if referrer_user:
                     user.referrer = referrer_user
-                    user.save()
-                    ReferralLink.objects.create(
-                        referred_user=user,
-                        referrer_user=referrer_user
-                    )
-                except User.DoesNotExist:
-                    logger.warning(f"Referrer with telegram_id={telegram_ref_id} not found.")
-
-            # 3) Если роль Master, то создаём / обновляем профиль мастера
-            if role == 'Master':
-                if not hasattr(user, 'master_profile'):
-                    logger.info(f"[Registration] Creating Master profile for user={user.id}")
-                    Master.objects.create(
-                        user=user,
-                        city_name=city_name,
-                        service_name=service_name,
-                        address=address,
-                        equipment_type_name=equipment_type_name
+                    user.save(update_fields=["referrer"])
+                    ReferralLink.objects.get_or_create(
+                        referred_user=user, referrer_user=referrer_user
                     )
                 else:
-                    master_prof = user.master_profile
-                    master_prof.city_name = city_name
-                    master_prof.service_name = service_name
-                    master_prof.address = address
-                    master_prof.equipment_type_name = equipment_type_name
-                    master_prof.save()
+                    logger.warning("Referrer %s не найден", telegram_ref_id)
 
-            # 4) Реферальные бонусы (пример логики — только если пользователь новый)
+            # ──────────────────────── Master-профиль ─────────────────────────
+            if role == "Master":
+                master, _ = Master.objects.get_or_create(user=user)
+                master.city_name = city_name
+                master.service_name = service_name
+                master.address = address
+                master.equipment_type_name = equipment_type_name
+                master.save()
+
+            # ───────────────────── AmoCRM: поиск/создание ─────────────────────
+            amo = AmoCRMClient()
+            existing_contact_id: int | None = None
+            try:
+                found = amo.search_contacts(phone=phone)
+                if not found and telegram_id:
+                    found = amo.search_contacts(telegram_id=telegram_id)
+
+                if found:
+                    existing_contact_id = found[0]["id"]
+                    logger.info(
+                        "Нашёл существующий контакт %s в AmoCRM для phone=%s",
+                        existing_contact_id,
+                        phone,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Ошибка поиска контакта в AmoCRM: %s", exc)
+
+            if existing_contact_id:
+                user.amo_crm_contact_id = existing_contact_id
+                user.save(update_fields=["amo_crm_contact_id"])
+
+                # опционально – обновим недостающие поля в AmoCRM
+                try:
+                    update_payload = {
+                        "name": name,
+                        "custom_fields_values": [],
+                    }
+                    if telegram_id:
+                        update_payload["custom_fields_values"].append(
+                            {
+                                "field_id": 744499,
+                                "values": [{"value": telegram_id}],
+                            }
+                        )
+                    if city_name:
+                        update_payload["custom_fields_values"].append(
+                            {
+                                "field_id": 744219,
+                                "values": [{"value": city_name}],
+                            }
+                        )
+                    amo.update_contact(existing_contact_id, update_payload)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Не удалось обновить контакт %s: %s", existing_contact_id, exc)
+
+            else:
+                # ───────────── контакта нет – создаём ─────────────
+                contact_payload = {
+                    "name": name,
+                    "custom_fields_values": [],
+                }
+                contact_payload["custom_fields_values"].append(
+                    {"field_code": "PHONE", "values": [{"value": phone, "enum_code": "WORK"}]}
+                )
+                if telegram_id:
+                    contact_payload["custom_fields_values"].append(
+                        {"field_id": 744499, "values": [{"value": telegram_id}]}
+                    )
+                if role:
+                    contact_payload["custom_fields_values"].append(
+                        {"field_id": 744523, "values": [{"value": role}]}
+                    )
+                if city_name:
+                    contact_payload["custom_fields_values"].append(
+                        {"field_id": 744219, "values": [{"value": city_name}]}
+                    )
+
+                try:
+                    created = amo.create_contact(contact_payload)
+                    user.amo_crm_contact_id = created["id"]
+                    user.save(update_fields=["amo_crm_contact_id"])
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Не удалось создать контакт в AmoCRM: %s", exc)
+
+            # ───────────────────── Бонусы за приглашение ─────────────────────
             if is_new and referrer_user:
                 sponsor_1 = referrer_user
                 sponsor_2 = sponsor_1.referrer if sponsor_1 else None
 
-                if role == 'Master':
-                    # Мастеру при регистрации +500 (пример)
-                    if hasattr(user, 'master_profile'):
-                        user.master_profile.balance += Decimal('500')
-                        user.master_profile.save()
+                if role == "Master" and hasattr(user, "master_profile"):
+                    user.master_profile.balance += Decimal("500")
+                    user.master_profile.save()
                 else:
-                    # role == 'Client'
-                    # Клиенту +500 (примерная логика)
-                    user.balance += Decimal('500')
+                    user.balance += Decimal("500")
                     user.save()
 
-                    # Рефереру (1-я линия) +500
-                    sponsor_1.balance += Decimal('500')
+                    sponsor_1.balance += Decimal("500")
                     sponsor_1.save()
 
-                    # 2-я линия +250
                     if sponsor_2:
-                        sponsor_2.balance += Decimal('250')
+                        sponsor_2.balance += Decimal("250")
                         sponsor_2.save()
 
-            # 5) Интеграция с AmoCRM: создаём контакт
-            amo_client = AmoCRMClient()
-            contact_data = {
-                "name": user.name,
-                "custom_fields_values": []
-            }
-
-            if user.phone:
-                contact_data["custom_fields_values"].append({
-                    "field_code": "PHONE",
-                    "values": [{"value": user.phone, "enum_code": "WORK"}]
-                })
-            if user.telegram_id:
-                contact_data["custom_fields_values"].append({
-                    "field_id": 744499,  # Ваш ID поля для Telegram ID
-                    "values": [{"value": user.telegram_id}]
-                })
-            if user.role:
-                contact_data["custom_fields_values"].append({
-                    "field_id": 744523,  # Ваш ID поля для "Роль"
-                    "values": [{"value": user.role}]
-                })
-            if service_name:
-                contact_data["custom_fields_values"].append({
-                    "field_id": 744503,  # Ваше поле для "Услуга"
-                    "values": [{"value": service_name}]
-                })
-            if equipment_type_name:
-                contact_data["custom_fields_values"].append({
-                    "field_id": 744495,  # Ваше поле для "Тип оборудования"
-                    "values": [{"value": equipment_type_name}]
-                })
-            # Примеры дополнительных полей:
-            contact_data["custom_fields_values"].append({
-                "field_id": 744509,
-                "values": [{"value": 0}]
-            })
-            contact_data["custom_fields_values"].append({
-                "field_id": 744521,
-                "values": [{"value": 5}]
-            })
-            if user.city_name:
-                contact_data["custom_fields_values"].append({
-                    "field_id": 744219,
-                    "values": [{"value": user.city_name}]
-                })
-
-            created_contact = amo_client.create_contact(contact_data)
-            user.amo_crm_contact_id = created_contact["id"]
-            user.save()
-
-            # 6) Пересчёт уровня (только для клиентов)
-            if user.role == 'Client':
+            # ───────────────────── Пересчёт уровня клиента ───────────────────
+            if role == "Client":
                 old_level = user.client_level
-                new_level = get_client_level(user)  # Смотрим, какой уровень подходит
-
+                new_level = get_client_level(user)
                 if new_level > old_level:
-                    # Повышаем уровень и выдаём бонус
                     award_level_bonus(user, new_level)
 
-        # Конец transaction.atomic()
         return Response({"detail": "Registration successful"}, status=status.HTTP_201_CREATED)
-
 
 class ServiceRequestCreateView(APIView):
     """
@@ -356,7 +333,6 @@ class ServiceRequestCreateView(APIView):
                     type=openapi.TYPE_OBJECT,
                     properties={
                         'field_name': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_STRING))
-                        # Добавьте другие поля ошибок, если необходимо
                     }
                 )
             )
@@ -419,7 +395,6 @@ class ServiceRequestHistoryView(APIView):
         
         telegram_id = serializer.validated_data['telegram_id']
 
-        # Проверяем, что пользователь с таким telegram_id существует и является клиентом
         try:
             user = User.objects.get(telegram_id=telegram_id)
         except User.DoesNotExist:
@@ -430,10 +405,8 @@ class ServiceRequestHistoryView(APIView):
             return Response({"detail": "Историю заявок можно просматривать только для клиентов."}, 
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Получаем заявки данного клиента
         requests_qs = ServiceRequest.objects.filter(client=user).order_by('-created_at')
 
-        # Сериализуем заявки
         sr_serializer = ServiceRequestSerializer(requests_qs, many=True)
         return Response(sr_serializer.data, status=status.HTTP_200_OK)
 
@@ -500,32 +473,27 @@ class MasterActiveRequestsView(APIView):
         
         telegram_id = serializer.validated_data['telegram_id']
 
-        # Поиск пользователя по telegram_id
         try:
             user = User.objects.get(telegram_id=telegram_id, role="Master")
         except User.DoesNotExist:
             return Response({"detail": "Пользователь с указанным telegram_id не найден."}, 
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Проверка роли
         if user.role != 'Master':
             return Response({"detail": "Доступно только для пользователей с ролью 'Master'."}, 
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Получаем профиль мастера
         try:
-            master = user.master_profile  # или user.master
+            master = user.master_profile 
         except AttributeError:
             return Response({"detail": "Мастер не найден для данного пользователя."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Получаем активные заявки, включая QualityControl
         active_requests = ServiceRequest.objects.filter(
             master=master,
             status__in=['In Progress', 'AwaitingClosure', 'QualityControl']
         ).order_by('-created_at')[:10]
 
-        # Если заявок нет
         if not active_requests:
             return Response(
                 {
@@ -537,20 +505,17 @@ class MasterActiveRequestsView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        # Собираем ответ в формате request_1, request_2, ...
         result = {}
         for i, req in enumerate(active_requests):
             field_name = f"request_{i+1}"
 
             if req.status == 'QualityControl':
-                # Текст для заявок со статусом QualityControl
                 message_text = (
                     f"Заявка под номером {req.amo_crm_lead_id or req.id} находится на стадии проверки "
                     f"у службы контроля качества."
                 )
-                finish_button_text = ""  # Для этого статуса кнопка не требуется
+                finish_button_text = "" 
             else:
-                # Текст для остальных заявок
                 date_str = req.created_at.strftime('%d.%m.%Y') if req.created_at else ""
                 message_text = (
                     f"<b>Заявка</b> {req.amo_crm_lead_id}\n"
@@ -627,18 +592,15 @@ class AssignRequestView(APIView):
 
         try:
             with transaction.atomic():
-                # 1) Ищем мастера
                 master_user = User.objects.select_for_update().get(telegram_id=telegram_id, role="Master")
                 master = master_user.master_profile
 
-                # (1) Проверка баланса
                 if master.balance < 0:
                     return JsonResponse(
                         {"message_for_master": "У вас отрицательный баланс, пополните баланс, чтобы продолжить получать заявки"},
                         status=200
                     )
 
-                # 2) Получаем настройки (лимиты заявок)
                 settings_obj = Settings.objects.first()
                 if not settings_obj:
                     max_req_l1, max_req_l2, max_req_l3 = 1, 3, 5
@@ -657,7 +619,6 @@ class AssignRequestView(APIView):
                 else:
                     max_requests = 9999
 
-                # (2) Проверка лимита заявок (In Progress)
                 active_count = ServiceRequest.objects.filter(
                     master=master,
                     status__in=['In Progress', 'AwaitingClosure', 'QualityControl']
@@ -673,24 +634,19 @@ class AssignRequestView(APIView):
                         status=200
                     )
 
-                # 3) Находим заявку
                 service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=request_id)
                 original_status = service_request.status
-
-                # (3) Проверка, свободна ли заявка
                 if original_status != 'Free':
                     return JsonResponse(
                         {"message_for_master": "Данную заявку уже выполняет другой мастер"},
                         status=200
                     )
 
-                # ---- Если все проверки пройдены, переводим заявку в работу ----
                 service_request.master = master
                 service_request.status = 'In Progress'
                 service_request.start_date = timezone.now()
                 service_request.save()
 
-                # Обновляем сделку в amoCRM
                 lead_id = service_request.amo_crm_lead_id
                 if not lead_id or not master_user.amo_crm_contact_id:
                     return JsonResponse(
@@ -728,8 +684,6 @@ class AssignRequestView(APIView):
                     }
                 )
                 
-
-                # Формируем три нужных поля: два сообщения и текст кнопки
                 created_date_str = (
                     service_request.created_at.strftime('%d.%m.%Y')
                     if service_request.created_at
@@ -776,8 +730,6 @@ class AssignRequestView(APIView):
                 )
 
                 finish_button_text = f"Сообщить о завершении {amo_id}"
-
-                # Отдаём три поля в JSON
                 response_data = {
                     "message_for_master": message_for_master,
                     "message_for_admin": message_for_admin,
@@ -882,11 +834,7 @@ def get_referral_count_2_line(user: User) -> int:
     Количество "внуков" – тех, у кого referrer_user == (кто-то из 1-й линии).
     """
     count_2_line = 0
-    # Все прямые рефералы (1-я линия)
-    first_line = user.referrer_links.all()  # QuerySet ReferralLink, где referrer_user=user
-
-    # Для каждого ReferralLink из first_line, возьмём referred_user
-    # и посмотрим, сколько у него есть "referrer_links" (т. е. 1-я линия для него).
+    first_line = user.referrer_links.all() 
     for link in first_line:
         child_user = link.referred_user
         count_2_line += child_user.referrer_links.count()
@@ -933,18 +881,15 @@ class UserProfileView(APIView):
         telegram_id = serializer.validated_data['telegram_id']
         
         try:
-            # Просто находим пользователя (клиента или мастера) по telegram_id
             user = User.objects.get(telegram_id=telegram_id, role='Client')
         except User.DoesNotExist:
             return Response({"detail": "Пользователь с указанным telegram_id не найден."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        # Подсчёт рефералов
         count_1_line = get_referral_count_1_line(user)
         count_2_line = get_referral_count_2_line(user)
         total_referrals = count_1_line + count_2_line
 
-        # Формируем ответ (city, name, phone, balance, daily_income, level и т.д.)
         response_data = {
             "city": user.city_name or "",
             "name": user.name or "",
@@ -1003,11 +948,8 @@ class ServiceEquipmentTypesView(APIView):
     )
     def post(self, request):
         service_types = ServiceType.objects.all()
-        
-        # Используем уже созданный сериализатор
         serializer = ServiceTypeSerializer(service_types, many=True)
 
-        # Возвращаем в формате {"service_types": [{...}, {...}]}
         return Response({
             "service_types": serializer.data
         }, status=status.HTTP_200_OK)
@@ -1019,12 +961,10 @@ def extract_street_name(address):
     Извлекает название улицы из полного адреса.
     Например, из "Ленина 12" возвращает "Ленина".
     """
-    # Используем регулярное выражение для извлечения текста до первой цифры
     match = re.match(r'^(.+?)\s+\d+', address)
     if match:
         return match.group(1)
     else:
-        # Если не удалось найти цифру, возвращаем полный адрес
         return address.strip()
 
 def format_date(created_at):
@@ -1068,7 +1008,7 @@ def recalc_master_rating(master):
         quality_rating__isnull=False,
         competence_rating__isnull=False,
         recommendation_rating__isnull=False,
-        work_outcome__isnull=False,               # Вместо work_outcome_record__isnull=False
+        work_outcome__isnull=False,              
         work_outcome__outcome_rating__isnull=False
     )
 
@@ -1076,14 +1016,11 @@ def recalc_master_rating(master):
     count = 0
 
     for req in requests_qs:
-        # Среднее трёх клиентских рейтингов
         client_avg = (req.quality_rating + req.competence_rating + req.recommendation_rating) / 3
         client_avg_dec = Decimal(client_avg)
 
-        # Рейтинг исхода работы из справочника
         outcome_rating_dec = Decimal(req.work_outcome.outcome_rating)
 
-        # Итоговое значение заявки
         final_req_rating = (client_avg_dec + outcome_rating_dec) / Decimal('2.0')
 
         total += final_req_rating
@@ -1126,7 +1063,6 @@ def update_commission_transaction(service_request, new_price):
     deal_amount = new_price_value - spare_parts
     new_commission_amount = deal_amount * commission_percentage / Decimal('100')
 
-    # Суммируем уже созданные транзакции комиссии для этой заявки
     old_commission_agg = Transaction.objects.filter(
         service_request=service_request,
         transaction_type='Comission'
@@ -1162,7 +1098,6 @@ class AmoCRMWebhookView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # 1. Считываем "сырой" запрос
         try:
             raw_data = request.body.decode('utf-8')
             logger.debug(f"Incoming AmoCRM webhook raw data: {raw_data}")
@@ -1170,11 +1105,9 @@ class AmoCRMWebhookView(APIView):
             logger.error(f"Error decoding request body: {e}")
             return Response({"detail": "Invalid request body."}, status=400)
 
-        # 2. Парсим (если parse_nested_form_data отсутствует, используйте request.POST)
         nested_data = parse_nested_form_data(request.POST)
         logger.debug(f"Parsed AmoCRM webhook data: {nested_data}")
 
-        # 3. Извлекаем список лидов [ "leads": { "status": [...] } ]
         leads_data = nested_data.get("leads", {})
         status_changes = leads_data.get("status", [])
 
@@ -1182,7 +1115,6 @@ class AmoCRMWebhookView(APIView):
             logger.warning("No 'status' leads in webhook data.")
             return Response({"detail": "No leads found in webhook data."}, status=400)
 
-        # 4. Обрабатываем каждый лид
         for lead in status_changes:
             try:
                 self.process_lead(lead)
@@ -1199,18 +1131,15 @@ class AmoCRMWebhookView(APIView):
             logger.warning(f"Invalid lead in webhook: {lead}")
             return
 
-        # Исходная (короткая) цена — можно взять из короткого вебхука, если нужно
         incoming_price = lead.get('price')
 
-        # Получаем полную информацию независимо от того, есть ли лид в базе
         amocrm_client = AmoCRMClient()
         lead_full_info = amocrm_client.get_lead(lead_id)
 
-        # Ищем work_outcome_name в custom fields ПОЛНОЙ карточки
         work_outcome_name = None
         custom_fields_full = lead_full_info.get("custom_fields_values", [])
         for cf in custom_fields_full:
-            if cf.get("field_id") == 745353:  # ваш ID поля
+            if cf.get("field_id") == 745353: 
                 values = cf.get("values", [])
                 if values:
                     work_outcome_name = values[0].get("value")
@@ -1220,7 +1149,6 @@ class AmoCRMWebhookView(APIView):
 
         with transaction.atomic():
             try:
-                # Ищем SR в локальной базе
                 service_request = ServiceRequest.objects.select_for_update().get(amo_crm_lead_id=lead_id)
                 created = False
                 logger.info(f"Found existing ServiceRequest with lead_id={lead_id} (ID={service_request.id})")
@@ -1230,21 +1158,17 @@ class AmoCRMWebhookView(APIView):
                 service_request = None
 
             if created:
-                # -------------------- Создаем новую заявку --------------------
                 user = self.find_or_create_user_from_lead_links(lead_id, lead_full_info)
 
                 service_request = self.create_new_service_request(
                     lead_id, status_name, new_status_id, user
                 )
 
-                # Заполняем кастомные поля (город, адрес и т.д.) из полного lead_full_info
                 self.update_custom_fields(service_request, lead_full_info)
 
-                # work_outcome_name берём из полного лида
                 if work_outcome_name:
                     self.set_work_outcome(service_request, work_outcome_name)
 
-                # Запускаем бизнес-процессы
                 self.handle_status_change(
                     service_request,
                     status_name,
@@ -1254,15 +1178,11 @@ class AmoCRMWebhookView(APIView):
                     lead_id
                 )
             else:
-                # -------------------- Лид уже есть в базе --------------------
-                # Обновляем кастомные поля полной инфой
                 self.update_custom_fields(service_request, lead_full_info)
 
-                # work_outcome_name берём из полного лида
                 if work_outcome_name:
                     self.set_work_outcome(service_request, work_outcome_name)
 
-                # Проверяем статус
                 if service_request.amo_status_code == new_status_id:
                     logger.info(
                         f"Lead {lead_id}: статус {new_status_id} уже установлен (SR ID={service_request.id}), "
@@ -1270,7 +1190,6 @@ class AmoCRMWebhookView(APIView):
                     )
                     return
 
-                # Если статус изменился
                 self.handle_status_change(
                     service_request,
                     status_name,
@@ -1280,9 +1199,6 @@ class AmoCRMWebhookView(APIView):
                     lead_id
                 )
 
-
-
-    # --------------------- Методы для обработки пользователя и ServiceRequest ---------------------
 
     def find_or_create_user_from_lead_links(self, lead_id: int, lead_full_info: dict) -> User:
         """
@@ -1306,7 +1222,6 @@ class AmoCRMWebhookView(APIView):
             user = self.find_or_update_user_from_amo(parsed)
             return user
         else:
-            # Фолбэк, если у лида нет связей. Берём телефон и т.д. из lead_full_info
             return self.find_or_create_user_from_lead(lead_full_info)
 
     def find_or_update_user_from_amo(self, parsed_data: dict) -> User:
@@ -1320,7 +1235,6 @@ class AmoCRMWebhookView(APIView):
         role = parsed_data.get("role") or "Client"
         city_name = parsed_data.get("city_name")
 
-        # 1) Ищем по amo_crm_contact_id
         user = User.objects.filter(amo_crm_contact_id=contact_id).first()
         if user:
             logger.info(f"User found by amo_crm_contact_id={contact_id}, updating data.")
@@ -1335,7 +1249,6 @@ class AmoCRMWebhookView(APIView):
             user.save()
             return user
 
-        # 2) Ищем по телефону
         if phone:
             user = User.objects.filter(phone=phone).first()
             if user:
@@ -1350,7 +1263,6 @@ class AmoCRMWebhookView(APIView):
                 user.save()
                 return user
 
-        # 3) Вообще не нашли -> создаём
         logger.info(f"No user found by contact_id={contact_id} or phone={phone}, creating new user.")
         user = User.objects.create(
             name=name,
@@ -1379,7 +1291,6 @@ class AmoCRMWebhookView(APIView):
                     phone = vals[0].get("value")
                 break
 
-        # Ищем пользователя по phone / tg_id
         user = User.objects.filter(Q(phone=phone) | Q(telegram_id=tg_id)).first()
         if user:
             logger.info(f"Found user by phone/tg from lead_full_info. Updating name.")
@@ -1400,15 +1311,24 @@ class AmoCRMWebhookView(APIView):
         )
 
     def create_new_service_request(self,
-                                   lead_id, status_name, new_status_id, incoming_price,
-                                   operator_comment, deal_success,
-                                   quality_rating, competence_rating, recommendation_rating,
-                                   user: User) -> ServiceRequest:
+                                   lead_id: int,
+                                   status_name: str,
+                                   new_status_id: int,
+                                   user: User,
+                                   incoming_price: Decimal | None = None,
+                                   operator_comment: str | None = None,
+                                   deal_success: str | None = None,
+                                   quality_rating: int | None = None,
+                                   competence_rating: int | None = None,
+                                   recommendation_rating: int | None = None
+                                   ) -> ServiceRequest:
         """
-        Ваша логика создания новой заявки (как в исходном коде).
+        Создание новой ServiceRequest.
+        Первые четыре аргумента обязательны, остальные передаются при наличии данных.
         """
-        logger.info(f"Creating new ServiceRequest for lead_id={lead_id}, user_id={user.id}")
-        sreq = ServiceRequest.objects.create(
+        logger.info("Creating new ServiceRequest for lead_id=%s, user_id=%s", lead_id, user.id)
+    
+        sr = ServiceRequest.objects.create(
             client=user,
             amo_crm_lead_id=lead_id,
             status=status_name,
@@ -1416,13 +1336,12 @@ class AmoCRMWebhookView(APIView):
             price=Decimal(incoming_price) if incoming_price is not None else None,
             crm_operator_comment=operator_comment,
             deal_success=deal_success,
-            quality_rating=int(quality_rating) if quality_rating else None,
-            competence_rating=int(competence_rating) if competence_rating else None,
-            recommendation_rating=int(recommendation_rating) if recommendation_rating else None
+            quality_rating=quality_rating,
+            competence_rating=competence_rating,
+            recommendation_rating=recommendation_rating,
         )
-        return sreq
+        return sr
 
-    # --------------------- Остальная логика (обновление полей, статусов, комиссий...) ---------------------
 
     def update_custom_fields(self, service_request: ServiceRequest, lead: dict):
         """
@@ -1493,7 +1412,6 @@ class AmoCRMWebhookView(APIView):
         previous_status = service_request.status
 
         if status_name in ['AwaitingClosure', 'Completed', 'QualityControl']:
-            # Пример: обновляем цену и списываем комиссию
             if incoming_price is not None:
                 self.update_price_and_commission(service_request, incoming_price)
 
@@ -1543,7 +1461,7 @@ class AmoCRMWebhookView(APIView):
                 }
                 try:
                     response_msg = requests.post(
-                        'https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj',
+                        'https://sambot.ru/reactions/3138662/start?token=yhvtlmhlqbj',
                         json=payload,
                         timeout=10
                     )
@@ -1566,7 +1484,7 @@ class AmoCRMWebhookView(APIView):
             }
             try:
                 response = requests.post(
-                    'https://sambot.ru/reactions/2939774/start?token=yhvtlmhlqbj',
+                    'https://sambot.ru/reactions/3138732/start?token=yhvtlmhlqbj',
                     json=payload,
                     timeout=10
                 )
@@ -1590,13 +1508,12 @@ def handle_free_status(service_request, previous_status, new_status_id):
     logger.info(f"[ServiceRequest {service_request.id}] Статус обновлён "
                 f"с {previous_status} на 'Free'.")
 
-    # 1-й круг (отправляется сразу)
     logger.info(f"[ServiceRequest {service_request.id}] Запуск 1-го круга рассылки.")
     masters_round_1 = find_suitable_masters(service_request.id, round_num=1)
     logger.info(f"[ServiceRequest {service_request.id}] Найдено {len(masters_round_1)} мастеров для 1-го круга.")
     send_request_to_sambot(service_request, masters_round_1, round_num=1)
 
-    delay_2 = 60 if masters_round_1 else 0  # Если нет мастеров, сразу запускаем 2-й круг
+    delay_2 = 600 if masters_round_1 else 0  
     threading.Timer(delay_2, send_request_to_sambot_with_logging, [service_request.id, 2]).start()
 
 def send_request_to_sambot_with_logging(service_request_id, round_num):
@@ -1612,7 +1529,7 @@ def send_request_to_sambot_with_logging(service_request_id, round_num):
     send_request_to_sambot(service_request, masters, round_num)
 
     if round_num == 2:
-        delay_3 = 60 if masters else 0  # Если нет мастеров во 2-м круге, сразу запускаем 3-й
+        delay_3 = 1200 if masters else 0 
         threading.Timer(delay_3, send_request_to_sambot_with_logging, [service_request.id, 3]).start()
 
 def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
@@ -1635,7 +1552,7 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
 
     try:
         response = requests.post(
-            'https://sambot.ru/reactions/2890052/start?token=yhvtlmhlqbj',
+            'https://sambot.ru/reactions/3138692/start?token=yhvtlmhlqbj',
             json=payload,
             timeout=10
         )
@@ -1667,10 +1584,8 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     city_name = (service_request.city_name or '').lower()
     equipment_type = (service_request.equipment_type or '').lower()
 
-    # only active users
     masters_qs = Master.objects.select_related('user').filter(user__is_active=True)
 
-    # Глобальные настройки (или дефолты)
     settings_obj = Settings.objects.first()
     round1_success_ratio  = settings_obj.round1_success_ratio  if settings_obj else Decimal('0.80')
     round1_cost_ratio_max = settings_obj.round1_cost_ratio_max if settings_obj else Decimal('0.30')
@@ -1678,7 +1593,6 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     round2_cost_ratio_min = settings_obj.round2_cost_ratio_min if settings_obj else Decimal('0.30')
     round2_cost_ratio_max = settings_obj.round2_cost_ratio_max if settings_obj else Decimal('0.50')
 
-    # лимиты активных заявок по уровням
     default_limits = {1: 1, 2: 3, 3: 5}
     limits = {
         1: settings_obj.max_requests_level1 if settings_obj else default_limits[1],
@@ -1690,11 +1604,9 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     last_24_hours  = now() - timedelta(hours=24)
 
     for master in masters_qs:
-        # --- фильтр: баланс ---
         if master.balance < 0:
             continue
 
-        # --- фильтр: лимит активных заявок ---
         active_cnt = ServiceRequest.objects.filter(
             master=master,
             status__in=ACTIVE_STATUSES
@@ -1703,16 +1615,13 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
         if active_cnt >= max_allowed:
             continue
 
-        # --- фильтр: гео и тип оборудования ---
         if city_name not in (master.city_name or '').lower():
             continue
         if equipment_type not in (master.equipment_type_name or '').lower():
             continue
 
-        # --- метрики мастера (ваша функция) ---
         success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
 
-        # --- условия по кругам ---
         if round_num == 1:
             if (success_ratio >= round1_success_ratio and
                 cost_ratio   <= round1_cost_ratio_max and
@@ -1725,7 +1634,6 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
                 selected_ids.append(master.user.telegram_id)
 
         elif round_num == 3:
-            # 3‑й круг: все, кто прошёл базовые фильтры
             selected_ids.append(master.user.telegram_id)
 
     return selected_ids
@@ -1772,7 +1680,6 @@ def generate_free_status_data(service_request):
     
     short_address = get_short_address(raw_address)
 
-    # Сообщение для мастеров
     message_for_masters = (
         f"<b>Город:</b> {city_name}\n"
         f"<b>Адрес:</b> {short_address}\n"
@@ -1784,7 +1691,6 @@ def generate_free_status_data(service_request):
         f"<b>Комментарий:</b> {service_request.description or ''}"
     )
 
-    # Сообщение для администраторов
     message_for_admin = (
         f"<b>Заявка</b> {service_request.amo_crm_lead_id}\n"
         f"<b>Дата заявки:</b> {created_date_str}\n"
@@ -1822,7 +1728,6 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 
     logger = logging.getLogger(__name__)
 
-    # 1) Сумма сделки
     deal_amount = service_request.price or Decimal('0.00')
     deal_amount = deal_amount - (service_request.spare_parts_spent or Decimal('0.00'))
 
@@ -1831,7 +1736,6 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
         logger.warning(f"ServiceRequest {service_request.id}: no master assigned, skipping commission")
         return
 
-    # Текущий уровень мастера
     master_level = master_profile.level
     service_type_name = service_request.service_name
     service_type = ServiceType.objects.filter(name=service_type_name).first() if service_type_name else None
@@ -1854,7 +1758,6 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
 
     commission_amount = deal_amount * commission_percentage / Decimal('100')
 
-    # Если не пропускаем комиссию
     if not skip_commission:
         Transaction.objects.create(
             master=master_profile,
@@ -1864,7 +1767,6 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
             service_request=service_request
         )
 
-    # Шлём данные в sambot
     payload = {
         "request_id": lead_id,
         "telegram_id": master_profile.user.telegram_id,
@@ -1876,7 +1778,7 @@ def handle_completed_deal(service_request, operator_comment, previous_status, le
     }
     try:
         response_sambot = requests.post(
-            'https://sambot.ru/reactions/2939784/start?token=yhvtlmhlqbj',
+            'https://sambot.ru/reactions/3138736/start?token=yhvtlmhlqbj',
             json=payload,
             timeout=10
         )
@@ -2216,7 +2118,7 @@ class FinishRequestView(APIView):
                     }
                     try:
                         response_msg = requests.post(
-                            'https://sambot.ru/reactions/2849416/start?token=yhvtlmhlqbj',
+                            'https://sambot.ru/reactions/3138662/start?token=yhvtlmhlqbj',
                             json=payload,
                             timeout=10
                         )
@@ -4579,7 +4481,6 @@ class ClientReviewUpdateView(APIView):
         )
 
 import time
-# Например, вверху файла views.py
 group_check_results = {}  # dict[telegram_id: bool], где True/False = вступил/не вступил
 
 
