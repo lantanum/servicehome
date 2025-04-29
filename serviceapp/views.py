@@ -1,7 +1,7 @@
 from datetime import timezone
 from math import ceil
 from django.utils.timezone import now, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import logging
 import re
 import threading
@@ -281,25 +281,31 @@ class UserRegistrationView(APIView):
                 except Exception as exc:  # noqa: BLE001
                     logger.error("Не удалось создать контакт в AmoCRM: %s", exc)
 
-            # ───────────────────── Бонусы за приглашение ─────────────────────
             if is_new and referrer_user:
                 sponsor_1 = referrer_user
                 sponsor_2 = sponsor_1.referrer if sponsor_1 else None
-
+            
+                bonus = Decimal("500")
+            
                 if role == "Master" and hasattr(user, "master_profile"):
-                    user.master_profile.balance += Decimal("500")
-                    user.master_profile.save()
+                    mp = user.master_profile
+                    # приводим текущее значение к Decimal, даже если это float
+                    try:
+                        current = Decimal(str(mp.balance))
+                    except (InvalidOperation, TypeError):
+                        current = Decimal("0")
+                    mp.balance = current + bonus
+                    mp.save(update_fields=["balance"])
                 else:
-                    user.balance += Decimal("500")
-                    user.save()
-
-                    sponsor_1.balance += Decimal("500")
-                    sponsor_1.save()
-
+                    user.balance = (user.balance or Decimal("0")) + bonus
+                    user.save(update_fields=["balance"])
+            
+                    sponsor_1.balance = (sponsor_1.balance or Decimal("0")) + bonus
+                    sponsor_1.save(update_fields=["balance"])
+            
                     if sponsor_2:
-                        sponsor_2.balance += Decimal("250")
-                        sponsor_2.save()
-
+                        sponsor_2.balance = (sponsor_2.balance or Decimal("0")) + Decimal("250")
+                        sponsor_2.save(update_fields=["balance"])
             # ───────────────────── Пересчёт уровня клиента ───────────────────
             if role == "Client":
                 old_level = user.client_level
@@ -2312,7 +2318,7 @@ class MasterFreeRequestsView(APIView):
 
         active_cnt = ServiceRequest.objects.filter(
             master=master,
-            status__in=self.ACTIVE_STATUSES
+            status__in=ACTIVE_STATUSES
         ).count()
 
         if active_cnt >= max_allowed:

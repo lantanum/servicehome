@@ -14753,3 +14753,9 @@ TypeError: 'NoneType' object is not iterable
 [2025-04-29 23:54:59,511] INFO serviceapp.business SR 1823: WorkOutcome = Заявка не актуальная
 [2025-04-29 23:54:59,512] INFO serviceapp.business Создал заявку 24663475
 [2025-04-29 23:55:01,759] INFO serviceapp.business Создаю нового клиента для контакта 29364241
+[2025-04-29 23:59:04,556] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=226882363) удалён, удалено объектов: 1
+[2025-04-29 23:59:09,295] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=226882363) удалён, удалено объектов: 1
+[2025-04-30 00:16:06,122] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=844860156) удалён, удалено объектов: 1
+[2025-04-30 00:16:09,453] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=844860156) удалён, удалено объектов: 1
+[2025-04-30 00:16:36,371] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1
+[2025-04-30 00:16:39,694] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1
