@@ -1,11 +1,13 @@
 # users_app/amocrm_client.py
 
 import json
+import re
 import requests
 import logging
 from django.conf import settings
 from serviceapp.utils import get_amocrm_bearer_token
 import time
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -145,72 +147,56 @@ class AmoCRMClient:
             response.raise_for_status()
         return response.json()
 
-    def search_contacts(self, phone=None, telegram_id=None):
+    def search_contacts(
+        self,
+        phone: Optional[str] = None,
+        telegram_id: Optional[str] = None,
+        page: int = 1,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
         """
-        Ищет контакты по номеру телефона и/или telegram_id.
-        Возвращает список найденных контактов.
+        Ищет контакты в AmoCRM v4.
+
+        ▸ phone – ищем по стандартным полям через «query=…»
+        ▸ telegram_id – ищем по кастом-полю Telegram-ID (ID = 744499)
+
+        Возвращает список json-объектов контактов (как даёт AmoCRM в `_embedded.contacts`).
+
+        Пример успешного URL ↓
+        https://mydomain.amocrm.ru/api/v4/contacts
+            ?page=1
+            &limit=50
+            &query=79533550222
+            &filter[custom_fields_values][744499]=123456789
         """
-        if not phone and not telegram_id:
-            raise ValueError("Необходимо указать хотя бы номер телефона или telegram_id для поиска.")
+        if phone is None and telegram_id is None:
+            raise ValueError("Нужно передать хотя бы phone или telegram_id")
 
         url = f"{self.base_url}/contacts"
-        headers = self._get_headers()
+        params: Dict[str, Any] = {"page": page, "limit": limit}
 
-        # Формируем условия фильтрации
-        conditions = []
-
+        # ───── телефон ────────────────────────────────────────────────
         if phone:
-            conditions.append({
-                "field": {"code": "PHONE"},  # Стандартное поле "PHONE"
-                "operator": "EQUALS",
-                "value": phone
-            })
+            # Очищаем всё, кроме цифр, чтобы «+7 (953)…» → «7953…»
+            digits_only = re.sub(r"\D+", "", phone)
+            params["query"] = digits_only
 
+        # ───── Telegram-ID ────────────────────────────────────────────
         if telegram_id:
-            conditions.append({
-                "field": {"id": settings.AMOCRM_CUSTOM_FIELD_TELEGRAM_ID},  # Кастомное поле Telegram
-                "operator": "EQUALS",
-                "value": telegram_id
-            })
+            # AmoCRM не возражает против строки; int() → str() на всякий случай
+            params["filter[custom_fields_values][744499]"] = str(int(telegram_id))
 
-        # Определяем логику фильтрации
-        if len(conditions) > 1:
-            filter_obj = {
-                "logic": "or",
-                "conditions": conditions
-            }
-        else:
-            filter_obj = conditions  # Передаём массив условий напрямую
+        # ───── запрос ────────────────────────────────────────────────
+        response = requests.get(
+            url,
+            headers=self._get_headers(),     # <-- ваш метод авторизации
+            params=params,
+            timeout=15,
+        )
+        response.raise_for_status()          # бросит HTTPError, если не 2xx
 
-        # Серилизуем фильтр в JSON-строку
-        params = {
-            "page": 1,
-            "limit": 50,
-            "filter": json.dumps(filter_obj)
-        }
+        return response.json().get("_embedded", {}).get("contacts", [])
 
-        # Логируем параметры запроса для отладки
-        logger.debug(f"Searching contacts with params: {params}")
-
-        response = requests.get(url, headers=headers, params=params)
-
-        if response.status_code == 200:
-            try:
-                contacts = response.json()['_embedded']['contacts']
-                logger.info(f"Найдено {len(contacts)} контактов в AmoCRM по заданным критериям.")
-                return contacts
-            except (KeyError, IndexError) as e:
-                logger.error(f"Неожиданный формат ответа от AmoCRM при поиске контактов: {e}, текст ответа: {response.text}")
-                return []
-        else:
-            # Логируем подробную информацию об ошибке
-            logger.error(
-                "Не удалось выполнить поиск контактов в AmoCRM. "
-                "Статус: %s, Ответ: %s, "
-                "Параметры запроса: %s", 
-                response.status_code, response.text, params
-            )
-            response.raise_for_status()
 
     
 

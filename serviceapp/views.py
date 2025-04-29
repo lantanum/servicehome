@@ -1327,7 +1327,7 @@ class AmoCRMWebhookView(APIView):
         Первые четыре аргумента обязательны, остальные передаются при наличии данных.
         """
         logger.info("Creating new ServiceRequest for lead_id=%s, user_id=%s", lead_id, user.id)
-    
+
         sr = ServiceRequest.objects.create(
             client=user,
             amo_crm_lead_id=lead_id,
