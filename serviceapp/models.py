@@ -183,15 +183,17 @@ class Transaction(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
-        Строковое представление транзакции.
-        Обе связи master/client могут быть NULL, поэтому проверяем их по-отдельности.
+        Возвращает человекочитаемую строку вида
+        «TX#15 | Deposit | 500.00 → Клиент: 42»
+        или «… → Мастер: 7», или «… → Без связки».
+        Используем *_id-поля, чтобы не обращаться к None.id.
         """
-        if self.client.id:
-            linked_to = f"Клиент: {self.client.id}"
-        elif self.master.id:
-            linked_to = f"Мастер: {self.master.id}"
+        if self.client_id:
+            linked_to = f"Клиент: {self.client_id}"
+        elif self.master_id:
+            linked_to = f"Мастер: {self.master_id}"
         else:
             linked_to = "Без связки"
 

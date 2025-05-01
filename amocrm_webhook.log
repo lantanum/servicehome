@@ -14759,3 +14759,7 @@ TypeError: 'NoneType' object is not iterable
 [2025-04-30 00:16:09,453] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=844860156) удалён, удалено объектов: 1
 [2025-04-30 00:16:36,371] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1
 [2025-04-30 00:16:39,694] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1
+[2025-05-01 22:15:45,660] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 22:15:47,285] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/favicon.ico', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 22:15:50,034] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 22:15:55,310] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
