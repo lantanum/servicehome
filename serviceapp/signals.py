@@ -104,7 +104,8 @@ def recalc_master_balance(master):
     sign = {
         'Deposit': Decimal(1),
         'Comission': Decimal(-1),
-        'Penalty': Decimal(-1)
+        'Penalty': Decimal(-1),
+        'Bonus': Decimal(1),
     }
     total = Decimal('0.00')
     for tx in master.transactions.filter(status='Confirmed'):

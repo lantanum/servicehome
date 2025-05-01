@@ -135,7 +135,7 @@ def create_bonus_tx(target, amount: Decimal, reason: str = "Referral bonus") -> 
 
     tx_data = dict(
         amount=amount,
-        transaction_type="Deposit",   # можно заменить на 'Bonus', если есть такой тип
+        transaction_type="Bonus",   # можно заменить на 'Bonus', если есть такой тип
         status="Confirmed",
         reason=reason,
     )
