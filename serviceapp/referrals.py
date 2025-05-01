@@ -1,44 +1,46 @@
 from decimal import Decimal
+
 from serviceapp.models import User
 from serviceapp.utils import create_bonus_tx
 
 
-def _recipient(u):
-    """
-    Возвращает объект-получатель для bonus_tx:
-      • master_profile — если u.role == 'Master'
-      • сам User       — если клиент
-    """
+BONUS_L1 = Decimal("500")   # то, что получает реферер 1-й линии
+BONUS_L2 = Decimal("250")   # «дедушке», если есть
+
+def _recipient(u: User):
+    """Баланс-получатель: Master → master_profile, Client → сам user."""
     return u.master_profile if u.role == "Master" else u
 
 
-def apply_registration_referral_bonus(new_user: User) -> None:
+def apply_first_deposit_bonus(invited_user: User) -> None:
     """
-    • самому новичку             — 500  
-    • спонсору (1-я линия)       — 500  
-    • «дедушке»  (2-я линия)     — 250  
-    Суммы при желании меняйте.
+    ✓ Вызывается ТОЛЬКО при подтверждении *первого* депозита invited_user.
+    ✓ Начисляет бонус(ы) тем, кто пригласил этого пользователя – по его роли:
+
+        invited_user.role == 'Master'
+            – бонусы кладём master_profile.referrer(-ам)
+        invited_user.role == 'Client'
+            – бонусы кладём referrer.balance
     """
-    bonus_self, bonus_lvl1, bonus_lvl2 = map(Decimal, ("500", "500", "250"))
+    sponsor_1 = invited_user.referrer
+    if not sponsor_1:           # никто не приглашал – ничего не делаем
+        return
 
-    sponsor_1 = new_user.referrer
-    sponsor_2 = sponsor_1.referrer if sponsor_1 else None
+    sponsor_2 = sponsor_1.referrer
 
-    # новичок
-    create_bonus_tx(_recipient(new_user), bonus_self, "Приветственный бонус")
+    # -- первая линия -------------------------------------------------
+    recipient_1 = (
+        sponsor_1.master_profile          # мастер приглашал мастера → на счёт профиля
+        if sponsor_1.role == "Master"
+        else sponsor_1                    # клиент приглашал клиента → на счёт User
+    )
+    create_bonus_tx(recipient_1, BONUS_L1, "Бонус 1-й линии за первое пополнение реферала")
 
-    # первая линия
-    if sponsor_1:
-        create_bonus_tx(
-            _recipient(sponsor_1),
-            bonus_lvl1,
-            "Бонус 1-й линии за приглашённого пользователя"
-        )
-
-    # вторая линия
+    # -- вторая линия --------------------------------------------------
     if sponsor_2:
-        create_bonus_tx(
-            _recipient(sponsor_2),
-            bonus_lvl2,
-            "Бонус 2-й линии за приглашённого пользователя"
+        recipient_2 = (
+            sponsor_2.master_profile
+            if sponsor_2.role == "Master"
+            else sponsor_2
         )
+        create_bonus_tx(recipient_2, BONUS_L2, "Бонус 2-й линии за первое пополнение реферала")

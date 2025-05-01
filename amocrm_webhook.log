@@ -16772,3 +16772,292 @@ TypeError: 'NoneType' object is not iterable
 [2025-05-01 23:04:08,153] INFO serviceapp.business Создаю нового клиента для контакта 29468581
 [2025-05-01 23:04:10,928] INFO serviceapp.business SR 2146: привязал мастера id=289 (phone=+7952946473, tg_id=7414098161)
 [2025-05-01 23:04:11,663] INFO serviceapp.business SR 2146: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:04:12,642] INFO serviceapp.business SR 2146: WorkOutcome = Клиент довольный/Оставит отзыв
+[2025-05-01 23:04:12,642] INFO serviceapp.business Создал заявку 24781593
+[2025-05-01 23:04:14,926] INFO serviceapp.business Создаю нового клиента для контакта 29464503
+[2025-05-01 23:04:17,696] INFO serviceapp.business SR 2147: привязал мастера id=338 (phone=+79024105282, tg_id=1658216509)
+[2025-05-01 23:04:18,539] INFO serviceapp.business SR 2147: кастом-поля обновлены ['description', 'city_name', 'address', 'equipment_model', 'equipment_brand', 'service_name', 'equipment_type']
+[2025-05-01 23:04:18,540] INFO serviceapp.business Создал заявку 24776977
+[2025-05-01 23:04:20,878] INFO serviceapp.business Контакт 29451441 найден по телефону — обновляю
+[2025-05-01 23:04:23,159] INFO serviceapp.business SR 2148: кастом-поля обновлены ['city_name', 'address', 'service_name', 'description', 'equipment_model', 'equipment_type', 'equipment_brand']
+[2025-05-01 23:04:23,653] INFO serviceapp.business SR 2148: WorkOutcome = Клиент довольный/Оставит отзыв
+[2025-05-01 23:04:23,653] INFO serviceapp.business Создал заявку 24783743
+[2025-05-01 23:04:25,922] INFO serviceapp.business Создаю нового клиента для контакта 29482849
+[2025-05-01 23:04:27,914] INFO serviceapp.business SR 2149: кастом-поля обновлены ['city_name', 'address', 'equipment_brand', 'equipment_model', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:04:28,487] INFO serviceapp.business SR 2149: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:04:28,487] INFO serviceapp.business Создал заявку 24798701
+[2025-05-01 23:04:30,991] INFO serviceapp.business Создаю нового клиента для контакта 29483125
+[2025-05-01 23:04:33,709] INFO serviceapp.business SR 2150: привязал мастера id=378 (phone=89532451205, tg_id=1989082262)
+[2025-05-01 23:04:34,465] INFO serviceapp.business SR 2150: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'description', 'city_name', 'address', 'service_name', 'equipment_type']
+[2025-05-01 23:04:35,457] INFO serviceapp.business SR 2150: WorkOutcome = Не дозвон / Не договорились о встречи / Не вышел на связь / Не доехали до клиента
+[2025-05-01 23:04:35,458] INFO serviceapp.business Создал заявку 24799019
+[2025-05-01 23:04:37,648] INFO serviceapp.business Создаю нового клиента для контакта 29463151
+[2025-05-01 23:04:39,646] INFO serviceapp.business SR 2151: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:04:40,136] INFO serviceapp.business SR 2151: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:04:40,136] INFO serviceapp.business Создал заявку 24775293
+[2025-05-01 23:04:42,440] INFO serviceapp.business Создаю нового клиента для контакта 29463645
+[2025-05-01 23:04:44,473] INFO serviceapp.business SR 2152: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:04:44,962] INFO serviceapp.business SR 2152: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:04:44,962] INFO serviceapp.business Создал заявку 24775849
+[2025-05-01 23:04:47,111] INFO serviceapp.business Создаю нового клиента для контакта 29461939
+[2025-05-01 23:04:49,857] INFO serviceapp.business SR 2153: привязал мастера id=534 (phone=89271158400, tg_id=5913205255)
+[2025-05-01 23:04:50,654] INFO serviceapp.business SR 2153: кастом-поля обновлены ['service_name', 'equipment_type', 'city_name', 'address', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:04:51,643] INFO serviceapp.business SR 2153: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:04:51,643] INFO serviceapp.business Создал заявку 24773829
+[2025-05-01 23:04:53,770] INFO serviceapp.business Создаю нового клиента для контакта 29457353
+[2025-05-01 23:04:56,521] INFO serviceapp.business SR 2154: привязал мастера id=59 (phone=+79043120186, tg_id=659471689)
+[2025-05-01 23:04:56,797] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=844860156) удалён, удалено объектов: 1
+[2025-05-01 23:04:57,263] INFO serviceapp.business SR 2154: кастом-поля обновлены ['service_name', 'equipment_type', 'city_name', 'address', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:04:58,267] INFO serviceapp.business SR 2154: WorkOutcome = Клиент довольный/Оставит отзыв
+[2025-05-01 23:04:58,268] INFO serviceapp.business Создал заявку 24768717
+[2025-05-01 23:05:00,544] INFO serviceapp.business Создаю нового клиента для контакта 29472419
+[2025-05-01 23:05:00,801] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=844860156) удалён, удалено объектов: 1
+[2025-05-01 23:05:02,867] INFO serviceapp.business SR 2155: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:05:03,387] INFO serviceapp.business SR 2155: WorkOutcome = Не дозвон / Не договорились о встречи / Не вышел на связь / Не доехали до клиента
+[2025-05-01 23:05:03,387] INFO serviceapp.business Создал заявку 24802071
+[2025-05-01 23:05:05,650] INFO serviceapp.business Создаю нового клиента для контакта 29488307
+[2025-05-01 23:05:08,378] INFO serviceapp.business SR 2156: привязал мастера id=554 (phone=9961780065, tg_id=5632596162)
+[2025-05-01 23:05:09,134] INFO serviceapp.business SR 2156: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:05:10,146] INFO serviceapp.business SR 2156: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:10,147] INFO serviceapp.business Создал заявку 24804349
+[2025-05-01 23:05:12,430] INFO serviceapp.business Создаю нового клиента для контакта 29490933
+[2025-05-01 23:05:14,229] INFO serviceapp.business Создал заявку 24807283
+[2025-05-01 23:05:16,609] INFO serviceapp.business Создаю нового клиента для контакта 29491229
+[2025-05-01 23:05:18,328] INFO serviceapp.business Создал заявку 24807591
+[2025-05-01 23:05:19,326] INFO serviceapp.business Лид 24806497 пропущен: нет связанного контакта
+[2025-05-01 23:05:19,327] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24806497 пропущен: нет связанного контакта
+[2025-05-01 23:05:23,632] INFO serviceapp.business Создаю нового клиента для контакта 29457927
+[2025-05-01 23:05:25,655] INFO serviceapp.business SR 2159: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:26,209] INFO serviceapp.business SR 2159: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:26,209] INFO serviceapp.business Создал заявку 24769257
+[2025-05-01 23:05:28,405] INFO serviceapp.business Создаю нового клиента для контакта 29457771
+[2025-05-01 23:05:30,483] INFO serviceapp.business SR 2160: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:30,992] INFO serviceapp.business SR 2160: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:30,992] INFO serviceapp.business Создал заявку 24769097
+[2025-05-01 23:05:32,053] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 23:05:33,151] INFO serviceapp.business Создаю нового клиента для контакта 29454477
+[2025-05-01 23:05:35,118] INFO serviceapp.business SR 2161: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:35,334] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 23:05:35,606] INFO serviceapp.business SR 2161: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:35,606] INFO serviceapp.business Создал заявку 24765531
+[2025-05-01 23:05:37,850] INFO serviceapp.business Создаю нового клиента для контакта 29458635
+[2025-05-01 23:05:39,385] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/421/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 23:05:39,814] INFO serviceapp.business SR 2162: кастом-поля обновлены ['city_name', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'address', 'description']
+[2025-05-01 23:05:40,353] INFO serviceapp.business SR 2162: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:40,354] INFO serviceapp.business Создал заявку 24769043
+[2025-05-01 23:05:41,428] INFO serviceapp.business Лид 24768705 пропущен: нет связанного контакта
+[2025-05-01 23:05:41,429] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24768705 пропущен: нет связанного контакта
+[2025-05-01 23:05:43,385] INFO serviceapp.business Создаю нового клиента для контакта 29455891
+[2025-05-01 23:05:45,378] INFO serviceapp.business SR 2163: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:45,869] INFO serviceapp.business SR 2163: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:45,869] INFO serviceapp.business Создал заявку 24767183
+[2025-05-01 23:05:48,011] INFO serviceapp.business Создаю нового клиента для контакта 29455635
+[2025-05-01 23:05:50,037] INFO serviceapp.business SR 2164: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:50,525] INFO serviceapp.business SR 2164: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:50,525] INFO serviceapp.business Создал заявку 24766901
+[2025-05-01 23:05:52,851] INFO serviceapp.business Создаю нового клиента для контакта 29455309
+[2025-05-01 23:05:54,810] INFO serviceapp.business SR 2165: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:05:55,301] INFO serviceapp.business SR 2165: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:05:55,301] INFO serviceapp.business Создал заявку 24766491
+[2025-05-01 23:05:57,605] INFO serviceapp.business Создаю нового клиента для контакта 29473667
+[2025-05-01 23:05:59,577] INFO serviceapp.business SR 2166: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:06:00,085] INFO serviceapp.business SR 2166: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:00,085] INFO serviceapp.business Создал заявку 24787453
+[2025-05-01 23:06:02,339] INFO serviceapp.business Создаю нового клиента для контакта 29473077
+[2025-05-01 23:06:04,321] INFO serviceapp.business SR 2167: кастом-поля обновлены ['description', 'city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model']
+[2025-05-01 23:06:04,834] INFO serviceapp.business SR 2167: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:04,835] INFO serviceapp.business Создал заявку 24786713
+[2025-05-01 23:06:07,137] INFO serviceapp.business Создаю нового клиента для контакта 29472725
+[2025-05-01 23:06:09,109] INFO serviceapp.business SR 2168: кастом-поля обновлены ['city_name', 'address', 'equipment_brand', 'equipment_model', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:06:09,598] INFO serviceapp.business SR 2168: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:09,598] INFO serviceapp.business Создал заявку 24786355
+[2025-05-01 23:06:11,833] INFO serviceapp.business Создаю нового клиента для контакта 29472605
+[2025-05-01 23:06:13,840] INFO serviceapp.business SR 2169: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:06:14,341] INFO serviceapp.business SR 2169: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:14,341] INFO serviceapp.business Создал заявку 24786229
+[2025-05-01 23:06:16,531] INFO serviceapp.business Создаю нового клиента для контакта 29472415
+[2025-05-01 23:06:18,483] INFO serviceapp.business SR 2170: кастом-поля обновлены ['city_name', 'address', 'equipment_brand', 'equipment_model', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:06:18,979] INFO serviceapp.business SR 2170: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:18,980] INFO serviceapp.business Создал заявку 24786025
+[2025-05-01 23:06:21,080] INFO serviceapp.business Создаю нового клиента для контакта 29472331
+[2025-05-01 23:06:23,093] INFO serviceapp.business SR 2171: кастом-поля обновлены ['city_name', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'address', 'description']
+[2025-05-01 23:06:23,582] INFO serviceapp.business SR 2171: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:23,582] INFO serviceapp.business Создал заявку 24785919
+[2025-05-01 23:06:25,900] INFO serviceapp.business Создаю нового клиента для контакта 29472195
+[2025-05-01 23:06:27,886] INFO serviceapp.business SR 2172: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:06:28,376] INFO serviceapp.business SR 2172: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:28,376] INFO serviceapp.business Создал заявку 24785777
+[2025-05-01 23:06:30,653] INFO serviceapp.business Создаю нового клиента для контакта 29472025
+[2025-05-01 23:06:32,660] INFO serviceapp.business SR 2173: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:06:33,157] INFO serviceapp.business SR 2173: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:33,157] INFO serviceapp.business Создал заявку 24785509
+[2025-05-01 23:06:35,390] INFO serviceapp.business Создаю нового клиента для контакта 29471939
+[2025-05-01 23:06:37,376] INFO serviceapp.business SR 2174: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:06:38,012] INFO serviceapp.business SR 2174: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:38,012] INFO serviceapp.business Создал заявку 24785425
+[2025-05-01 23:06:40,266] INFO serviceapp.business Создаю нового клиента для контакта 29471913
+[2025-05-01 23:06:42,259] INFO serviceapp.business SR 2175: кастом-поля обновлены ['city_name', 'address', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type', 'description']
+[2025-05-01 23:06:42,749] INFO serviceapp.business SR 2175: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:42,749] INFO serviceapp.business Создал заявку 24785395
+[2025-05-01 23:06:44,890] INFO serviceapp.business Создаю нового клиента для контакта 29492379
+[2025-05-01 23:06:46,637] INFO serviceapp.business Создал заявку 24808873
+[2025-05-01 23:06:48,976] INFO serviceapp.business Создаю нового клиента для контакта 29471027
+[2025-05-01 23:06:50,967] INFO serviceapp.business SR 2177: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:06:51,460] INFO serviceapp.business SR 2177: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:51,461] INFO serviceapp.business Создал заявку 24784365
+[2025-05-01 23:06:53,653] INFO serviceapp.business Создаю нового клиента для контакта 29470529
+[2025-05-01 23:06:55,711] INFO serviceapp.business SR 2178: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:06:56,203] INFO serviceapp.business SR 2178: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:06:56,203] INFO serviceapp.business Создал заявку 24783831
+[2025-05-01 23:06:58,366] INFO serviceapp.business Создаю нового клиента для контакта 29470501
+[2025-05-01 23:07:00,849] INFO serviceapp.business SR 2179: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'service_name', 'equipment_type', 'description']
+[2025-05-01 23:07:01,350] INFO serviceapp.business SR 2179: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:01,351] INFO serviceapp.business Создал заявку 24783803
+[2025-05-01 23:07:02,542] INFO serviceapp.business Лид 24783731 пропущен: нет связанного контакта
+[2025-05-01 23:07:02,543] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24783731 пропущен: нет связанного контакта
+[2025-05-01 23:07:04,836] INFO serviceapp.business Создаю нового клиента для контакта 29470255
+[2025-05-01 23:07:06,801] INFO serviceapp.business SR 2180: кастом-поля обновлены ['equipment_model', 'city_name', 'address', 'equipment_brand', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:07:07,298] INFO serviceapp.business SR 2180: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:07,298] INFO serviceapp.business Создал заявку 24783535
+[2025-05-01 23:07:10,345] INFO serviceapp.business Создаю нового клиента для контакта 29470143
+[2025-05-01 23:07:12,354] INFO serviceapp.business SR 2181: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:07:12,870] INFO serviceapp.business SR 2181: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:12,870] INFO serviceapp.business Создал заявку 24783407
+[2025-05-01 23:07:15,031] INFO serviceapp.business Создаю нового клиента для контакта 29469983
+[2025-05-01 23:07:17,023] INFO serviceapp.business SR 2182: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:07:17,573] INFO serviceapp.business SR 2182: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:17,573] INFO serviceapp.business Создал заявку 24783215
+[2025-05-01 23:07:20,427] INFO serviceapp.business Создаю нового клиента для контакта 29469531
+[2025-05-01 23:07:22,615] INFO serviceapp.business SR 2183: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:07:23,129] INFO serviceapp.business SR 2183: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:23,129] INFO serviceapp.business Создал заявку 24782681
+[2025-05-01 23:07:26,447] INFO serviceapp.business Создаю нового клиента для контакта 29469391
+[2025-05-01 23:07:28,416] INFO serviceapp.business SR 2184: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:07:28,909] INFO serviceapp.business SR 2184: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:28,909] INFO serviceapp.business Создал заявку 24782511
+[2025-05-01 23:07:31,137] INFO serviceapp.business Создаю нового клиента для контакта 29469317
+[2025-05-01 23:07:33,137] INFO serviceapp.business SR 2185: кастом-поля обновлены ['equipment_brand', 'city_name', 'address', 'description', 'service_name', 'equipment_type', 'equipment_model']
+[2025-05-01 23:07:33,632] INFO serviceapp.business SR 2185: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:33,633] INFO serviceapp.business Создал заявку 24782409
+[2025-05-01 23:07:34,978] INFO serviceapp.business Лид 24782077 пропущен: нет связанного контакта
+[2025-05-01 23:07:34,978] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24782077 пропущен: нет связанного контакта
+[2025-05-01 23:07:37,060] INFO serviceapp.business Создаю нового клиента для контакта 29468681
+[2025-05-01 23:07:39,093] INFO serviceapp.business SR 2186: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'equipment_type', 'service_name']
+[2025-05-01 23:07:39,585] INFO serviceapp.business SR 2186: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:39,586] INFO serviceapp.business Создал заявку 24781699
+[2025-05-01 23:07:41,851] INFO serviceapp.business Создаю нового клиента для контакта 29458745
+[2025-05-01 23:07:43,900] INFO serviceapp.business SR 2187: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:07:44,394] INFO serviceapp.business SR 2187: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:44,394] INFO serviceapp.business Создал заявку 24770273
+[2025-05-01 23:07:46,688] INFO serviceapp.business Создаю нового клиента для контакта 29467655
+[2025-05-01 23:07:48,661] INFO serviceapp.business SR 2188: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:07:49,166] INFO serviceapp.business SR 2188: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:49,167] INFO serviceapp.business Создал заявку 24780479
+[2025-05-01 23:07:51,451] INFO serviceapp.business Создаю нового клиента для контакта 29467473
+[2025-05-01 23:07:53,517] INFO serviceapp.business SR 2189: кастом-поля обновлены ['city_name', 'service_name', 'equipment_type', 'address', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:07:54,014] INFO serviceapp.business SR 2189: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:54,014] INFO serviceapp.business Создал заявку 24780271
+[2025-05-01 23:07:56,193] INFO serviceapp.business Создаю нового клиента для контакта 29467271
+[2025-05-01 23:07:58,175] INFO serviceapp.business SR 2190: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:07:58,678] INFO serviceapp.business SR 2190: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:07:58,679] INFO serviceapp.business Создал заявку 24780043
+[2025-05-01 23:08:00,848] INFO serviceapp.business Создаю нового клиента для контакта 29466527
+[2025-05-01 23:08:02,997] INFO serviceapp.business SR 2191: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:08:03,490] INFO serviceapp.business SR 2191: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:03,490] INFO serviceapp.business Создал заявку 24779199
+[2025-05-01 23:08:04,755] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/421/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-01 23:08:05,749] INFO serviceapp.business Создаю нового клиента для контакта 29466481
+[2025-05-01 23:08:07,765] INFO serviceapp.business SR 2192: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_model', 'equipment_brand', 'service_name', 'equipment_type']
+[2025-05-01 23:08:08,257] INFO serviceapp.business SR 2192: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:08,257] INFO serviceapp.business Создал заявку 24779141
+[2025-05-01 23:08:12,072] INFO serviceapp.business Создаю нового клиента для контакта 29466319
+[2025-05-01 23:08:14,079] INFO serviceapp.business SR 2193: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:08:14,571] INFO serviceapp.business SR 2193: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:14,571] INFO serviceapp.business Создал заявку 24778975
+[2025-05-01 23:08:16,698] INFO serviceapp.business Создаю нового клиента для контакта 29465737
+[2025-05-01 23:08:18,667] INFO serviceapp.business SR 2194: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:08:19,212] INFO serviceapp.business SR 2194: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:19,213] INFO serviceapp.business Создал заявку 24778335
+[2025-05-01 23:08:21,464] INFO serviceapp.business Создаю нового клиента для контакта 29465441
+[2025-05-01 23:08:23,487] INFO serviceapp.business SR 2195: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:08:23,990] INFO serviceapp.business SR 2195: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:23,990] INFO serviceapp.business Создал заявку 24778011
+[2025-05-01 23:08:26,258] INFO serviceapp.business Создаю нового клиента для контакта 29464919
+[2025-05-01 23:08:28,311] INFO serviceapp.business SR 2196: кастом-поля обновлены ['description', 'equipment_brand', 'equipment_model', 'city_name', 'address', 'service_name', 'equipment_type']
+[2025-05-01 23:08:28,806] INFO serviceapp.business SR 2196: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:28,806] INFO serviceapp.business Создал заявку 24777475
+[2025-05-01 23:08:30,951] INFO serviceapp.business Создаю нового клиента для контакта 29464341
+[2025-05-01 23:08:33,021] INFO serviceapp.business SR 2197: кастом-поля обновлены ['description', 'city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model']
+[2025-05-01 23:08:33,511] INFO serviceapp.business SR 2197: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:33,512] INFO serviceapp.business Создал заявку 24776781
+[2025-05-01 23:08:35,787] INFO serviceapp.business Создаю нового клиента для контакта 29491859
+[2025-05-01 23:08:37,693] INFO serviceapp.business Создал заявку 24808345
+[2025-05-01 23:08:40,082] INFO serviceapp.business Создаю нового клиента для контакта 29492435
+[2025-05-01 23:08:42,214] INFO serviceapp.business SR 2199: кастом-поля обновлены ['city_name']
+[2025-05-01 23:08:42,214] INFO serviceapp.business Создал заявку 24808941
+[2025-05-01 23:08:44,672] INFO serviceapp.business Создаю нового клиента для контакта 29462853
+[2025-05-01 23:08:46,711] INFO serviceapp.business SR 2200: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:08:47,202] INFO serviceapp.business SR 2200: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:47,202] INFO serviceapp.business Создал заявку 24774919
+[2025-05-01 23:08:49,269] INFO serviceapp.business Создаю нового клиента для контакта 29461919
+[2025-05-01 23:08:51,242] INFO serviceapp.business SR 2201: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:08:51,738] INFO serviceapp.business SR 2201: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:51,738] INFO serviceapp.business Создал заявку 24773799
+[2025-05-01 23:08:54,619] INFO serviceapp.business Создаю нового клиента для контакта 29461251
+[2025-05-01 23:08:56,601] INFO serviceapp.business SR 2202: кастом-поля обновлены ['equipment_brand', 'city_name', 'equipment_type', 'service_name', 'address', 'equipment_model', 'description']
+[2025-05-01 23:08:57,094] INFO serviceapp.business SR 2202: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:08:57,094] INFO serviceapp.business Создал заявку 24773019
+[2025-05-01 23:08:59,279] INFO serviceapp.business Создаю нового клиента для контакта 29460175
+[2025-05-01 23:09:01,244] INFO serviceapp.business SR 2203: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:09:01,735] INFO serviceapp.business SR 2203: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:01,735] INFO serviceapp.business Создал заявку 24771825
+[2025-05-01 23:09:05,548] INFO serviceapp.business Создаю нового клиента для контакта 29461169
+[2025-05-01 23:09:07,540] INFO serviceapp.business SR 2204: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:09:08,036] INFO serviceapp.business SR 2204: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:08,036] INFO serviceapp.business Создал заявку 24772933
+[2025-05-01 23:09:10,288] INFO serviceapp.business Создаю нового клиента для контакта 29459999
+[2025-05-01 23:09:12,266] INFO serviceapp.business SR 2205: кастом-поля обновлены ['service_name', 'equipment_type', 'city_name', 'address', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:09:12,825] INFO serviceapp.business SR 2205: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:12,825] INFO serviceapp.business Создал заявку 24771653
+[2025-05-01 23:09:15,094] INFO serviceapp.business Создаю нового клиента для контакта 29458951
+[2025-05-01 23:09:17,153] INFO serviceapp.business SR 2206: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_model', 'equipment_brand', 'description']
+[2025-05-01 23:09:17,648] INFO serviceapp.business SR 2206: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:17,648] INFO serviceapp.business Создал заявку 24770489
+[2025-05-01 23:09:19,865] INFO serviceapp.business Создаю нового клиента для контакта 29492463
+[2025-05-01 23:09:21,729] INFO serviceapp.business Создал заявку 24808969
+[2025-05-01 23:09:24,096] INFO serviceapp.business Создаю нового клиента для контакта 29475523
+[2025-05-01 23:09:26,184] INFO serviceapp.business SR 2208: кастом-поля обновлены ['city_name', 'address', 'description', 'equipment_brand', 'equipment_model', 'service_name', 'equipment_type']
+[2025-05-01 23:09:26,676] INFO serviceapp.business SR 2208: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:26,676] INFO serviceapp.business Создал заявку 24789537
+[2025-05-01 23:09:28,844] INFO serviceapp.business Создаю нового клиента для контакта 29475417
+[2025-05-01 23:09:30,828] INFO serviceapp.business SR 2209: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:09:31,334] INFO serviceapp.business SR 2209: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:31,334] INFO serviceapp.business Создал заявку 24789417
+[2025-05-01 23:09:32,350] INFO serviceapp.business Лид 24789081 пропущен: нет связанного контакта
+[2025-05-01 23:09:32,350] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24789081 пропущен: нет связанного контакта
+[2025-05-01 23:09:34,214] INFO serviceapp.business Создаю нового клиента для контакта 29468261
+[2025-05-01 23:09:36,186] INFO serviceapp.business SR 2210: кастом-поля обновлены ['city_name', 'address', 'description', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model']
+[2025-05-01 23:09:36,740] INFO serviceapp.business SR 2210: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:36,741] INFO serviceapp.business Создал заявку 24781219
+[2025-05-01 23:09:39,049] INFO serviceapp.business Создаю нового клиента для контакта 29474801
+[2025-05-01 23:09:41,468] INFO serviceapp.business SR 2211: кастом-поля обновлены ['city_name', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'address', 'description']
+[2025-05-01 23:09:41,979] INFO serviceapp.business SR 2211: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:41,980] INFO serviceapp.business Создал заявку 24788721
+[2025-05-01 23:09:44,282] INFO serviceapp.business Создаю нового клиента для контакта 29474705
+[2025-05-01 23:09:46,336] INFO serviceapp.business SR 2212: кастом-поля обновлены ['city_name', 'address', 'service_name', 'equipment_type', 'equipment_brand', 'equipment_model', 'description']
+[2025-05-01 23:09:46,832] INFO serviceapp.business SR 2212: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:46,832] INFO serviceapp.business Создал заявку 24788605
+[2025-05-01 23:09:49,293] INFO serviceapp.business Создаю нового клиента для контакта 29474637
+[2025-05-01 23:09:51,258] INFO serviceapp.business SR 2213: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:09:51,749] INFO serviceapp.business SR 2213: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:51,750] INFO serviceapp.business Создал заявку 24788527
+[2025-05-01 23:09:54,191] INFO serviceapp.business Создаю нового клиента для контакта 29474397
+[2025-05-01 23:09:56,167] INFO serviceapp.business SR 2214: кастом-поля обновлены ['equipment_brand', 'city_name', 'address', 'equipment_model', 'description', 'service_name', 'equipment_type']
+[2025-05-01 23:09:56,660] INFO serviceapp.business SR 2214: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:09:56,661] INFO serviceapp.business Создал заявку 24788271
+[2025-05-01 23:09:57,722] INFO serviceapp.business Лид 24788235 пропущен: нет связанного контакта
+[2025-05-01 23:09:57,722] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24788235 пропущен: нет связанного контакта
+[2025-05-01 23:09:59,714] INFO serviceapp.business Создаю нового клиента для контакта 29468527
+[2025-05-01 23:10:01,743] INFO serviceapp.business SR 2215: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'equipment_type', 'service_name']
+[2025-05-01 23:10:02,261] INFO serviceapp.business SR 2215: WorkOutcome = Заявка не актуальная
+[2025-05-01 23:10:02,262] INFO serviceapp.business Создал заявку 24781517
