@@ -22,7 +22,7 @@ from rest_framework.decorators import permission_classes
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from serviceapp.amocrm_client import AmoCRMClient
-from serviceapp.deposits import apply_first_deposit_bonus
+from serviceapp.deposits import apply_first_deposit_bonus, apply_registration_bonus
 from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.referrals import apply_registration_referral_bonus
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
@@ -283,7 +283,7 @@ class UserRegistrationView(APIView):
                     logger.error("Не удалось создать контакт в AmoCRM: %s", exc)
 
             if is_new and referrer_user:
-                apply_registration_referral_bonus(user)
+                apply_registration_bonus(user)
             # ───────────────────── Пересчёт уровня клиента ───────────────────
             if role == "Client":
                 old_level = user.client_level
@@ -2942,62 +2942,47 @@ class BalanceDepositConfirmView(APIView):
     def post(self, request):
         tx_id = request.data.get("transaction_id")
         if not tx_id:
-            return Response(
-                {"detail": "Поле 'transaction_id' обязательно."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": "Поле 'transaction_id' обязательно."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
             tx_id = int(tx_id)
         except (TypeError, ValueError):
-            return Response(
-                {"detail": "transaction_id должно быть целым числом."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": "transaction_id должно быть целым числом."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            try:
-                tx = (
-                    Transaction.objects.select_for_update()
-                    .select_related("master__user")
-                    .get(id=tx_id)
-                )
-            except Transaction.DoesNotExist:
-                return Response(
-                    {"detail": "Транзакция не найдена."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
+            tx = (
+                Transaction.objects
+                .select_for_update()
+                .select_related("master__user")
+                .filter(id=tx_id, transaction_type="Deposit")
+                .first()
+            )
+            if not tx:
+                return Response({"detail": "Транзакция не найдена или не Deposit."},
+                                status=status.HTTP_404_NOT_FOUND)
             if tx.status == "Confirmed":
-                return Response(
-                    {"detail": "Транзакция уже подтверждена."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if tx.transaction_type != "Deposit":
-                return Response(
-                    {"detail": "Транзакция не является пополнением (Deposit)."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if not tx.master:
-                return Response(
-                    {"detail": "У транзакции не указан мастер."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+                return Response({"detail": "Транзакция уже подтверждена."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
+            # ───── подтверждаем ─────
             tx.status = "Confirmed"
-            tx.save()  
+            tx.save(update_fields=["status"])
 
-            master = tx.master
-            user = master.user
+            master = tx.master          # не None по условию
+            user   = master.user
 
+            # первое ли это пополнение?
             first_deposit = not Transaction.objects.filter(
                 master=master,
                 transaction_type="Deposit",
-                status="Confirmed",
+                status="Confirmed"
             ).exclude(id=tx.id).exists()
-
+            
             if first_deposit:
                 apply_first_deposit_bonus(user)
+            
 
             master.refresh_from_db(fields=["balance"])
 

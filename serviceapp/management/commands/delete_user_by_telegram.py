@@ -74,7 +74,7 @@ class Command(BaseCommand):
 
             try:
                 with transaction.atomic():
-                    self._detach_foreign_keys(user)
+                    self._remove_related_objects(user)
                     deleted, _ = user.delete()      # каскадное удаление
                     deleted_total += deleted
                     logger.info("User %s (tg=%s) удалён, удалено объектов: %s", user.id, tg_id, deleted)
@@ -103,36 +103,36 @@ class Command(BaseCommand):
             f"Transactions={user.transactions.count()}"
         )
 
-    def _detach_foreign_keys(self, user: User) -> None:
-        """
-        Отвязывает все внешние ключи, чтобы сигналы не пытались
-        обратиться к уже удалённому Master.
-        """
-        # ────────────────── заявки, где пользователь клиент ──────────────────
-        ServiceRequest.objects.filter(client=user).update(client=None)
 
-        # ────────────────────── если есть профиль мастера ────────────────────
+    def _remove_related_objects(self, user: User) -> None:
+        """
+        Полностью удаляет все объекты, завязанные на user
+        (ServiceRequest, Master-profile, ReferralLink, Transaction и т.д.).
+
+        Делается в правильном порядке, чтобы не словить ProtectedError.
+        """
+        # ➊ Сначала удаляем заявки, где user – клиент или мастер
+        ServiceRequest.objects.filter(client=user).delete()
+
         if user.role == "Master":
-            master_profile: Master | None
             try:
-                master_profile = user.master_profile
+                master_profile: Master = user.master_profile
             except Master.DoesNotExist:
                 master_profile = None
 
             if master_profile:
-                # ➊ «Обнуляем» FK в заявках
-                ServiceRequest.objects.filter(master=master_profile).update(master=None)
+                # Заявки, где этот мастер был исполнителем
+                ServiceRequest.objects.filter(master=master_profile).delete()
 
-                # ➋ Сначала удаляем/обнуляем транзакции,
-                #    чтобы post_delete-сигнал не читал master
-                Transaction.objects.filter(master=master_profile).update(master=None)
+                # Транзакции мастера (после удаления заявок FK service_request уже NULL)
+                Transaction.objects.filter(master=master_profile).delete()
 
-                # ➌ Теперь можно удалить сам профиль
+                # Сам профиль мастера
                 master_profile.delete()
 
-        # ─────────────── ReferralLink и другие связанные сущности ─────────────
+        # ➋ Referral-связи
         ReferralLink.objects.filter(referrer_user=user).delete()
         ReferralLink.objects.filter(referred_user=user).delete()
 
-        # Транзакции (если on_delete=CASCADE, эта строка не обязательна)
-        Transaction.objects.filter(master__user=user).delete()
+        # ➌ Транзакции клиента (если роль = Client)
+        Transaction.objects.filter(client=user).delete()
