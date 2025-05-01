@@ -2887,13 +2887,56 @@ class BalanceDepositView(APIView):
             status=status.HTTP_200_OK
         )
 
+# views.py
+from decimal import Decimal               # остаётся, если ещё используется
+from django.db import transaction
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+
+from serviceapp.models import Transaction
+from serviceapp.deposits import apply_first_deposit_bonus     # <-- одна-единственная функция с бонусами
+
+
 class BalanceDepositConfirmView(APIView):
     """
-    POST {transaction_id}
-      → переводит Transaction в 'Confirmed'
-      → если это первый депозит данного человека — бонусы его реферам
+    POST  {transaction_id}
+      • переводит указанную Transaction-Deposit из Pending → Confirmed  
+      • **не** трогает баланс вручную – это делают триггеры/сигналы  
+      • если это ПЕРВЫЙ депозит пользователя (master или client) –  
+        начисляет бонусы его спонсорам (1-я и 2-я линии)
     """
 
+    @swagger_auto_schema(
+        operation_description=(
+            "Подтверждает транзакцию пополнения (Deposit). Если это первое "
+            "пополнение пользователя, его пригласителям начисляются бонусы."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "transaction_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    description="ID транзакции на пополнение (статус ‘Pending’)"
+                )
+            },
+            required=["transaction_id"],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Транзакция подтверждена, бонусы начислены (если нужно).",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail":      openapi.Schema(type=openapi.TYPE_STRING),
+                        "telegram_id": openapi.Schema(type=openapi.TYPE_STRING),
+                    },
+                ),
+            ),
+        },
+    )
     def post(self, request):
         tx_id = request.data.get("transaction_id")
         if not tx_id:
@@ -2906,52 +2949,50 @@ class BalanceDepositConfirmView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # ─── 1. Одним SQL-ом пытаемся перевести Pending → Confirmed ───
+            # 1. переводим Pending → Confirmed
             updated = (
                 Transaction.objects
                 .filter(id=tx_id,
                         transaction_type="Deposit",
-                        status="Pending")        # <-- только неподтверждённые
+                        status="Pending")
                 .update(status="Confirmed")
             )
-            if updated == 0:
-                # либо нет такой Deposit, либо уже Confirmed
-                exists = Transaction.objects.filter(id=tx_id).exists()
-                if not exists:
-                    return Response({"detail": "Транзакция не найдена."},
-                                    status=status.HTTP_404_NOT_FOUND)
-                return Response({"detail": "Транзакция уже подтверждена или не Deposit."},
-                                status=status.HTTP_400_BAD_REQUEST)
+            ...
+            tx = Transaction.objects.select_related("master__user", "client").get(id=tx_id)
 
-            # ─── 2. Забираем объект (уже Confirmed), но без блокировок ───
-            tx = Transaction.objects.select_related("master",
-                                                    "client",
-                                                    "master__user").get(id=tx_id)
-
-            # ─── 3. Проверяем, первое ли это пополнение для человека ───
-            if tx.master_id:
-                invited_user = tx.master.user
-                already = Transaction.objects.filter(
+            # кто внёс депозит?
+            if tx.master_id:                      # мастер
+                depositor_user = tx.master.user
+                first = not Transaction.objects.filter(
                     master=tx.master,
                     transaction_type="Deposit",
                     status="Confirmed"
                 ).exclude(id=tx.id).exists()
-            else:  # client deposit
-                invited_user = tx.client
-                already = Transaction.objects.filter(
+            else:                                 # клиент
+                depositor_user = tx.client
+                first = not Transaction.objects.filter(
                     client=tx.client,
                     transaction_type="Deposit",
                     status="Confirmed"
                 ).exclude(id=tx.id).exists()
 
-            if not already:
-                apply_first_deposit_bonus(invited_user)
+            if first:
+                apply_first_deposit_bonus(depositor_user)
 
-        # Баланс меняют триггеры → мы его не трогаем
+            # ───── получаем ОБНОВЛЁННЫЙ баланс ─────
+            if tx.master_id:
+                tx.master.refresh_from_db(fields=["balance"])
+                new_balance = str(tx.master.balance)
+            else:
+                tx.client.refresh_from_db(fields=["balance"])
+                new_balance = str(tx.client.balance)
+
         return Response(
             {
                 "detail": "Транзакция подтверждена."
-                          + ("" if already else " Бонусы рефералам начислены.")
+                          + ("" if not first else " Бонусы спонсорам начислены."),
+                "telegram_id": depositor_user.telegram_id,
+                "new_balance": new_balance,          # ← теперь есть
             },
             status=status.HTTP_200_OK,
         )
