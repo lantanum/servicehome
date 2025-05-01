@@ -17061,3 +17061,33 @@ TypeError: 'NoneType' object is not iterable
 [2025-05-01 23:10:01,743] INFO serviceapp.business SR 2215: кастом-поля обновлены ['equipment_brand', 'equipment_model', 'city_name', 'address', 'description', 'equipment_type', 'service_name']
 [2025-05-01 23:10:02,261] INFO serviceapp.business SR 2215: WorkOutcome = Заявка не актуальная
 [2025-05-01 23:10:02,262] INFO serviceapp.business Создал заявку 24781517
+[2025-05-02 00:00:33,062] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:00:43,645] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:00:55,210] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:00:58,470] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:01:21,851] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'POST', 'origin': 'http://127.0.0.1:8000', 'ip': '127.0.0.1'}
+[2025-05-02 00:01:25,854] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'POST', 'origin': 'http://127.0.0.1:8000', 'ip': '127.0.0.1'}
+[2025-05-02 00:01:33,972] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:01:37,030] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:01:56,450] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/422/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:41,292] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/422/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:44,554] INFO serviceapp.middlewares ДОСТУП РАЗРЕШЁН: {'path': '/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:48,415] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:53,199] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:56,262] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:02:59,682] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/422/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:04:18,110] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/add/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:05:03,916] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/add/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:11,138] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:14,199] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:25,775] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'POST', 'origin': 'http://127.0.0.1:8000', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:29,824] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'POST', 'origin': 'http://127.0.0.1:8000', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:35,612] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:06:38,623] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:07:01,572] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:07:04,729] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:07:08,244] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/add/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:07:50,729] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/421/change/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:08:11,102] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:08:14,198] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/jsi18n/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}
+[2025-05-02 00:08:32,024] INFO serviceapp.middlewares Админ-доступ разрешён: {'path': '/admin/serviceapp/transaction/add/', 'method': 'GET', 'origin': 'Не указан', 'ip': '127.0.0.1'}

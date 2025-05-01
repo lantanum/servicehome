@@ -2949,7 +2949,10 @@ class BalanceDepositConfirmView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # 1. переводим Pending → Confirmed
+            # ───────────────────────────────────────────────────────────────
+            # 1. Одним UPDATE-ом пытаемся перевести Pending → Confirmed
+            #    (без join'ов ⇒ нет ошибки «FOR UPDATE … outer join»)
+            # ───────────────────────────────────────────────────────────────
             updated = (
                 Transaction.objects
                 .filter(id=tx_id,
@@ -2957,7 +2960,14 @@ class BalanceDepositConfirmView(APIView):
                         status="Pending")
                 .update(status="Confirmed")
             )
-            ...
+            if updated == 0:
+                # Либо уже Confirmed, либо вовсе не Deposit/Pending
+                if Transaction.objects.filter(id=tx_id).exists():
+                    return Response({"detail": "Транзакция уже подтверждена или не Deposit."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "Транзакция не найдена."},
+                                status=status.HTTP_404_NOT_FOUND)
+            
             tx = Transaction.objects.select_related("master__user", "client").get(id=tx_id)
 
             # кто внёс депозит?
