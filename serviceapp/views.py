@@ -2889,9 +2889,9 @@ class BalanceDepositView(APIView):
 
 class BalanceDepositConfirmView(APIView):
     """
-    POST { "transaction_id": 123 }
-    ─► ставит Transaction. status = «Confirmed»
-    ─► если это первый депозит пользователя — начисляет бонусы его рефералам
+    POST {transaction_id}
+      → переводит Transaction в 'Confirmed'
+      → если это первый депозит данного человека — бонусы его реферам
     """
 
     def post(self, request):
@@ -2906,37 +2906,37 @@ class BalanceDepositConfirmView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # ─── 1. Берём транзакцию «под лок» ───
-            try:
-                tx = Transaction.objects.select_for_update().get(id=tx_id)
-            except Transaction.DoesNotExist:
-                return Response({"detail": "Транзакция не найдена."},
-                                status=status.HTTP_404_NOT_FOUND)
-
-            # ─── 2. Валидация ───
-            if tx.status == "Confirmed":
-                return Response({"detail": "Транзакция уже подтверждена."},
+            # ─── 1. Одним SQL-ом пытаемся перевести Pending → Confirmed ───
+            updated = (
+                Transaction.objects
+                .filter(id=tx_id,
+                        transaction_type="Deposit",
+                        status="Pending")        # <-- только неподтверждённые
+                .update(status="Confirmed")
+            )
+            if updated == 0:
+                # либо нет такой Deposit, либо уже Confirmed
+                exists = Transaction.objects.filter(id=tx_id).exists()
+                if not exists:
+                    return Response({"detail": "Транзакция не найдена."},
+                                    status=status.HTTP_404_NOT_FOUND)
+                return Response({"detail": "Транзакция уже подтверждена или не Deposit."},
                                 status=status.HTTP_400_BAD_REQUEST)
-            if tx.transaction_type != "Deposit":
-                return Response({"detail": "Транзакция не является Deposit."},
-                                status=status.HTTP_400_BAD_REQUEST)
-            if not (tx.master_id or tx.client_id):
-                return Response({"detail": "В транзакции нет ни мастера, ни клиента."},
-                                status=status.HTTP_400_BAD_REQUEST)
 
-            # ─── 3. Подтверждаем ───
-            tx.status = "Confirmed"
-            tx.save(update_fields=["status"])
+            # ─── 2. Забираем объект (уже Confirmed), но без блокировок ───
+            tx = Transaction.objects.select_related("master",
+                                                    "client",
+                                                    "master__user").get(id=tx_id)
 
-            # ─── 4. Первое ли это пополнение? ───
-            if tx.master_id:          # депозит мастера
+            # ─── 3. Проверяем, первое ли это пополнение для человека ───
+            if tx.master_id:
                 invited_user = tx.master.user
                 already = Transaction.objects.filter(
                     master=tx.master,
                     transaction_type="Deposit",
                     status="Confirmed"
                 ).exclude(id=tx.id).exists()
-            else:                     # депозит клиента
+            else:  # client deposit
                 invited_user = tx.client
                 already = Transaction.objects.filter(
                     client=tx.client,
@@ -2947,13 +2947,11 @@ class BalanceDepositConfirmView(APIView):
             if not already:
                 apply_first_deposit_bonus(invited_user)
 
-        # баланс пересчитает триггер → тут не читаем/не пишем
+        # Баланс меняют триггеры → мы его не трогаем
         return Response(
             {
-                "detail": (
-                    "Транзакция подтверждена."
-                    + ("" if already else " Бонусы рефералам начислены.")
-                )
+                "detail": "Транзакция подтверждена."
+                          + ("" if already else " Бонусы рефералам начислены.")
             },
             status=status.HTTP_200_OK,
         )
