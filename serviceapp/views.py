@@ -22,8 +22,9 @@ from rest_framework.decorators import permission_classes
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from serviceapp.amocrm_client import AmoCRMClient
-
+from serviceapp.deposits import apply_first_deposit_bonus
 from serviceapp.amocrm_client import AmoCRMClient
+from serviceapp.referrals import apply_registration_referral_bonus
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
 from .serializers import (
     AmoCRMWebhookSerializer,
@@ -282,30 +283,7 @@ class UserRegistrationView(APIView):
                     logger.error("Не удалось создать контакт в AmoCRM: %s", exc)
 
             if is_new and referrer_user:
-                sponsor_1 = referrer_user
-                sponsor_2 = sponsor_1.referrer if sponsor_1 else None
-            
-                bonus = Decimal("500")
-            
-                if role == "Master" and hasattr(user, "master_profile"):
-                    mp = user.master_profile
-                    # приводим текущее значение к Decimal, даже если это float
-                    try:
-                        current = Decimal(str(mp.balance))
-                    except (InvalidOperation, TypeError):
-                        current = Decimal("0")
-                    mp.balance = current + bonus
-                    mp.save(update_fields=["balance"])
-                else:
-                    user.balance = (user.balance or Decimal("0")) + bonus
-                    user.save(update_fields=["balance"])
-            
-                    sponsor_1.balance = (sponsor_1.balance or Decimal("0")) + bonus
-                    sponsor_1.save(update_fields=["balance"])
-            
-                    if sponsor_2:
-                        sponsor_2.balance = (sponsor_2.balance or Decimal("0")) + Decimal("250")
-                        sponsor_2.save(update_fields=["balance"])
+                apply_registration_referral_bonus(user)
             # ───────────────────── Пересчёт уровня клиента ───────────────────
             if role == "Client":
                 old_level = user.client_level
@@ -2962,73 +2940,78 @@ class BalanceDepositConfirmView(APIView):
         }
     )
     def post(self, request):
-        data = request.data
-        tx_id = data.get('transaction_id')
-
+        tx_id = request.data.get("transaction_id")
         if not tx_id:
-            return Response({"detail": "Поле 'transaction_id' обязательно."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Поле 'transaction_id' обязательно."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             tx_id = int(tx_id)
-        except ValueError:
-            return Response({"detail": "transaction_id должно быть целым числом."}, status=status.HTTP_400_BAD_REQUEST)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "transaction_id должно быть целым числом."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             try:
-                tx = Transaction.objects.select_for_update().get(id=tx_id)
+                tx = (
+                    Transaction.objects.select_for_update()
+                    .select_related("master__user")
+                    .get(id=tx_id)
+                )
             except Transaction.DoesNotExist:
-                return Response({"detail": "Транзакция не найдена."}, status=status.HTTP_404_NOT_FOUND)
-        
-            if tx.status == 'Confirmed':
-                return Response({"detail": "Транзакция уже подтверждена."}, status=status.HTTP_400_BAD_REQUEST)
-        
-            if tx.transaction_type != 'Deposit':
-                return Response({"detail": "Транзакция не является пополнением (Deposit)."}, status=status.HTTP_400_BAD_REQUEST)
-        
-            # Подтверждаем транзакцию
-            tx.status = 'Confirmed'
-            tx.save()
-        
-            # Получаем мастера из транзакции
+                return Response(
+                    {"detail": "Транзакция не найдена."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if tx.status == "Confirmed":
+                return Response(
+                    {"detail": "Транзакция уже подтверждена."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if tx.transaction_type != "Deposit":
+                return Response(
+                    {"detail": "Транзакция не является пополнением (Deposit)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not tx.master:
+                return Response(
+                    {"detail": "У транзакции не указан мастер."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            tx.status = "Confirmed"
+            tx.save()  
+
             master = tx.master
-            if not master:
-                return Response({"detail": "Мастер не найден."}, status=status.HTTP_404_NOT_FOUND)
-        
-            # Получаем пользователя из мастера
             user = master.user
-            if not user:
-                return Response({"detail": "Пользователь не найден."}, status=status.HTTP_404_NOT_FOUND)
-        
-            # Обновляем баланс мастера (например, увеличиваем баланс на сумму транзакции)
-            master.balance += tx.amount
-            master.save()
-        
-            # Проверяем, является ли это первое пополнение
+
             first_deposit = not Transaction.objects.filter(
                 master=master,
-                transaction_type='Deposit',
-                status='Confirmed'
+                transaction_type="Deposit",
+                status="Confirmed",
             ).exclude(id=tx.id).exists()
-        
-            # Если это первое пополнение, начисляем бонусы реферальной системы
+
             if first_deposit:
-                ref_1 = user.referrer  # первая линия рефералов
-                if ref_1 and ref_1.role == 'Master':
-                    ref_1.master_profile.balance += Decimal(500)
-                    ref_1.master_profile.save()
-        
-                    # Проверяем вторую линию
-                    ref_2 = ref_1.referrer
-                    if ref_2 and ref_2.role == 'Master':
-                        ref_2.master_profile.balance += Decimal(250)
-                        ref_2.master_profile.save()
-        
-            return Response({
-                "detail": "Транзакция подтверждена, баланс мастера обновлён. " +
-                          ("Бонусы начислены." if first_deposit else "Бонусы НЕ начислены (не первое пополнение)."),
-                "new_balance": str(master.balance),
-                "telegram_id": user.telegram_id
-            }, status=status.HTTP_200_OK)
+                apply_first_deposit_bonus(user)
+
+            master.refresh_from_db(fields=["balance"])
+
+            return Response(
+                {
+                    "detail": (
+                        "Транзакция подтверждена. "
+                        + ("Бонусы начислены." if first_deposit else "Бонусы не начислены (не первое пополнение).")
+                    ),
+                    "new_balance": str(master.balance),
+                    "telegram_id": user.telegram_id,
+                },
+                status=status.HTTP_200_OK,
+            )
 
 
 class DeactivateUserView(APIView):

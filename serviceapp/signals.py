@@ -5,9 +5,10 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from rest_framework.renderers import JSONRenderer
 
+from serviceapp.utils import create_bonus_tx
 from serviceapp.views import recalc_master_rating
 
-from .models import ServiceRequest, ServiceType, EquipmentType, Transaction
+from .models import ServiceRequest, ServiceType, EquipmentType, Settings, Transaction, User
 from .serializers import ServiceTypeSerializer
 import logging
 
@@ -36,6 +37,36 @@ def send_service_equipment_data():
         logger.error("Ошибка при отправке данных на %s: %s", url, str(e))
 
 
+
+def award_level_bonus(user: User, new_level: int) -> None:
+    """
+    Записывает бонус уровня как Confirmed-транзакцию.
+    """
+    if user.role != "Client":
+        return
+
+    settings = Settings.objects.first()
+    if not settings:
+        return
+
+    base_bonus = {
+        1: settings.bonus_level1,
+        2: settings.bonus_level2,
+        3: settings.bonus_level3,
+        4: settings.bonus_level4,
+    }.get(new_level, Decimal("0"))
+
+    invites_cnt = user.referrer_links.count()
+    total_bonus = base_bonus + (settings.bonus_per_invite * invites_cnt)
+
+    create_bonus_tx(
+        user,
+        total_bonus,
+        f"Бонус за достижение уровня {new_level} (+{invites_cnt} приглаш.)"
+    )
+
+    user.client_level = new_level
+    user.save(update_fields=["client_level"])
 
 
 @receiver(post_save, sender=ServiceType)

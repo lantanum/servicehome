@@ -184,8 +184,18 @@ class Transaction(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        linked_to = f"Клиент: {self.client.id}" if self.client else f"Мастер: {self.master.id}"
-        return f"{self.transaction_type} {self.amount} ({self.status}) for {linked_to}"
+        """
+        Строковое представление транзакции.
+        Обе связи master/client могут быть NULL, поэтому проверяем их по-отдельности.
+        """
+        if self.client.id:
+            linked_to = f"Клиент: {self.client.id}"
+        elif self.master.id:
+            linked_to = f"Мастер: {self.master.id}"
+        else:
+            linked_to = "Без связки"
+
+        return f"TX#{self.pk} | {self.transaction_type} | {self.amount} → {linked_to}"
 
 
 

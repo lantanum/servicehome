@@ -110,7 +110,7 @@ def decimal_to_str_no_trailing_zeros(value: Decimal | None) -> str:
 
 
 
-from serviceapp.models import Settings
+from serviceapp.models import Master, Settings, Transaction, User
 
 def get_amocrm_bearer_token():
     """
@@ -119,3 +119,30 @@ def get_amocrm_bearer_token():
     """
     settings = Settings.objects.first()
     return settings.amocrm_bearer_token if settings else ''
+
+
+def create_bonus_tx(target, amount: Decimal, reason: str = "Referral bonus") -> None:
+    """
+    Создаёт Confirmed-Deposit транзакцию (бонус) и этим же
+    триггерит пересчёт баланса через signals.py.
+
+    :param target: экземпляр User (клиент) *или* Master.
+    :param amount: Decimal – сумма бонуса (>0).
+    :param reason: текст-пояснение (поле `reason` у транзакции).
+    """
+    if amount <= 0:
+        return
+
+    tx_data = dict(
+        amount=amount,
+        transaction_type="Deposit",   # можно заменить на 'Bonus', если есть такой тип
+        status="Confirmed",
+        reason=reason,
+    )
+
+    if isinstance(target, Master):
+        Transaction.objects.create(master=target, **tx_data)
+    elif isinstance(target, User):
+        Transaction.objects.create(client=target, **tx_data)
+    else:
+        raise TypeError("target должен быть User либо Master")
