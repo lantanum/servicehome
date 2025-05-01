@@ -278,12 +278,12 @@ class UserRegistrationView(APIView):
                     created = amo.create_contact(contact_payload)
                     user.amo_crm_contact_id = created["id"]
                     user.save(update_fields=["amo_crm_contact_id"])
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:  
                     logger.error("Не удалось создать контакт в AmoCRM: %s", exc)
 
             if is_new and referrer_user:
                 apply_registration_bonus(user)
-            # ───────────────────── Пересчёт уровня клиента ───────────────────
+
             if role == "Client":
                 old_level = user.client_level
                 new_level = get_client_level(user)
@@ -291,6 +291,8 @@ class UserRegistrationView(APIView):
                     award_level_bonus(user, new_level)
 
         return Response({"detail": "Registration successful"}, status=status.HTTP_201_CREATED)
+
+
 
 class ServiceRequestCreateView(APIView):
     """
@@ -526,6 +528,7 @@ class MasterActiveRequestsView(APIView):
             }
 
         return Response(result, status=status.HTTP_200_OK)
+
 
 
 class AssignRequestView(APIView):
@@ -1547,7 +1550,6 @@ def send_request_to_sambot(service_request, masters_telegram_ids, round_num):
     except Exception as ex:
         logger.error(f"[ServiceRequest {service_request.id}] Ошибка при отправке данных в Sambot: {ex}")
 
-
 ACTIVE_STATUSES = (
     'In Progress',
     'AwaitingClosure',
@@ -1556,15 +1558,12 @@ ACTIVE_STATUSES = (
 
 def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     """
-    Возвращает список telegram‑ID мастеров, подходящих для рассылки
-    на основании:
-      • географии и типа оборудования заявки
-      • номера круга рассылки (1 / 2 / 3)
-      • положительного баланса мастера
-      • лимита активных заявок для уровня мастера
+    Возвращает список telegram-ID мастеров, подходящих для рассылки.
+    Новые мастера (0 успешных Completed-заявок) автоматически
+    попадают в 1-й круг, минуя остальные ограничения.
     """
     service_request = ServiceRequest.objects.get(id=service_request_id)
-    city_name = (service_request.city_name or '').lower()
+    city_name      = (service_request.city_name or '').lower()
     equipment_type = (service_request.equipment_type or '').lower()
 
     masters_qs = Master.objects.select_related('user').filter(user__is_active=True)
@@ -1583,30 +1582,44 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
         3: settings_obj.max_requests_level3 if settings_obj else default_limits[3],
     }
 
-    selected_ids   = []
-    last_24_hours  = now() - timedelta(hours=24)
+    selected_ids  = []
+    last_24_hours = now() - timedelta(hours=24)
 
     for master in masters_qs:
+        # ───── 0. баланс и лимит активных заявок ───────────────────
         if master.balance < 0:
             continue
-
         active_cnt = ServiceRequest.objects.filter(
             master=master,
             status__in=ACTIVE_STATUSES
         ).count()
-        max_allowed = limits.get(master.level, limits[3])
-        if active_cnt >= max_allowed:
+        if active_cnt >= limits.get(master.level, limits[3]):
             continue
 
+        # ───── 1. география + тип оборудования ─────────────────────
         if city_name not in (master.city_name or '').lower():
             continue
         if equipment_type not in (master.equipment_type_name or '').lower():
             continue
 
+        # ───── 2. «Новый» мастер? (0 успешных заявок) ──────────────
+        has_success = ServiceRequest.objects.filter(
+            master=master,
+            status='Completed'
+        ).exists()
+
+        if not has_success:
+            # новый → сразу в 1-й круг
+            if round_num == 1:
+                selected_ids.append(master.user.telegram_id)
+            continue        # пропускаем прочие проверки / круги
+
+        # ───── 3. обычные проверки по success / cost / депозиту ───
         success_ratio, cost_ratio, last_deposit = get_master_statistics(master)
 
         if round_num == 1:
             if (success_ratio >= round1_success_ratio and
+                
                 cost_ratio   <= round1_cost_ratio_max and
                 last_deposit >= last_24_hours):
                 selected_ids.append(master.user.telegram_id)
@@ -1622,30 +1635,44 @@ def find_suitable_masters(service_request_id: int, round_num: int) -> list[str]:
     return selected_ids
 
 
-
 def get_master_statistics(master):
     """
     Возвращает статистику мастера:
-    - success_ratio: доля успешных заявок
-    - cost_ratio: доля затрат от всех заказов
-    - last_deposit: время последнего пополнения
+      • success_ratio – доля УСПЕШНЫХ заявок  
+      • cost_ratio    – доля ЗАТРАТ от всех заказов  
+      • last_deposit  – время последнего подтверждённого депозита
     """
-    total_orders = master.master_requests.count()
-    successful_orders = master.master_requests.filter(deal_success="Успешная сделка (Выполнено)").count()
-    total_cost = sum(request.spare_parts_spent or 0 for request in master.master_requests.all())
-    total_earnings = sum(request.price or 0 for request in master.master_requests.all())
+    qs = master.master_requests.all()
 
-    success_ratio = successful_orders / total_orders if total_orders > 0 else 0
-    cost_ratio = total_cost / total_earnings if total_earnings > 0 else 0
+    total_orders = qs.count()
 
-    last_transaction = Transaction.objects.filter(
-        master=master, transaction_type="Deposit", status="Confirmed"
-    ).order_by("-created_at").first()
+    # ――― 1. успешные заявки ―――
+    successful_orders = qs.filter(work_outcome__is_success=True).count()
 
-    last_deposit = last_transaction.created_at if last_transaction else now() - timedelta(days=365)
+    # fallback на старый признак, если вдруг ещё нужен
+    if successful_orders == 0:
+        successful_orders = qs.filter(
+            deal_success="Успешная сделка (Выполнено)"
+        ).count()
+
+    # 100 % успеха, если у мастера пока нет заявок вообще
+    success_ratio = 1.0 if total_orders == 0 else successful_orders / total_orders
+
+    # ――― 2. доля затрат ―――
+    total_cost = qs.aggregate(s=Sum('spare_parts_spent'))['s'] or Decimal('0')
+    total_earnings = qs.aggregate(s=Sum('price'))['s'] or Decimal('0')
+    cost_ratio = (total_cost / total_earnings) if total_earnings > 0 else Decimal('0')
+
+    # ――― 3. последний депозит ―――
+    last_tx = (Transaction.objects
+               .filter(master=master,
+                       transaction_type="Deposit",
+                       status="Confirmed")
+               .order_by('-created_at')
+               .first())
+    last_deposit = last_tx.created_at if last_tx else now() - timedelta(days=365)
 
     return success_ratio, cost_ratio, last_deposit
-
 
 def generate_free_status_data(service_request):
     """
@@ -2971,14 +2998,14 @@ class BalanceDepositConfirmView(APIView):
             tx = Transaction.objects.select_related("master__user", "client").get(id=tx_id)
 
             # кто внёс депозит?
-            if tx.master_id:                      # мастер
+            if tx.master_id:                    
                 depositor_user = tx.master.user
                 first = not Transaction.objects.filter(
                     master=tx.master,
                     transaction_type="Deposit",
                     status="Confirmed"
                 ).exclude(id=tx.id).exists()
-            else:                                 # клиент
+            else:  
                 depositor_user = tx.client
                 first = not Transaction.objects.filter(
                     client=tx.client,
