@@ -2890,12 +2890,9 @@ class BalanceDepositView(APIView):
 
 class BalanceDepositConfirmView(APIView):
     """
-    Подтверждает депозит (transaction_id).
-    – переводит транзакцию в 'Confirmed';
-    – увеличивает баланс мастера ИЛИ клиента (в завимости от того, к кому
-      привязан депозит);
-    – если это *первое* пополнение этого пользователя → начисляет бонус его
-      реферерам (см. apply_first_deposit_bonus).
+    POST { "transaction_id": 123 }
+    ─► ставит Transaction. status = «Confirmed»
+    ─► если это первый депозит пользователя — начисляет бонусы его рефералам
     """
 
     def post(self, request):
@@ -2910,71 +2907,57 @@ class BalanceDepositConfirmView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # NB: без outer-join, поэтому отдельные select_related()
-            tx = (
-                Transaction.objects
-                .select_for_update()
-                .select_related("master", "master__user", "client")
-                .filter(id=tx_id, transaction_type="Deposit")
-                .first()
-            )
-            if not tx:
-                return Response({"detail": "Транзакция не найдена или не Deposit."},
+            # ─── 1. Берём транзакцию «под лок» ───
+            try:
+                tx = Transaction.objects.select_for_update().get(id=tx_id)
+            except Transaction.DoesNotExist:
+                return Response({"detail": "Транзакция не найдена."},
                                 status=status.HTTP_404_NOT_FOUND)
+
+            # ─── 2. Валидация ───
             if tx.status == "Confirmed":
                 return Response({"detail": "Транзакция уже подтверждена."},
                                 status=status.HTTP_400_BAD_REQUEST)
+            if tx.transaction_type != "Deposit":
+                return Response({"detail": "Транзакция не является Deposit."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if not (tx.master_id or tx.client_id):
+                return Response({"detail": "В транзакции нет ни мастера, ни клиента."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-            # ───────────── подтверждаем транзакцию ─────────────
+            # ─── 3. Подтверждаем ───
             tx.status = "Confirmed"
             tx.save(update_fields=["status"])
 
-            # ───────────── обновляем баланс получателя ─────────
-            if tx.master_id:                                    # депозит мастера
-                recipient = tx.master
-                recipient.balance += tx.amount
-                recipient.save(update_fields=["balance"])
-                recalc_master_balance(recipient)                # чтобы не пропустить штрафы/комиссии
-                invited_user = recipient.user                   # для бонусов
-
-                first_deposit = not Transaction.objects.filter(
-                    master=recipient,
+            # ─── 4. Первое ли это пополнение? ───
+            if tx.master_id:          # депозит мастера
+                invited_user = tx.master.user
+                already = Transaction.objects.filter(
+                    master=tx.master,
+                    transaction_type="Deposit",
+                    status="Confirmed"
+                ).exclude(id=tx.id).exists()
+            else:                     # депозит клиента
+                invited_user = tx.client
+                already = Transaction.objects.filter(
+                    client=tx.client,
                     transaction_type="Deposit",
                     status="Confirmed"
                 ).exclude(id=tx.id).exists()
 
-            elif tx.client_id:                                  # депозит клиента
-                recipient = tx.client
-                recipient.balance += tx.amount
-                recipient.save(update_fields=["balance"])
-                recalc_client_balance(recipient)                # на всякий
-                invited_user = recipient
-
-                first_deposit = not Transaction.objects.filter(
-                    client=recipient,
-                    transaction_type="Deposit",
-                    status="Confirmed"
-                ).exclude(id=tx.id).exists()
-            else:
-                # теоретически не должно происходить
-                return Response({"detail": "У транзакции нет связи с мастером или клиентом."},
-                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            # ───────────── бонусы реферальной системы ──────────
-            if first_deposit:
+            if not already:
                 apply_first_deposit_bonus(invited_user)
 
-            return Response(
-                {
-                    "detail": (
-                        "Транзакция подтверждена. "
-                        + ("Бонусы начислены." if first_deposit else "Бонусы не начислены (не первое пополнение).")
-                    ),
-                    "new_balance": str(recipient.balance),
-                    "telegram_id": invited_user.telegram_id,
-                },
-                status=status.HTTP_200_OK,
-            )
+        # баланс пересчитает триггер → тут не читаем/не пишем
+        return Response(
+            {
+                "detail": (
+                    "Транзакция подтверждена."
+                    + ("" if already else " Бонусы рефералам начислены.")
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class DeactivateUserView(APIView):
