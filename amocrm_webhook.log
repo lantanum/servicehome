@@ -23747,3 +23747,301 @@ server closed the connection unexpectedly
 [2025-05-06 18:26:32,660] INFO serviceapp.business Создал заявку 25055399
 [2025-05-06 18:26:35,013] INFO serviceapp.business Создаю нового клиента для контакта 29664713
 [2025-05-06 18:26:36,727] INFO serviceapp.business Создал заявку 25055461
+[2025-05-06 18:34:45,251] INFO serviceapp.business Лид 24458655 пропущен: нет связанного контакта
+[2025-05-06 18:34:45,252] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24458655 пропущен: нет связанного контакта
+[2025-05-06 18:34:46,150] INFO serviceapp.business Лид 24461045 пропущен: нет связанного контакта
+[2025-05-06 18:34:46,150] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24461045 пропущен: нет связанного контакта
+[2025-05-06 18:34:47,074] INFO serviceapp.business Лид 24460871 пропущен: нет связанного контакта
+[2025-05-06 18:34:47,075] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24460871 пропущен: нет связанного контакта
+[2025-05-06 18:34:47,906] INFO serviceapp.business Лид 24463455 пропущен: нет связанного контакта
+[2025-05-06 18:34:47,906] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24463455 пропущен: нет связанного контакта
+[2025-05-06 18:34:48,902] INFO serviceapp.business Лид 24463503 пропущен: нет связанного контакта
+[2025-05-06 18:34:48,903] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24463503 пропущен: нет связанного контакта
+[2025-05-06 18:34:49,933] INFO serviceapp.business Лид 24463727 пропущен: нет связанного контакта
+[2025-05-06 18:34:49,934] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24463727 пропущен: нет связанного контакта
+[2025-05-06 18:34:50,845] INFO serviceapp.business Лид 24463991 пропущен: нет связанного контакта
+[2025-05-06 18:34:50,845] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24463991 пропущен: нет связанного контакта
+[2025-05-06 18:34:51,662] INFO serviceapp.business Лид 24464613 пропущен: нет связанного контакта
+[2025-05-06 18:34:51,663] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24464613 пропущен: нет связанного контакта
+[2025-05-06 18:34:52,571] INFO serviceapp.business Лид 24463631 пропущен: нет связанного контакта
+[2025-05-06 18:34:52,571] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24463631 пропущен: нет связанного контакта
+[2025-05-06 18:34:53,552] INFO serviceapp.business Лид 24462243 пропущен: нет связанного контакта
+[2025-05-06 18:34:53,552] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24462243 пропущен: нет связанного контакта
+[2025-05-06 18:34:54,370] INFO serviceapp.business Лид 24465243 пропущен: нет связанного контакта
+[2025-05-06 18:34:54,370] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465243 пропущен: нет связанного контакта
+[2025-05-06 18:34:55,327] INFO serviceapp.business Лид 24465239 пропущен: нет связанного контакта
+[2025-05-06 18:34:55,327] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465239 пропущен: нет связанного контакта
+[2025-05-06 18:34:56,308] INFO serviceapp.business Лид 24465333 пропущен: нет связанного контакта
+[2025-05-06 18:34:56,309] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465333 пропущен: нет связанного контакта
+[2025-05-06 18:34:57,247] INFO serviceapp.business Лид 24465471 пропущен: нет связанного контакта
+[2025-05-06 18:34:57,248] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465471 пропущен: нет связанного контакта
+[2025-05-06 18:34:58,074] INFO serviceapp.business Лид 24465859 пропущен: нет связанного контакта
+[2025-05-06 18:34:58,074] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465859 пропущен: нет связанного контакта
+[2025-05-06 18:34:58,969] INFO serviceapp.business Лид 24465837 пропущен: нет связанного контакта
+[2025-05-06 18:34:58,969] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465837 пропущен: нет связанного контакта
+[2025-05-06 18:34:59,859] INFO serviceapp.business Лид 24465825 пропущен: нет связанного контакта
+[2025-05-06 18:34:59,859] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465825 пропущен: нет связанного контакта
+[2025-05-06 18:35:00,757] INFO serviceapp.business Лид 24465953 пропущен: нет связанного контакта
+[2025-05-06 18:35:00,757] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465953 пропущен: нет связанного контакта
+[2025-05-06 18:35:06,780] INFO serviceapp.business Лид 24466057 пропущен: нет связанного контакта
+[2025-05-06 18:35:06,780] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24466057 пропущен: нет связанного контакта
+[2025-05-06 18:35:07,683] INFO serviceapp.business Лид 24466051 пропущен: нет связанного контакта
+[2025-05-06 18:35:07,683] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24466051 пропущен: нет связанного контакта
+[2025-05-06 18:35:10,213] INFO serviceapp.business Контакт 29191871 уже есть — обновляю
+[2025-05-06 18:35:11,427] INFO serviceapp.business Обновил заявку 24461349
+[2025-05-06 18:35:13,609] INFO serviceapp.business Контакт 29191979 уже есть — обновляю
+[2025-05-06 18:35:15,070] INFO serviceapp.business Обновил заявку 24469497
+[2025-05-06 18:35:17,425] INFO serviceapp.business Контакт 29191245 уже есть — обновляю
+[2025-05-06 18:35:18,635] INFO serviceapp.business Обновил заявку 24468691
+[2025-05-06 18:35:20,930] INFO serviceapp.business Контакт 29191941 уже есть — обновляю
+[2025-05-06 18:35:22,140] INFO serviceapp.business Обновил заявку 24461339
+[2025-05-06 18:35:23,211] INFO serviceapp.business Лид 24462513 пропущен: нет связанного контакта
+[2025-05-06 18:35:23,211] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24462513 пропущен: нет связанного контакта
+[2025-05-06 18:35:25,078] INFO serviceapp.business Контакт 29195013 уже есть — обновляю
+[2025-05-06 18:35:26,304] INFO serviceapp.business Обновил заявку 24461777
+[2025-05-06 18:35:28,366] INFO serviceapp.business Контакт 29194961 уже есть — обновляю
+[2025-05-06 18:35:29,599] INFO serviceapp.business Обновил заявку 24463185
+[2025-05-06 18:35:30,840] INFO serviceapp.business Лид 24462641 пропущен: нет связанного контакта
+[2025-05-06 18:35:30,840] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24462641 пропущен: нет связанного контакта
+[2025-05-06 18:35:32,801] INFO serviceapp.business Контакт 29192703 уже есть — обновляю
+[2025-05-06 18:35:35,048] INFO serviceapp.business Обновил заявку 24470513
+[2025-05-06 18:35:37,303] INFO serviceapp.business Контакт 29195113 уже есть — обновляю
+[2025-05-06 18:35:39,523] INFO serviceapp.business Обновил заявку 24473113
+[2025-05-06 18:35:41,940] INFO serviceapp.business Контакт 29191909 уже есть — обновляю
+[2025-05-06 18:35:43,173] INFO serviceapp.business Обновил заявку 24459945
+[2025-05-06 18:35:45,727] INFO serviceapp.business Контакт 29191977 уже есть — обновляю
+[2025-05-06 18:35:46,931] INFO serviceapp.business Обновил заявку 24463423
+[2025-05-06 18:35:49,042] INFO serviceapp.business Контакт 29191905 уже есть — обновляю
+[2025-05-06 18:35:50,256] INFO serviceapp.business Обновил заявку 24465983
+[2025-05-06 18:35:52,347] INFO serviceapp.business Контакт 29196305 уже есть — обновляю
+[2025-05-06 18:35:53,812] INFO serviceapp.business Обновил заявку 24474651
+[2025-05-06 18:35:56,100] INFO serviceapp.business Контакт 29196243 уже есть — обновляю
+[2025-05-06 18:35:58,298] INFO serviceapp.business Обновил заявку 24474565
+[2025-05-06 18:36:04,467] INFO serviceapp.business Контакт 29192815 уже есть — обновляю
+[2025-05-06 18:36:05,674] INFO serviceapp.business Обновил заявку 24470649
+[2025-05-06 18:36:13,015] INFO serviceapp.business Лид 24465077 пропущен: нет связанного контакта
+[2025-05-06 18:36:13,015] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24465077 пропущен: нет связанного контакта
+[2025-05-06 18:36:14,938] INFO serviceapp.business Контакт 29196939 уже есть — обновляю
+[2025-05-06 18:36:16,159] INFO serviceapp.business Обновил заявку 24460401
+[2025-05-06 18:36:18,322] INFO serviceapp.business Контакт 29196947 уже есть — обновляю
+[2025-05-06 18:36:19,530] INFO serviceapp.business Обновил заявку 24463907
+[2025-05-06 18:36:21,605] INFO serviceapp.business Контакт 29191913 уже есть — обновляю
+[2025-05-06 18:36:22,892] INFO serviceapp.business Обновил заявку 24465387
+[2025-05-06 18:36:25,023] INFO serviceapp.business Контакт 29197595 уже есть — обновляю
+[2025-05-06 18:36:27,232] INFO serviceapp.business Обновил заявку 24476107
+[2025-05-06 18:36:29,598] INFO serviceapp.business Контакт 29196959 уже есть — обновляю
+[2025-05-06 18:36:31,049] INFO serviceapp.business Обновил заявку 24475381
+[2025-05-06 18:36:33,365] INFO serviceapp.business Контакт 29193739 уже есть — обновляю
+[2025-05-06 18:36:35,721] INFO serviceapp.business Обновил заявку 24460839
+[2025-05-06 18:36:37,836] INFO serviceapp.business Контакт 29197085 уже есть — обновляю
+[2025-05-06 18:36:39,049] INFO serviceapp.business Обновил заявку 24475531
+[2025-05-06 18:36:41,251] INFO serviceapp.business Контакт 29200245 уже есть — обновляю
+[2025-05-06 18:36:43,432] INFO serviceapp.business Обновил заявку 24479371
+[2025-05-06 18:36:45,558] INFO serviceapp.business Контакт 29199873 уже есть — обновляю
+[2025-05-06 18:36:47,732] INFO serviceapp.business Обновил заявку 24478795
+[2025-05-06 18:36:49,982] INFO serviceapp.business Контакт 29198021 уже есть — обновляю
+[2025-05-06 18:36:51,439] INFO serviceapp.business Обновил заявку 24476695
+[2025-05-06 18:36:53,522] INFO serviceapp.business Контакт 29193597 уже есть — обновляю
+[2025-05-06 18:36:54,730] INFO serviceapp.business Обновил заявку 24471487
+[2025-05-06 18:36:56,957] INFO serviceapp.business Контакт 29194511 уже есть — обновляю
+[2025-05-06 18:36:58,165] INFO serviceapp.business Обновил заявку 24472455
+[2025-05-06 18:37:02,889] INFO serviceapp.business Контакт 29200281 уже есть — обновляю
+[2025-05-06 18:37:04,095] INFO serviceapp.business Обновил заявку 24479417
+[2025-05-06 18:37:06,432] INFO serviceapp.business Контакт 29199255 уже есть — обновляю
+[2025-05-06 18:37:07,885] INFO serviceapp.business Обновил заявку 24478121
+[2025-05-06 18:37:10,111] INFO serviceapp.business Контакт 29202175 уже есть — обновляю
+[2025-05-06 18:37:12,290] INFO serviceapp.business Обновил заявку 24481725
+[2025-05-06 18:37:14,469] INFO serviceapp.business Контакт 29192703 уже есть — обновляю
+[2025-05-06 18:37:16,648] INFO serviceapp.business Обновил заявку 24473349
+[2025-05-06 18:37:19,188] INFO serviceapp.business Контакт 29203561 уже есть — обновляю
+[2025-05-06 18:37:20,640] INFO serviceapp.business Обновил заявку 24483513
+[2025-05-06 18:37:23,006] INFO serviceapp.business Контакт 29192703 уже есть — обновляю
+[2025-05-06 18:37:24,460] INFO serviceapp.business Обновил заявку 24484703
+[2025-05-06 18:37:26,705] INFO serviceapp.business Контакт 29195005 уже есть — обновляю
+[2025-05-06 18:37:27,915] INFO serviceapp.business Обновил заявку 24461723
+[2025-05-06 18:37:29,978] INFO serviceapp.business Контакт 29196221 уже есть — обновляю
+[2025-05-06 18:37:31,189] INFO serviceapp.business Обновил заявку 24474547
+[2025-05-06 18:37:33,249] INFO serviceapp.business Контакт 29191899 уже есть — обновляю
+[2025-05-06 18:37:34,454] INFO serviceapp.business Обновил заявку 24466047
+[2025-05-06 18:37:36,563] INFO serviceapp.business Контакт 29191933 уже есть — обновляю
+[2025-05-06 18:37:37,779] INFO serviceapp.business Обновил заявку 24460719
+[2025-05-06 18:37:39,902] INFO serviceapp.business Контакт 29194177 уже есть — обновляю
+[2025-05-06 18:37:41,117] INFO serviceapp.business Обновил заявку 24472087
+[2025-05-06 18:37:43,301] INFO serviceapp.business Контакт 29200227 уже есть — обновляю
+[2025-05-06 18:37:44,516] INFO serviceapp.business Обновил заявку 24479361
+[2025-05-06 18:37:46,604] INFO serviceapp.business Контакт 29195015 уже есть — обновляю
+[2025-05-06 18:37:47,895] INFO serviceapp.business Обновил заявку 24473005
+[2025-05-06 18:37:50,148] INFO serviceapp.business Контакт 29195571 уже есть — обновляю
+[2025-05-06 18:37:51,361] INFO serviceapp.business Обновил заявку 24473639
+[2025-05-06 18:37:53,609] INFO serviceapp.business Контакт 29196657 уже есть — обновляю
+[2025-05-06 18:37:54,818] INFO serviceapp.business Обновил заявку 24475071
+[2025-05-06 18:37:57,020] INFO serviceapp.business Контакт 29196783 уже есть — обновляю
+[2025-05-06 18:37:58,229] INFO serviceapp.business Обновил заявку 24475217
+[2025-05-06 18:38:00,354] INFO serviceapp.business Контакт 29191929 уже есть — обновляю
+[2025-05-06 18:38:01,563] INFO serviceapp.business Обновил заявку 24464063
+[2025-05-06 18:38:03,957] INFO serviceapp.business Контакт 29200145 уже есть — обновляю
+[2025-05-06 18:38:05,166] INFO serviceapp.business Обновил заявку 24479259
+[2025-05-06 18:38:07,392] INFO serviceapp.business Контакт 29202305 уже есть — обновляю
+[2025-05-06 18:38:09,573] INFO serviceapp.business Обновил заявку 24481875
+[2025-05-06 18:38:11,894] INFO serviceapp.business Контакт 29193645 уже есть — обновляю
+[2025-05-06 18:38:13,133] INFO serviceapp.business Обновил заявку 24471535
+[2025-05-06 18:38:15,190] INFO serviceapp.business Контакт 29205873 уже есть — обновляю
+[2025-05-06 18:38:17,382] INFO serviceapp.business Обновил заявку 24486095
+[2025-05-06 18:38:19,616] INFO serviceapp.business Контакт 29207597 уже есть — обновляю
+[2025-05-06 18:38:21,851] INFO serviceapp.business Обновил заявку 24487917
+[2025-05-06 18:38:24,080] INFO serviceapp.business Контакт 29208947 уже есть — обновляю
+[2025-05-06 18:38:25,535] INFO serviceapp.business Обновил заявку 24489707
+[2025-05-06 18:38:27,935] INFO serviceapp.business Контакт 29201851 уже есть — обновляю
+[2025-05-06 18:38:30,120] INFO serviceapp.business Обновил заявку 24481329
+[2025-05-06 18:38:32,137] INFO serviceapp.business Контакт 29191647 уже есть — обновляю
+[2025-05-06 18:38:34,598] INFO serviceapp.business Обновил заявку 24469135
+[2025-05-06 18:38:36,756] INFO serviceapp.business Контакт 29193779 уже есть — обновляю
+[2025-05-06 18:38:38,959] INFO serviceapp.business SR 1320: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:38:39,201] INFO serviceapp.business Обновил заявку 24471663
+[2025-05-06 18:38:41,621] INFO serviceapp.business Контакт 29199367 уже есть — обновляю
+[2025-05-06 18:38:42,890] INFO serviceapp.business Обновил заявку 24491035
+[2025-05-06 18:38:46,308] INFO serviceapp.business Контакт 29191921 уже есть — обновляю
+[2025-05-06 18:38:48,500] INFO serviceapp.business SR 1322: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:38:48,742] INFO serviceapp.business Обновил заявку 24465247
+[2025-05-06 18:38:50,892] INFO serviceapp.business Контакт 29216275 уже есть — обновляю
+[2025-05-06 18:38:52,348] INFO serviceapp.business Обновил заявку 24497911
+[2025-05-06 18:38:54,657] INFO serviceapp.business Контакт 29212747 уже есть — обновляю
+[2025-05-06 18:38:57,099] INFO serviceapp.business Обновил заявку 24493893
+[2025-05-06 18:38:59,206] INFO serviceapp.business Контакт 29194703 уже есть — обновляю
+[2025-05-06 18:39:01,387] INFO serviceapp.business SR 1325: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:39:01,634] INFO serviceapp.business Обновил заявку 24472669
+[2025-05-06 18:39:03,853] INFO serviceapp.business Контакт 29194651 уже есть — обновляю
+[2025-05-06 18:39:06,099] INFO serviceapp.business SR 1326: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:39:06,341] INFO serviceapp.business Обновил заявку 24472619
+[2025-05-06 18:39:08,425] INFO serviceapp.business Контакт 29193289 уже есть — обновляю
+[2025-05-06 18:39:10,603] INFO serviceapp.business SR 1327: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:39:10,847] INFO serviceapp.business Обновил заявку 24471179
+[2025-05-06 18:39:13,071] INFO serviceapp.business Контакт 29208549 уже есть — обновляю
+[2025-05-06 18:39:15,495] INFO serviceapp.business Обновил заявку 24489311
+[2025-05-06 18:39:17,640] INFO serviceapp.business Контакт 29208247 уже есть — обновляю
+[2025-05-06 18:39:19,851] INFO serviceapp.business Обновил заявку 24488975
+[2025-05-06 18:39:21,966] INFO serviceapp.business Контакт 29210195 уже есть — обновляю
+[2025-05-06 18:39:24,238] INFO serviceapp.business Обновил заявку 24491139
+[2025-05-06 18:39:26,437] INFO serviceapp.business Контакт 29205405 уже есть — обновляю
+[2025-05-06 18:39:27,889] INFO serviceapp.business Обновил заявку 24485629
+[2025-05-06 18:39:29,968] INFO serviceapp.business Контакт 29199367 уже есть — обновляю
+[2025-05-06 18:39:32,162] INFO serviceapp.business Обновил заявку 24478249
+[2025-05-06 18:39:34,233] INFO serviceapp.business Контакт 29219861 уже есть — обновляю
+[2025-05-06 18:39:36,433] INFO serviceapp.business Обновил заявку 24501889
+[2025-05-06 18:39:38,578] INFO serviceapp.business Контакт 29196959 уже есть — обновляю
+[2025-05-06 18:39:40,033] INFO serviceapp.business Обновил заявку 24478045
+[2025-05-06 18:39:42,081] INFO serviceapp.business Контакт 29196805 уже есть — обновляю
+[2025-05-06 18:39:44,346] INFO serviceapp.business SR 1335: привязал мастера id=701 (phone=79533550222, tg_id=226882363)
+[2025-05-06 18:39:44,588] INFO serviceapp.business Обновил заявку 24475241
+[2025-05-06 18:39:46,514] INFO serviceapp.business Контакт 29220005 уже есть — обновляю
+[2025-05-06 18:39:47,967] INFO serviceapp.business Обновил заявку 24502049
+[2025-05-06 18:39:50,087] INFO serviceapp.business Контакт 29222733 уже есть — обновляю
+[2025-05-06 18:39:52,282] INFO serviceapp.business Обновил заявку 24505815
+[2025-05-06 18:39:54,369] INFO serviceapp.business Контакт 29224779 уже есть — обновляю
+[2025-05-06 18:39:56,797] INFO serviceapp.business Обновил заявку 24508029
+[2025-05-06 18:39:58,949] INFO serviceapp.business Контакт 29225185 уже есть — обновляю
+[2025-05-06 18:40:00,155] INFO serviceapp.business Обновил заявку 24508463
+[2025-05-06 18:40:02,281] INFO serviceapp.business Контакт 29225517 уже есть — обновляю
+[2025-05-06 18:40:03,514] INFO serviceapp.business Обновил заявку 24508833
+[2025-05-06 18:40:05,858] INFO serviceapp.business Контакт 29225647 уже есть — обновляю
+[2025-05-06 18:40:07,324] INFO serviceapp.business Обновил заявку 24508981
+[2025-05-06 18:40:09,732] INFO serviceapp.business Контакт 29228917 уже есть — обновляю
+[2025-05-06 18:40:12,154] INFO serviceapp.business Обновил заявку 24512475
+[2025-05-06 18:40:14,404] INFO serviceapp.business Контакт 29198149 уже есть — обновляю
+[2025-05-06 18:40:16,593] INFO serviceapp.business Обновил заявку 24476827
+[2025-05-06 18:40:18,790] INFO serviceapp.business Контакт 29216257 уже есть — обновляю
+[2025-05-06 18:40:20,987] INFO serviceapp.business Обновил заявку 24497885
+[2025-05-06 18:40:23,974] INFO serviceapp.business Контакт 29225387 уже есть — обновляю
+[2025-05-06 18:40:26,426] INFO serviceapp.business Обновил заявку 24508683
+[2025-05-06 18:40:28,581] INFO serviceapp.business Контакт 29219861 уже есть — обновляю
+[2025-05-06 18:40:30,760] INFO serviceapp.business Обновил заявку 24502709
+[2025-05-06 18:40:32,890] INFO serviceapp.business Контакт 29217103 уже есть — обновляю
+[2025-05-06 18:40:34,361] INFO serviceapp.business Обновил заявку 24498807
+[2025-05-06 18:40:35,571] INFO serviceapp.business Лид 24515405 пропущен: нет связанного контакта
+[2025-05-06 18:40:35,572] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24515405 пропущен: нет связанного контакта
+[2025-05-06 18:40:37,394] INFO serviceapp.business Контакт 29211891 уже есть — обновляю
+[2025-05-06 18:40:38,871] INFO serviceapp.business Обновил заявку 24492781
+[2025-05-06 18:40:41,127] INFO serviceapp.business Контакт 29225199 уже есть — обновляю
+[2025-05-06 18:40:42,583] INFO serviceapp.business Обновил заявку 24508487
+[2025-05-06 18:40:44,866] INFO serviceapp.business Контакт 29229369 уже есть — обновляю
+[2025-05-06 18:40:47,071] INFO serviceapp.business Обновил заявку 24513021
+[2025-05-06 18:40:51,679] INFO serviceapp.business Контакт 29216685 уже есть — обновляю
+[2025-05-06 18:40:53,174] INFO serviceapp.business Обновил заявку 24498299
+[2025-05-06 18:40:55,415] INFO serviceapp.business Контакт 29214123 уже есть — обновляю
+[2025-05-06 18:40:56,630] INFO serviceapp.business Обновил заявку 24495429
+[2025-05-06 18:40:58,797] INFO serviceapp.business Контакт 29212351 уже есть — обновляю
+[2025-05-06 18:41:00,026] INFO serviceapp.business Обновил заявку 24493437
+[2025-05-06 18:41:02,477] INFO serviceapp.business Контакт 29232929 уже есть — обновляю
+[2025-05-06 18:41:03,946] INFO serviceapp.business Обновил заявку 24517011
+[2025-05-06 18:41:06,444] INFO serviceapp.business Контакт 29235207 уже есть — обновляю
+[2025-05-06 18:41:07,898] INFO serviceapp.business Обновил заявку 24519423
+[2025-05-06 18:41:10,383] INFO serviceapp.business Контакт 29219709 уже есть — обновляю
+[2025-05-06 18:41:12,581] INFO serviceapp.business Обновил заявку 24501721
+[2025-05-06 18:41:15,064] INFO serviceapp.business Контакт 29224185 уже есть — обновляю
+[2025-05-06 18:41:16,290] INFO serviceapp.business Обновил заявку 24507429
+[2025-05-06 18:41:18,615] INFO serviceapp.business Контакт 29223459 уже есть — обновляю
+[2025-05-06 18:41:19,863] INFO serviceapp.business Обновил заявку 24506597
+[2025-05-06 18:41:21,889] INFO serviceapp.business Контакт 29215659 уже есть — обновляю
+[2025-05-06 18:41:23,129] INFO serviceapp.business Обновил заявку 24497055
+[2025-05-06 18:41:24,329] INFO serviceapp.business Лид 24501351 пропущен: нет связанного контакта
+[2025-05-06 18:41:24,330] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24501351 пропущен: нет связанного контакта
+[2025-05-06 18:41:26,219] INFO serviceapp.business Контакт 29219435 уже есть — обновляю
+[2025-05-06 18:41:27,434] INFO serviceapp.business Обновил заявку 24501433
+[2025-05-06 18:41:29,699] INFO serviceapp.business Контакт 29223045 уже есть — обновляю
+[2025-05-06 18:41:30,916] INFO serviceapp.business Обновил заявку 24506163
+[2025-05-06 18:41:32,975] INFO serviceapp.business Контакт 29231403 уже есть — обновляю
+[2025-05-06 18:41:34,192] INFO serviceapp.business Обновил заявку 24515319
+[2025-05-06 18:41:36,203] INFO serviceapp.business Контакт 29238571 уже есть — обновляю
+[2025-05-06 18:41:37,436] INFO serviceapp.business Обновил заявку 24523259
+[2025-05-06 18:41:39,659] INFO serviceapp.business Контакт 29224877 уже есть — обновляю
+[2025-05-06 18:41:40,873] INFO serviceapp.business Обновил заявку 24508141
+[2025-05-06 18:41:43,029] INFO serviceapp.business Контакт 29228947 уже есть — обновляю
+[2025-05-06 18:41:44,242] INFO serviceapp.business Обновил заявку 24512505
+[2025-05-06 18:41:46,494] INFO serviceapp.business Контакт 29229389 уже есть — обновляю
+[2025-05-06 18:41:47,701] INFO serviceapp.business Обновил заявку 24513051
+[2025-05-06 18:41:48,916] INFO serviceapp.business Лид 24499305 пропущен: нет связанного контакта
+[2025-05-06 18:41:48,916] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24499305 пропущен: нет связанного контакта
+[2025-05-06 18:41:51,050] INFO serviceapp.business Контакт 29225683 уже есть — обновляю
+[2025-05-06 18:41:52,270] INFO serviceapp.business Обновил заявку 24509017
+[2025-05-06 18:41:54,485] INFO serviceapp.business Контакт 29247469 уже есть — обновляю
+[2025-05-06 18:41:55,937] INFO serviceapp.business Обновил заявку 24533247
+[2025-05-06 18:41:57,127] INFO serviceapp.business Лид 24534151 пропущен: нет связанного контакта
+[2025-05-06 18:41:57,127] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24534151 пропущен: нет связанного контакта
+[2025-05-06 18:41:58,044] INFO serviceapp.business Лид 24527925 пропущен: нет связанного контакта
+[2025-05-06 18:41:58,044] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24527925 пропущен: нет связанного контакта
+[2025-05-06 18:41:59,117] INFO serviceapp.business Лид 24519195 пропущен: нет связанного контакта
+[2025-05-06 18:41:59,117] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24519195 пропущен: нет связанного контакта
+[2025-05-06 18:42:00,040] INFO serviceapp.business Лид 24509521 пропущен: нет связанного контакта
+[2025-05-06 18:42:00,041] INFO serviceapp.management.commands.sync_amocrm_leads Лид 24509521 пропущен: нет связанного контакта
+[2025-05-06 18:42:03,593] INFO serviceapp.business Контакт 29238099 уже есть — обновляю
+[2025-05-06 18:42:04,800] INFO serviceapp.business Обновил заявку 24522615
+[2025-05-06 18:42:07,183] INFO serviceapp.business Контакт 29238255 уже есть — обновляю
+[2025-05-06 18:42:08,393] INFO serviceapp.business Обновил заявку 24522889
+[2025-05-06 18:42:10,699] INFO serviceapp.business Контакт 29240393 уже есть — обновляю
+[2025-05-06 18:42:11,907] INFO serviceapp.business Обновил заявку 24525441
+[2025-05-06 18:42:13,982] INFO serviceapp.business Контакт 29250205 уже есть — обновляю
+[2025-05-06 18:42:15,188] INFO serviceapp.business Обновил заявку 24536247
+[2025-05-06 18:42:17,222] INFO serviceapp.business Контакт 29250335 уже есть — обновляю
+[2025-05-06 18:42:19,515] INFO serviceapp.business Обновил заявку 24536407
+[2025-05-06 18:42:21,513] INFO serviceapp.business Контакт 28820361 уже есть — обновляю
+[2025-05-06 18:42:23,724] INFO serviceapp.business Обновил заявку 24538891
+[2025-05-06 18:42:25,987] INFO serviceapp.business Контакт 29233051 уже есть — обновляю
+[2025-05-06 18:42:27,463] INFO serviceapp.business Обновил заявку 24517133
+[2025-05-06 18:42:29,643] INFO serviceapp.business Контакт 29247499 уже есть — обновляю
+[2025-05-06 18:42:31,829] INFO serviceapp.business Обновил заявку 24533279
+[2025-05-06 18:42:33,966] INFO serviceapp.business Контакт 29223557 уже есть — обновляю
+[2025-05-06 18:42:35,179] INFO serviceapp.business Обновил заявку 24506729
+[2025-05-06 18:42:37,472] INFO serviceapp.business Контакт 29249409 уже есть — обновляю
+[2025-05-06 18:42:38,709] INFO serviceapp.business Обновил заявку 24535395
+[2025-05-06 18:42:40,783] INFO serviceapp.business Контакт 29237373 уже есть — обновляю
+[2025-05-06 18:42:42,244] INFO serviceapp.business Обновил заявку 24521809
+[2025-05-06 18:42:44,374] INFO serviceapp.business Контакт 29252971 уже есть — обновляю
+[2025-05-06 18:42:46,658] INFO serviceapp.business Обновил заявку 24539291
+[2025-05-06 18:42:48,703] INFO serviceapp.business Контакт 29252055 уже есть — обновляю
+[2025-05-06 18:42:50,902] INFO serviceapp.business Обновил заявку 24538325
+[2025-05-06 18:42:51,903] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1
+[2025-05-06 18:42:53,037] INFO serviceapp.business Контакт 29240925 уже есть — обновляю
+[2025-05-06 18:42:54,246] INFO serviceapp.business Обновил заявку 24526061
+[2025-05-06 18:42:56,378] INFO serviceapp.business Контакт 29254331 уже есть — обновляю
+[2025-05-06 18:42:57,588] INFO serviceapp.business Обновил заявку 24540695
+[2025-05-06 18:42:57,702] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалён, удалено объектов: 1

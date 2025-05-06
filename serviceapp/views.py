@@ -15,7 +15,7 @@ from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from decimal import Decimal, ROUND_HALF_UP
-from django.db.models import Sum, Avg, Q
+from django.db.models import Sum, Avg, Q, Exists, OuterRef
 from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes
@@ -4292,11 +4292,34 @@ class MasterBalanceView(APIView):
                     commission_value = service_type_obj.commission_level_1 or 0
                 commission = f"{int(commission_value)}%"
         
-        # Подсчитываем приглашённых мастеров первого уровня
-        first_level_invites = User.objects.filter(referrer=user, role="Master").count()
-        # Приглашённые мастера второго уровня: те, кого приглашают пользователи первого уровня
-        first_level_users = User.objects.filter(referrer=user, role="Master")
-        second_level_invites = User.objects.filter(referrer__in=first_level_users, role="Master").count()
+        # Фильтр: мастера, у которых есть хотя бы один Confirmed Deposit
+        has_deposit = Transaction.objects.filter(
+            master__user=OuterRef('pk'),
+            transaction_type='Deposit',
+            status='Confirmed'
+        )
+        
+        # Первый уровень: только те, кто был приглашён и сделал хотя бы один Confirmed Deposit
+        first_level_users = User.objects.annotate(
+            has_deposit=Exists(has_deposit)
+        ).filter(
+            referrer=user,
+            role="Master",
+            has_deposit=True
+        )
+        
+        first_level_invites = first_level_users.count()
+        
+        # Второй уровень: те, кого пригласили мастера первого уровня и у них есть Confirmed Deposit
+        second_level_users = User.objects.annotate(
+            has_deposit=Exists(has_deposit)
+        ).filter(
+            referrer__in=first_level_users,
+            role="Master",
+            has_deposit=True
+        )
+        
+        second_level_invites = second_level_users.count()
         total_invites = first_level_invites + second_level_invites
         
         # Рекомендация для задачи дня
