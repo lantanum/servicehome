@@ -24045,3 +24045,549 @@ server closed the connection unexpectedly
 [2025-05-06 18:42:56,378] INFO serviceapp.business  онтакт 29254331 уже есть Ч обновл€ю
 [2025-05-06 18:42:57,588] INFO serviceapp.business ќбновил за€вку 24540695
 [2025-05-06 18:42:57,702] INFO serviceapp.management.commands.delete_user_by_telegram User None (tg=517608026) удалЄн, удалено объектов: 1
+[2025-05-06 18:42:59,598] INFO serviceapp.business  онтакт 29248853 уже есть Ч обновл€ю
+[2025-05-06 18:43:01,791] INFO serviceapp.business ќбновил за€вку 24534751
+[2025-05-06 18:43:03,864] INFO serviceapp.business  онтакт 29255241 уже есть Ч обновл€ю
+[2025-05-06 18:43:05,319] INFO serviceapp.business ќбновил за€вку 24541685
+[2025-05-06 18:43:07,711] INFO serviceapp.business  онтакт 29256459 уже есть Ч обновл€ю
+[2025-05-06 18:43:08,921] INFO serviceapp.business ќбновил за€вку 24543001
+[2025-05-06 18:43:12,021] INFO serviceapp.business  онтакт 29250577 уже есть Ч обновл€ю
+[2025-05-06 18:43:13,289] INFO serviceapp.business ќбновил за€вку 24536653
+[2025-05-06 18:43:15,515] INFO serviceapp.business  онтакт 29257891 уже есть Ч обновл€ю
+[2025-05-06 18:43:16,723] INFO serviceapp.business ќбновил за€вку 24544617
+[2025-05-06 18:43:18,788] INFO serviceapp.business  онтакт 29252971 уже есть Ч обновл€ю
+[2025-05-06 18:43:20,248] INFO serviceapp.business ќбновил за€вку 24541303
+[2025-05-06 18:43:22,392] INFO serviceapp.business  онтакт 29243689 уже есть Ч обновл€ю
+[2025-05-06 18:43:23,601] INFO serviceapp.business ќбновил за€вку 24529039
+[2025-05-06 18:43:25,682] INFO serviceapp.business  онтакт 29249325 уже есть Ч обновл€ю
+[2025-05-06 18:43:26,887] INFO serviceapp.business ќбновил за€вку 24535317
+[2025-05-06 18:43:28,929] INFO serviceapp.business  онтакт 29256337 уже есть Ч обновл€ю
+[2025-05-06 18:43:30,146] INFO serviceapp.business ќбновил за€вку 24542875
+[2025-05-06 18:43:32,272] INFO serviceapp.business  онтакт 29254007 уже есть Ч обновл€ю
+[2025-05-06 18:43:33,496] INFO serviceapp.business ќбновил за€вку 24540325
+[2025-05-06 18:43:35,741] INFO serviceapp.business  онтакт 29233645 уже есть Ч обновл€ю
+[2025-05-06 18:43:37,202] INFO serviceapp.business ќбновил за€вку 24517703
+[2025-05-06 18:43:39,301] INFO serviceapp.business  онтакт 29254811 уже есть Ч обновл€ю
+[2025-05-06 18:43:40,758] INFO serviceapp.business ќбновил за€вку 24541215
+[2025-05-06 18:43:42,927] INFO serviceapp.business  онтакт 29254059 уже есть Ч обновл€ю
+[2025-05-06 18:43:45,133] INFO serviceapp.business ќбновил за€вку 24540401
+[2025-05-06 18:43:47,347] INFO serviceapp.business  онтакт 29260147 уже есть Ч обновл€ю
+[2025-05-06 18:43:48,560] INFO serviceapp.business ќбновил за€вку 24547349
+[2025-05-06 18:43:50,685] INFO serviceapp.business  онтакт 29255507 уже есть Ч обновл€ю
+[2025-05-06 18:43:52,140] INFO serviceapp.business ќбновил за€вку 24541957
+[2025-05-06 18:43:54,314] INFO serviceapp.business  онтакт 29250119 уже есть Ч обновл€ю
+[2025-05-06 18:43:55,526] INFO serviceapp.business ќбновил за€вку 24536149
+[2025-05-06 18:43:57,676] INFO serviceapp.business  онтакт 29253953 уже есть Ч обновл€ю
+[2025-05-06 18:43:58,880] INFO serviceapp.business ќбновил за€вку 24540281
+[2025-05-06 18:44:01,092] INFO serviceapp.business  онтакт 29256443 уже есть Ч обновл€ю
+[2025-05-06 18:44:02,303] INFO serviceapp.business ќбновил за€вку 24542983
+[2025-05-06 18:44:04,531] INFO serviceapp.business  онтакт 29256977 уже есть Ч обновл€ю
+[2025-05-06 18:44:05,741] INFO serviceapp.business ќбновил за€вку 24543695
+[2025-05-06 18:44:08,346] INFO serviceapp.business  онтакт 29256627 уже есть Ч обновл€ю
+[2025-05-06 18:44:09,552] INFO serviceapp.business ќбновил за€вку 24543255
+[2025-05-06 18:44:11,918] INFO serviceapp.business  онтакт 29253755 уже есть Ч обновл€ю
+[2025-05-06 18:44:14,100] INFO serviceapp.business ќбновил за€вку 24539761
+[2025-05-06 18:44:16,475] INFO serviceapp.business  онтакт 29264415 уже есть Ч обновл€ю
+[2025-05-06 18:44:18,692] INFO serviceapp.business ќбновил за€вку 24552343
+[2025-05-06 18:44:20,861] INFO serviceapp.business  онтакт 29264443 уже есть Ч обновл€ю
+[2025-05-06 18:44:23,031] INFO serviceapp.business ќбновил за€вку 24552385
+[2025-05-06 18:44:24,124] INFO serviceapp.business Ћид 24549481 пропущен: нет св€занного контакта
+[2025-05-06 18:44:24,124] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24549481 пропущен: нет св€занного контакта
+[2025-05-06 18:44:26,000] INFO serviceapp.business  онтакт 29264245 уже есть Ч обновл€ю
+[2025-05-06 18:44:28,202] INFO serviceapp.business ќбновил за€вку 24552145
+[2025-05-06 18:44:30,406] INFO serviceapp.business  онтакт 29266801 уже есть Ч обновл€ю
+[2025-05-06 18:44:32,690] INFO serviceapp.business ќбновил за€вку 24555283
+[2025-05-06 18:44:34,838] INFO serviceapp.business  онтакт 29260643 уже есть Ч обновл€ю
+[2025-05-06 18:44:37,175] INFO serviceapp.business ќбновил за€вку 24547895
+[2025-05-06 18:44:39,379] INFO serviceapp.business  онтакт 29267787 уже есть Ч обновл€ю
+[2025-05-06 18:44:40,625] INFO serviceapp.business ќбновил за€вку 24556379
+[2025-05-06 18:44:42,855] INFO serviceapp.business  онтакт 29268225 уже есть Ч обновл€ю
+[2025-05-06 18:44:44,309] INFO serviceapp.business ќбновил за€вку 24556821
+[2025-05-06 18:44:46,401] INFO serviceapp.business  онтакт 29264587 уже есть Ч обновл€ю
+[2025-05-06 18:44:47,613] INFO serviceapp.business ќбновил за€вку 24552567
+[2025-05-06 18:44:49,857] INFO serviceapp.business  онтакт 29261749 уже есть Ч обновл€ю
+[2025-05-06 18:44:51,064] INFO serviceapp.business ќбновил за€вку 24549293
+[2025-05-06 18:44:53,229] INFO serviceapp.business  онтакт 29261751 уже есть Ч обновл€ю
+[2025-05-06 18:44:54,433] INFO serviceapp.business ќбновил за€вку 24549297
+[2025-05-06 18:44:56,480] INFO serviceapp.business  онтакт 29261853 уже есть Ч обновл€ю
+[2025-05-06 18:44:57,686] INFO serviceapp.business ќбновил за€вку 24549415
+[2025-05-06 18:44:59,810] INFO serviceapp.business  онтакт 29270071 уже есть Ч обновл€ю
+[2025-05-06 18:45:01,020] INFO serviceapp.business ќбновил за€вку 24560151
+[2025-05-06 18:45:03,424] INFO serviceapp.business  онтакт 29261943 уже есть Ч обновл€ю
+[2025-05-06 18:45:04,692] INFO serviceapp.business ќбновил за€вку 24549531
+[2025-05-06 18:45:07,151] INFO serviceapp.business  онтакт 29263277 уже есть Ч обновл€ю
+[2025-05-06 18:45:08,379] INFO serviceapp.business ќбновил за€вку 24550951
+[2025-05-06 18:45:10,639] INFO serviceapp.business  онтакт 29269987 уже есть Ч обновл€ю
+[2025-05-06 18:45:12,819] INFO serviceapp.business ќбновил за€вку 24558973
+[2025-05-06 18:45:15,221] INFO serviceapp.business  онтакт 29260419 уже есть Ч обновл€ю
+[2025-05-06 18:45:16,429] INFO serviceapp.business ќбновил за€вку 24547643
+[2025-05-06 18:45:18,653] INFO serviceapp.business  онтакт 29264081 уже есть Ч обновл€ю
+[2025-05-06 18:45:19,861] INFO serviceapp.business ќбновил за€вку 24551965
+[2025-05-06 18:45:22,301] INFO serviceapp.business  онтакт 29264829 уже есть Ч обновл€ю
+[2025-05-06 18:45:23,516] INFO serviceapp.business ќбновил за€вку 24552815
+[2025-05-06 18:45:25,844] INFO serviceapp.business  онтакт 29268299 уже есть Ч обновл€ю
+[2025-05-06 18:45:27,052] INFO serviceapp.business ќбновил за€вку 24556891
+[2025-05-06 18:45:30,081] INFO serviceapp.business  онтакт 29271523 уже есть Ч обновл€ю
+[2025-05-06 18:45:31,300] INFO serviceapp.business ќбновил за€вку 24560971
+[2025-05-06 18:45:33,364] INFO serviceapp.business  онтакт 29271829 уже есть Ч обновл€ю
+[2025-05-06 18:45:34,818] INFO serviceapp.business ќбновил за€вку 24561379
+[2025-05-06 18:45:36,880] INFO serviceapp.business  онтакт 29266971 уже есть Ч обновл€ю
+[2025-05-06 18:45:39,087] INFO serviceapp.business ќбновил за€вку 24555485
+[2025-05-06 18:45:41,279] INFO serviceapp.business  онтакт 29273501 уже есть Ч обновл€ю
+[2025-05-06 18:45:42,736] INFO serviceapp.business ќбновил за€вку 24563287
+[2025-05-06 18:45:44,946] INFO serviceapp.business  онтакт 29269357 уже есть Ч обновл€ю
+[2025-05-06 18:45:47,130] INFO serviceapp.business ќбновил за€вку 24558269
+[2025-05-06 18:45:49,328] INFO serviceapp.business  онтакт 29272217 уже есть Ч обновл€ю
+[2025-05-06 18:45:51,507] INFO serviceapp.business ќбновил за€вку 24561867
+[2025-05-06 18:45:53,610] INFO serviceapp.business  онтакт 29273923 уже есть Ч обновл€ю
+[2025-05-06 18:45:55,784] INFO serviceapp.business ќбновил за€вку 24563737
+[2025-05-06 18:45:56,809] INFO serviceapp.business Ћид 24563853 пропущен: нет св€занного контакта
+[2025-05-06 18:45:56,809] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24563853 пропущен: нет св€занного контакта
+[2025-05-06 18:45:58,713] INFO serviceapp.business  онтакт 29270071 уже есть Ч обновл€ю
+[2025-05-06 18:46:00,181] INFO serviceapp.business ќбновил за€вку 24559075
+[2025-05-06 18:46:02,443] INFO serviceapp.business  онтакт 29272239 уже есть Ч обновл€ю
+[2025-05-06 18:46:03,653] INFO serviceapp.business ќбновил за€вку 24561883
+[2025-05-06 18:46:06,059] INFO serviceapp.business  онтакт 29252945 уже есть Ч обновл€ю
+[2025-05-06 18:46:08,239] INFO serviceapp.business ќбновил за€вку 24539269
+[2025-05-06 18:46:09,727] INFO serviceapp.business Ћид 24556789 пропущен: нет св€занного контакта
+[2025-05-06 18:46:09,728] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24556789 пропущен: нет св€занного контакта
+[2025-05-06 18:46:12,139] INFO serviceapp.business  онтакт 29282213 уже есть Ч обновл€ю
+[2025-05-06 18:46:14,318] INFO serviceapp.business ќбновил за€вку 24573575
+[2025-05-06 18:46:16,789] INFO serviceapp.business  онтакт 29260359 уже есть Ч обновл€ю
+[2025-05-06 18:46:19,031] INFO serviceapp.business ќбновил за€вку 24547583
+[2025-05-06 18:46:21,025] INFO serviceapp.business  онтакт 29284689 уже есть Ч обновл€ю
+[2025-05-06 18:46:22,233] INFO serviceapp.business ќбновил за€вку 24576637
+[2025-05-06 18:46:24,509] INFO serviceapp.business  онтакт 29283481 уже есть Ч обновл€ю
+[2025-05-06 18:46:26,465] INFO serviceapp.business ќбновил за€вку 24575051
+[2025-05-06 18:46:28,742] INFO serviceapp.business  онтакт 29276965 уже есть Ч обновл€ю
+[2025-05-06 18:46:30,931] INFO serviceapp.business ќбновил за€вку 24567321
+[2025-05-06 18:46:33,056] INFO serviceapp.business  онтакт 29283887 уже есть Ч обновл€ю
+[2025-05-06 18:46:34,297] INFO serviceapp.business ќбновил за€вку 24575505
+[2025-05-06 18:46:36,510] INFO serviceapp.business  онтакт 29282157 уже есть Ч обновл€ю
+[2025-05-06 18:46:38,749] INFO serviceapp.business ќбновил за€вку 24573499
+[2025-05-06 18:46:41,051] INFO serviceapp.business  онтакт 29283135 уже есть Ч обновл€ю
+[2025-05-06 18:46:43,228] INFO serviceapp.business ќбновил за€вку 24574629
+[2025-05-06 18:46:45,337] INFO serviceapp.business  онтакт 29288453 уже есть Ч обновл€ю
+[2025-05-06 18:46:46,548] INFO serviceapp.business ќбновил за€вку 24581703
+[2025-05-06 18:46:50,156] INFO serviceapp.business  онтакт 29287183 уже есть Ч обновл€ю
+[2025-05-06 18:46:52,588] INFO serviceapp.business ќбновил за€вку 24580147
+[2025-05-06 18:47:08,289] INFO serviceapp.business  онтакт 29283219 уже есть Ч обновл€ю
+[2025-05-06 18:47:10,465] INFO serviceapp.business ќбновил за€вку 24574725
+[2025-05-06 18:47:20,809] INFO serviceapp.business  онтакт 29284913 уже есть Ч обновл€ю
+[2025-05-06 18:47:23,031] INFO serviceapp.business ќбновил за€вку 24576915
+[2025-05-06 18:47:24,122] INFO serviceapp.business Ћид 24482383 пропущен: нет св€занного контакта
+[2025-05-06 18:47:24,122] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24482383 пропущен: нет св€занного контакта
+[2025-05-06 18:47:26,062] INFO serviceapp.business  онтакт 29191899 уже есть Ч обновл€ю
+[2025-05-06 18:47:27,269] INFO serviceapp.business ќбновил за€вку 24498103
+[2025-05-06 18:47:28,312] INFO serviceapp.business Ћид 24532923 пропущен: нет св€занного контакта
+[2025-05-06 18:47:28,312] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24532923 пропущен: нет св€занного контакта
+[2025-05-06 18:47:30,461] INFO serviceapp.business  онтакт 29264553 уже есть Ч обновл€ю
+[2025-05-06 18:47:31,699] INFO serviceapp.business ќбновил за€вку 24552515
+[2025-05-06 18:47:33,883] INFO serviceapp.business  онтакт 29268821 уже есть Ч обновл€ю
+[2025-05-06 18:47:35,206] INFO serviceapp.business ќбновил за€вку 24557465
+[2025-05-06 18:47:36,486] INFO serviceapp.business Ћид 24564495 пропущен: нет св€занного контакта
+[2025-05-06 18:47:36,486] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24564495 пропущен: нет св€занного контакта
+[2025-05-06 18:47:38,448] INFO serviceapp.business  онтакт 29281077 уже есть Ч обновл€ю
+[2025-05-06 18:47:40,906] INFO serviceapp.business ќбновил за€вку 24572153
+[2025-05-06 18:47:43,135] INFO serviceapp.business  онтакт 29286545 уже есть Ч обновл€ю
+[2025-05-06 18:47:45,321] INFO serviceapp.business ќбновил за€вку 24579245
+[2025-05-06 18:47:47,419] INFO serviceapp.business  онтакт 29274279 уже есть Ч обновл€ю
+[2025-05-06 18:47:48,631] INFO serviceapp.business ќбновил за€вку 24564155
+[2025-05-06 18:47:50,721] INFO serviceapp.business  онтакт 29273535 уже есть Ч обновл€ю
+[2025-05-06 18:47:51,935] INFO serviceapp.business ќбновил за€вку 24563325
+[2025-05-06 18:47:54,018] INFO serviceapp.business  онтакт 29269041 уже есть Ч обновл€ю
+[2025-05-06 18:47:55,232] INFO serviceapp.business ќбновил за€вку 24557891
+[2025-05-06 18:47:57,504] INFO serviceapp.business  онтакт 29271317 уже есть Ч обновл€ю
+[2025-05-06 18:47:58,735] INFO serviceapp.business ќбновил за€вку 24560637
+[2025-05-06 18:48:00,774] INFO serviceapp.business  онтакт 29272325 уже есть Ч обновл€ю
+[2025-05-06 18:48:01,983] INFO serviceapp.business ќбновил за€вку 24562007
+[2025-05-06 18:48:04,368] INFO serviceapp.business  онтакт 29272173 уже есть Ч обновл€ю
+[2025-05-06 18:48:05,588] INFO serviceapp.business ќбновил за€вку 24561813
+[2025-05-06 18:48:08,629] INFO serviceapp.business  онтакт 29283315 уже есть Ч обновл€ю
+[2025-05-06 18:48:09,843] INFO serviceapp.business ќбновил за€вку 24574837
+[2025-05-06 18:48:12,173] INFO serviceapp.business  онтакт 29285017 уже есть Ч обновл€ю
+[2025-05-06 18:48:13,688] INFO serviceapp.business ќбновил за€вку 24577039
+[2025-05-06 18:48:15,999] INFO serviceapp.business  онтакт 29290491 уже есть Ч обновл€ю
+[2025-05-06 18:48:17,213] INFO serviceapp.business ќбновил за€вку 24584045
+[2025-05-06 18:48:19,275] INFO serviceapp.business  онтакт 29288515 уже есть Ч обновл€ю
+[2025-05-06 18:48:20,730] INFO serviceapp.business ќбновил за€вку 24581787
+[2025-05-06 18:48:22,908] INFO serviceapp.business  онтакт 29289823 уже есть Ч обновл€ю
+[2025-05-06 18:48:25,102] INFO serviceapp.business ќбновил за€вку 24583291
+[2025-05-06 18:48:27,314] INFO serviceapp.business  онтакт 29270195 уже есть Ч обновл€ю
+[2025-05-06 18:48:29,548] INFO serviceapp.business ќбновил за€вку 24559219
+[2025-05-06 18:48:31,725] INFO serviceapp.business  онтакт 29277019 уже есть Ч обновл€ю
+[2025-05-06 18:48:33,027] INFO serviceapp.business ќбновил за€вку 24567319
+[2025-05-06 18:48:35,016] INFO serviceapp.business  онтакт 29283459 уже есть Ч обновл€ю
+[2025-05-06 18:48:36,346] INFO serviceapp.business ќбновил за€вку 24575019
+[2025-05-06 18:48:38,696] INFO serviceapp.business  онтакт 29282213 уже есть Ч обновл€ю
+[2025-05-06 18:48:39,930] INFO serviceapp.business ќбновил за€вку 24574895
+[2025-05-06 18:48:41,948] INFO serviceapp.business  онтакт 29277085 уже есть Ч обновл€ю
+[2025-05-06 18:48:43,170] INFO serviceapp.business ќбновил за€вку 24567535
+[2025-05-06 18:48:45,273] INFO serviceapp.business  онтакт 29277667 уже есть Ч обновл€ю
+[2025-05-06 18:48:46,482] INFO serviceapp.business ќбновил за€вку 24568181
+[2025-05-06 18:48:48,828] INFO serviceapp.business  онтакт 29279217 уже есть Ч обновл€ю
+[2025-05-06 18:48:50,037] INFO serviceapp.business ќбновил за€вку 24569825
+[2025-05-06 18:48:53,163] INFO serviceapp.business  онтакт 29282883 уже есть Ч обновл€ю
+[2025-05-06 18:48:54,134] INFO serviceapp.business ќбновил за€вку 24574355
+[2025-05-06 18:48:56,260] INFO serviceapp.business  онтакт 29279495 уже есть Ч обновл€ю
+[2025-05-06 18:48:57,509] INFO serviceapp.business ќбновил за€вку 24570337
+[2025-05-06 18:48:59,715] INFO serviceapp.business  онтакт 29280377 уже есть Ч обновл€ю
+[2025-05-06 18:49:00,924] INFO serviceapp.business ќбновил за€вку 24571365
+[2025-05-06 18:49:03,280] INFO serviceapp.business  онтакт 29281217 уже есть Ч обновл€ю
+[2025-05-06 18:49:04,491] INFO serviceapp.business ќбновил за€вку 24572289
+[2025-05-06 18:49:06,949] INFO serviceapp.business  онтакт 29280899 уже есть Ч обновл€ю
+[2025-05-06 18:49:08,160] INFO serviceapp.business ќбновил за€вку 24571977
+[2025-05-06 18:49:10,436] INFO serviceapp.business  онтакт 29281321 уже есть Ч обновл€ю
+[2025-05-06 18:49:11,645] INFO serviceapp.business ќбновил за€вку 24572409
+[2025-05-06 18:49:13,701] INFO serviceapp.business  онтакт 29282769 уже есть Ч обновл€ю
+[2025-05-06 18:49:14,914] INFO serviceapp.business ќбновил за€вку 24574231
+[2025-05-06 18:49:17,207] INFO serviceapp.business  онтакт 29282077 уже есть Ч обновл€ю
+[2025-05-06 18:49:18,461] INFO serviceapp.business ќбновил за€вку 24573337
+[2025-05-06 18:49:20,654] INFO serviceapp.business  онтакт 29282241 уже есть Ч обновл€ю
+[2025-05-06 18:49:21,863] INFO serviceapp.business ќбновил за€вку 24573605
+[2025-05-06 18:49:24,078] INFO serviceapp.business  онтакт 29282353 уже есть Ч обновл€ю
+[2025-05-06 18:49:25,293] INFO serviceapp.business ќбновил за€вку 24573733
+[2025-05-06 18:49:27,507] INFO serviceapp.business  онтакт 29293687 уже есть Ч обновл€ю
+[2025-05-06 18:49:29,694] INFO serviceapp.business ќбновил за€вку 24587717
+[2025-05-06 18:49:31,320] INFO serviceapp.business Ћид 24537153 пропущен: нет св€занного контакта
+[2025-05-06 18:49:31,320] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24537153 пропущен: нет св€занного контакта
+[2025-05-06 18:49:33,229] INFO serviceapp.business  онтакт 29191805 уже есть Ч обновл€ю
+[2025-05-06 18:49:34,707] INFO serviceapp.business ќбновил за€вку 24469325
+[2025-05-06 18:49:36,856] INFO serviceapp.business  онтакт 29293181 уже есть Ч обновл€ю
+[2025-05-06 18:49:38,150] INFO serviceapp.business ќбновил за€вку 24587167
+[2025-05-06 18:49:41,615] INFO serviceapp.business  онтакт 29268225 уже есть Ч обновл€ю
+[2025-05-06 18:49:43,805] INFO serviceapp.business ќбновил за€вку 24557067
+[2025-05-06 18:49:45,913] INFO serviceapp.business  онтакт 29293119 уже есть Ч обновл€ю
+[2025-05-06 18:49:47,131] INFO serviceapp.business ќбновил за€вку 24587101
+[2025-05-06 18:49:49,231] INFO serviceapp.business  онтакт 29287803 уже есть Ч обновл€ю
+[2025-05-06 18:49:50,682] INFO serviceapp.business ќбновил за€вку 24580951
+[2025-05-06 18:49:52,771] INFO serviceapp.business  онтакт 29284917 уже есть Ч обновл€ю
+[2025-05-06 18:49:54,971] INFO serviceapp.business ќбновил за€вку 24576919
+[2025-05-06 18:49:57,085] INFO serviceapp.business  онтакт 29290137 уже есть Ч обновл€ю
+[2025-05-06 18:49:59,271] INFO serviceapp.business ќбновил за€вку 24583649
+[2025-05-06 18:50:01,353] INFO serviceapp.business  онтакт 29289421 уже есть Ч обновл€ю
+[2025-05-06 18:50:02,582] INFO serviceapp.business ќбновил за€вку 24582845
+[2025-05-06 18:50:05,058] INFO serviceapp.business  онтакт 29265355 уже есть Ч обновл€ю
+[2025-05-06 18:50:06,517] INFO serviceapp.business ќбновил за€вку 24553457
+[2025-05-06 18:50:08,882] INFO serviceapp.business  онтакт 29282629 уже есть Ч обновл€ю
+[2025-05-06 18:50:11,062] INFO serviceapp.business ќбновил за€вку 24574085
+[2025-05-06 18:50:13,498] INFO serviceapp.business  онтакт 29298685 уже есть Ч обновл€ю
+[2025-05-06 18:50:15,673] INFO serviceapp.business ќбновил за€вку 24593491
+[2025-05-06 18:50:17,836] INFO serviceapp.business  онтакт 29223427 уже есть Ч обновл€ю
+[2025-05-06 18:50:20,018] INFO serviceapp.business ќбновил за€вку 24506589
+[2025-05-06 18:50:22,176] INFO serviceapp.business  онтакт 29251357 уже есть Ч обновл€ю
+[2025-05-06 18:50:24,356] INFO serviceapp.business ќбновил за€вку 24537509
+[2025-05-06 18:50:26,696] INFO serviceapp.business  онтакт 29254783 уже есть Ч обновл€ю
+[2025-05-06 18:50:28,195] INFO serviceapp.business ќбновил за€вку 24541181
+[2025-05-06 18:50:30,590] INFO serviceapp.business  онтакт 29293757 уже есть Ч обновл€ю
+[2025-05-06 18:50:32,786] INFO serviceapp.business ќбновил за€вку 24587795
+[2025-05-06 18:50:34,828] INFO serviceapp.business  онтакт 29263159 уже есть Ч обновл€ю
+[2025-05-06 18:50:37,032] INFO serviceapp.business ќбновил за€вку 24550823
+[2025-05-06 18:50:39,350] INFO serviceapp.business  онтакт 29293687 уже есть Ч обновл€ю
+[2025-05-06 18:50:40,555] INFO serviceapp.business ќбновил за€вку 24588467
+[2025-05-06 18:50:42,721] INFO serviceapp.business  онтакт 29294345 уже есть Ч обновл€ю
+[2025-05-06 18:50:43,933] INFO serviceapp.business ќбновил за€вку 24588433
+[2025-05-06 18:50:46,044] INFO serviceapp.business  онтакт 29294201 уже есть Ч обновл€ю
+[2025-05-06 18:50:47,255] INFO serviceapp.business ќбновил за€вку 24588281
+[2025-05-06 18:50:49,394] INFO serviceapp.business  онтакт 29294011 уже есть Ч обновл€ю
+[2025-05-06 18:50:50,605] INFO serviceapp.business ќбновил за€вку 24588069
+[2025-05-06 18:50:52,885] INFO serviceapp.business  онтакт 29284631 уже есть Ч обновл€ю
+[2025-05-06 18:50:54,093] INFO serviceapp.business ќбновил за€вку 24576565
+[2025-05-06 18:50:55,234] INFO serviceapp.business Ћид 24593281 пропущен: нет св€занного контакта
+[2025-05-06 18:50:55,234] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24593281 пропущен: нет св€занного контакта
+[2025-05-06 18:50:56,992] INFO serviceapp.business  онтакт 29302295 уже есть Ч обновл€ю
+[2025-05-06 18:50:59,177] INFO serviceapp.business ќбновил за€вку 24597591
+[2025-05-06 18:51:01,315] INFO serviceapp.business  онтакт 29295555 уже есть Ч обновл€ю
+[2025-05-06 18:51:03,739] INFO serviceapp.business ќбновил за€вку 24589907
+[2025-05-06 18:51:05,996] INFO serviceapp.business  онтакт 29302685 уже есть Ч обновл€ю
+[2025-05-06 18:51:07,211] INFO serviceapp.business ќбновил за€вку 24598039
+[2025-05-06 18:51:09,547] INFO serviceapp.business  онтакт 29290391 уже есть Ч обновл€ю
+[2025-05-06 18:51:10,754] INFO serviceapp.business ќбновил за€вку 24583937
+[2025-05-06 18:51:13,039] INFO serviceapp.business  онтакт 29293167 уже есть Ч обновл€ю
+[2025-05-06 18:51:14,008] INFO serviceapp.business ќбновил за€вку 24587153
+[2025-05-06 18:51:16,320] INFO serviceapp.business  онтакт 29250087 уже есть Ч обновл€ю
+[2025-05-06 18:51:17,284] INFO serviceapp.business ќбновил за€вку 24536117
+[2025-05-06 18:51:20,087] INFO serviceapp.business  онтакт 29304829 уже есть Ч обновл€ю
+[2025-05-06 18:51:22,268] INFO serviceapp.business ќбновил за€вку 24600467
+[2025-05-06 18:51:24,463] INFO serviceapp.business  онтакт 29301673 уже есть Ч обновл€ю
+[2025-05-06 18:51:26,677] INFO serviceapp.business ќбновил за€вку 24596897
+[2025-05-06 18:51:28,975] INFO serviceapp.business  онтакт 29299007 уже есть Ч обновл€ю
+[2025-05-06 18:51:31,157] INFO serviceapp.business ќбновил за€вку 24593451
+[2025-05-06 18:51:33,211] INFO serviceapp.business  онтакт 29200245 уже есть Ч обновл€ю
+[2025-05-06 18:51:35,397] INFO serviceapp.business ќбновил за€вку 24480357
+[2025-05-06 18:51:37,635] INFO serviceapp.business  онтакт 29293917 уже есть Ч обновл€ю
+[2025-05-06 18:51:39,082] INFO serviceapp.business ќбновил за€вку 24587969
+[2025-05-06 18:51:41,271] INFO serviceapp.business  онтакт 29298183 уже есть Ч обновл€ю
+[2025-05-06 18:51:42,478] INFO serviceapp.business ќбновил за€вку 24592963
+[2025-05-06 18:51:44,729] INFO serviceapp.business  онтакт 29289441 уже есть Ч обновл€ю
+[2025-05-06 18:51:45,940] INFO serviceapp.business ќбновил за€вку 24582867
+[2025-05-06 18:51:48,064] INFO serviceapp.business  онтакт 29287103 уже есть Ч обновл€ю
+[2025-05-06 18:51:49,277] INFO serviceapp.business ќбновил за€вку 24580049
+[2025-05-06 18:51:51,344] INFO serviceapp.business  онтакт 29295369 уже есть Ч обновл€ю
+[2025-05-06 18:51:52,578] INFO serviceapp.business ќбновил за€вку 24589549
+[2025-05-06 18:51:54,738] INFO serviceapp.business  онтакт 29292961 уже есть Ч обновл€ю
+[2025-05-06 18:51:55,949] INFO serviceapp.business ќбновил за€вку 24586931
+[2025-05-06 18:51:57,972] INFO serviceapp.business  онтакт 29292909 уже есть Ч обновл€ю
+[2025-05-06 18:51:59,196] INFO serviceapp.business ќбновил за€вку 24586869
+[2025-05-06 18:52:01,314] INFO serviceapp.business  онтакт 29289863 уже есть Ч обновл€ю
+[2025-05-06 18:52:02,527] INFO serviceapp.business ќбновил за€вку 24583333
+[2025-05-06 18:52:04,872] INFO serviceapp.business  онтакт 29299105 уже есть Ч обновл€ю
+[2025-05-06 18:52:06,078] INFO serviceapp.business ќбновил за€вку 24593939
+[2025-05-06 18:52:08,506] INFO serviceapp.business  онтакт 29285291 уже есть Ч обновл€ю
+[2025-05-06 18:52:09,715] INFO serviceapp.business ќбновил за€вку 24577323
+[2025-05-06 18:52:11,897] INFO serviceapp.business  онтакт 29284785 уже есть Ч обновл€ю
+[2025-05-06 18:52:13,127] INFO serviceapp.business ќбновил за€вку 24576787
+[2025-05-06 18:52:15,461] INFO serviceapp.business  онтакт 29298375 уже есть Ч обновл€ю
+[2025-05-06 18:52:16,673] INFO serviceapp.business ќбновил за€вку 24593157
+[2025-05-06 18:52:18,779] INFO serviceapp.business  онтакт 29298093 уже есть Ч обновл€ю
+[2025-05-06 18:52:19,985] INFO serviceapp.business ќбновил за€вку 24592859
+[2025-05-06 18:52:21,174] INFO serviceapp.business Ћид 24592719 пропущен: нет св€занного контакта
+[2025-05-06 18:52:21,174] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24592719 пропущен: нет св€занного контакта
+[2025-05-06 18:52:23,209] INFO serviceapp.business  онтакт 29284681 уже есть Ч обновл€ю
+[2025-05-06 18:52:24,440] INFO serviceapp.business ќбновил за€вку 24576623
+[2025-05-06 18:52:26,710] INFO serviceapp.business  онтакт 29285823 уже есть Ч обновл€ю
+[2025-05-06 18:52:27,673] INFO serviceapp.business ќбновил за€вку 24577927
+[2025-05-06 18:52:29,832] INFO serviceapp.business  онтакт 29283481 уже есть Ч обновл€ю
+[2025-05-06 18:52:31,040] INFO serviceapp.business ќбновил за€вку 24578223
+[2025-05-06 18:52:33,178] INFO serviceapp.business  онтакт 29286277 уже есть Ч обновл€ю
+[2025-05-06 18:52:34,384] INFO serviceapp.business ќбновил за€вку 24578445
+[2025-05-06 18:52:36,712] INFO serviceapp.business  онтакт 29293713 уже есть Ч обновл€ю
+[2025-05-06 18:52:37,927] INFO serviceapp.business ќбновил за€вку 24587743
+[2025-05-06 18:52:40,121] INFO serviceapp.business  онтакт 29293283 уже есть Ч обновл€ю
+[2025-05-06 18:52:41,343] INFO serviceapp.business ќбновил за€вку 24587243
+[2025-05-06 18:52:43,729] INFO serviceapp.business  онтакт 29293211 уже есть Ч обновл€ю
+[2025-05-06 18:52:44,945] INFO serviceapp.business ќбновил за€вку 24587203
+[2025-05-06 18:52:46,110] INFO serviceapp.business Ћид 24578637 пропущен: нет св€занного контакта
+[2025-05-06 18:52:46,110] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24578637 пропущен: нет св€занного контакта
+[2025-05-06 18:52:48,021] INFO serviceapp.business  онтакт 29293161 уже есть Ч обновл€ю
+[2025-05-06 18:52:49,231] INFO serviceapp.business ќбновил за€вку 24587147
+[2025-05-06 18:52:51,377] INFO serviceapp.business  онтакт 29293135 уже есть Ч обновл€ю
+[2025-05-06 18:52:52,587] INFO serviceapp.business ќбновил за€вку 24587119
+[2025-05-06 18:52:54,953] INFO serviceapp.business  онтакт 29290805 уже есть Ч обновл€ю
+[2025-05-06 18:52:56,161] INFO serviceapp.business ќбновил за€вку 24584387
+[2025-05-06 18:52:58,375] INFO serviceapp.business  онтакт 29286449 уже есть Ч обновл€ю
+[2025-05-06 18:52:59,580] INFO serviceapp.business ќбновил за€вку 24578645
+[2025-05-06 18:53:01,810] INFO serviceapp.business  онтакт 29288515 уже есть Ч обновл€ю
+[2025-05-06 18:53:03,024] INFO serviceapp.business ќбновил за€вку 24584161
+[2025-05-06 18:53:05,330] INFO serviceapp.business  онтакт 29287587 уже есть Ч обновл€ю
+[2025-05-06 18:53:06,543] INFO serviceapp.business ќбновил за€вку 24580719
+[2025-05-06 18:53:09,030] INFO serviceapp.business  онтакт 29286505 уже есть Ч обновл€ю
+[2025-05-06 18:53:10,243] INFO serviceapp.business ќбновил за€вку 24578723
+[2025-05-06 18:53:12,408] INFO serviceapp.business  онтакт 29295635 уже есть Ч обновл€ю
+[2025-05-06 18:53:13,627] INFO serviceapp.business ќбновил за€вку 24590013
+[2025-05-06 18:53:15,861] INFO serviceapp.business  онтакт 29304759 уже есть Ч обновл€ю
+[2025-05-06 18:53:18,059] INFO serviceapp.business ќбновил за€вку 24600391
+[2025-05-06 18:53:20,197] INFO serviceapp.business  онтакт 29299063 уже есть Ч обновл€ю
+[2025-05-06 18:53:21,671] INFO serviceapp.business ќбновил за€вку 24593891
+[2025-05-06 18:53:22,826] INFO serviceapp.business Ћид 24600227 пропущен: нет св€занного контакта
+[2025-05-06 18:53:22,827] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24600227 пропущен: нет св€занного контакта
+[2025-05-06 18:53:24,711] INFO serviceapp.business  онтакт 29307857 уже есть Ч обновл€ю
+[2025-05-06 18:53:26,889] INFO serviceapp.business ќбновил за€вку 24603823
+[2025-05-06 18:53:29,014] INFO serviceapp.business  онтакт 29295771 уже есть Ч обновл€ю
+[2025-05-06 18:53:30,232] INFO serviceapp.business ќбновил за€вку 24590203
+[2025-05-06 18:53:32,295] INFO serviceapp.business  онтакт 29284917 уже есть Ч обновл€ю
+[2025-05-06 18:53:33,512] INFO serviceapp.business ќбновил за€вку 24590771
+[2025-05-06 18:53:35,655] INFO serviceapp.business  онтакт 29296365 уже есть Ч обновл€ю
+[2025-05-06 18:53:36,885] INFO serviceapp.business ќбновил за€вку 24590865
+[2025-05-06 18:53:39,028] INFO serviceapp.business  онтакт 29304999 уже есть Ч обновл€ю
+[2025-05-06 18:53:40,247] INFO serviceapp.business ќбновил за€вку 24600647
+[2025-05-06 18:53:42,513] INFO serviceapp.business  онтакт 29269387 уже есть Ч обновл€ю
+[2025-05-06 18:53:44,010] INFO serviceapp.business ќбновил за€вку 24558307
+[2025-05-06 18:53:46,149] INFO serviceapp.business  онтакт 29281109 уже есть Ч обновл€ю
+[2025-05-06 18:53:48,393] INFO serviceapp.business ќбновил за€вку 24572185
+[2025-05-06 18:53:50,544] INFO serviceapp.business  онтакт 29297513 уже есть Ч обновл€ю
+[2025-05-06 18:53:51,762] INFO serviceapp.business ќбновил за€вку 24591509
+[2025-05-06 18:53:54,086] INFO serviceapp.business  онтакт 29310405 уже есть Ч обновл€ю
+[2025-05-06 18:53:55,296] INFO serviceapp.business ќбновил за€вку 24606641
+[2025-05-06 18:54:01,790] INFO serviceapp.business  онтакт 29294165 уже есть Ч обновл€ю
+[2025-05-06 18:54:04,002] INFO serviceapp.business ќбновил за€вку 24588231
+[2025-05-06 18:54:06,629] INFO serviceapp.business  онтакт 29304635 уже есть Ч обновл€ю
+[2025-05-06 18:54:08,809] INFO serviceapp.business ќбновил за€вку 24600257
+[2025-05-06 18:54:10,998] INFO serviceapp.business  онтакт 29310785 уже есть Ч обновл€ю
+[2025-05-06 18:54:13,172] INFO serviceapp.business ќбновил за€вку 24607075
+[2025-05-06 18:54:15,428] INFO serviceapp.business  онтакт 29307507 уже есть Ч обновл€ю
+[2025-05-06 18:54:16,877] INFO serviceapp.business ќбновил за€вку 24603447
+[2025-05-06 18:54:18,934] INFO serviceapp.business  онтакт 29297865 уже есть Ч обновл€ю
+[2025-05-06 18:54:21,127] INFO serviceapp.business ќбновил за€вку 24592617
+[2025-05-06 18:54:23,345] INFO serviceapp.business  онтакт 29300061 уже есть Ч обновл€ю
+[2025-05-06 18:54:24,552] INFO serviceapp.business ќбновил за€вку 24595041
+[2025-05-06 18:54:26,662] INFO serviceapp.business  онтакт 29304935 уже есть Ч обновл€ю
+[2025-05-06 18:54:27,881] INFO serviceapp.business ќбновил за€вку 24600577
+[2025-05-06 18:54:29,980] INFO serviceapp.business  онтакт 29300341 уже есть Ч обновл€ю
+[2025-05-06 18:54:31,254] INFO serviceapp.business ќбновил за€вку 24595373
+[2025-05-06 18:54:33,267] INFO serviceapp.business  онтакт 29303349 уже есть Ч обновл€ю
+[2025-05-06 18:54:34,547] INFO serviceapp.business ќбновил за€вку 24598767
+[2025-05-06 18:54:36,644] INFO serviceapp.business  онтакт 29302295 уже есть Ч обновл€ю
+[2025-05-06 18:54:37,950] INFO serviceapp.business ќбновил за€вку 24598333
+[2025-05-06 18:54:40,137] INFO serviceapp.business  онтакт 29300507 уже есть Ч обновл€ю
+[2025-05-06 18:54:41,346] INFO serviceapp.business ќбновил за€вку 24595555
+[2025-05-06 18:54:43,380] INFO serviceapp.business  онтакт 29301199 уже есть Ч обновл€ю
+[2025-05-06 18:54:44,587] INFO serviceapp.business ќбновил за€вку 24596355
+[2025-05-06 18:54:47,369] INFO serviceapp.business  онтакт 29301521 уже есть Ч обновл€ю
+[2025-05-06 18:54:48,602] INFO serviceapp.business ќбновил за€вку 24596729
+[2025-05-06 18:54:50,790] INFO serviceapp.business  онтакт 29312547 уже есть Ч обновл€ю
+[2025-05-06 18:54:52,000] INFO serviceapp.business ќбновил за€вку 24609129
+[2025-05-06 18:54:54,364] INFO serviceapp.business  онтакт 29312787 уже есть Ч обновл€ю
+[2025-05-06 18:54:55,573] INFO serviceapp.business ќбновил за€вку 24609357
+[2025-05-06 18:54:59,470] INFO serviceapp.business  онтакт 29311019 уже есть Ч обновл€ю
+[2025-05-06 18:55:01,655] INFO serviceapp.business ќбновил за€вку 24607331
+[2025-05-06 18:55:03,871] INFO serviceapp.business  онтакт 29311141 уже есть Ч обновл€ю
+[2025-05-06 18:55:05,157] INFO serviceapp.business ќбновил за€вку 24607495
+[2025-05-06 18:55:07,394] INFO serviceapp.business  онтакт 29308121 уже есть Ч обновл€ю
+[2025-05-06 18:55:08,610] INFO serviceapp.business ќбновил за€вку 24604137
+[2025-05-06 18:55:11,001] INFO serviceapp.business  онтакт 29311799 уже есть Ч обновл€ю
+[2025-05-06 18:55:13,276] INFO serviceapp.business ќбновил за€вку 24608319
+[2025-05-06 18:55:15,647] INFO serviceapp.business  онтакт 29308277 уже есть Ч обновл€ю
+[2025-05-06 18:55:17,855] INFO serviceapp.business ќбновил за€вку 24604301
+[2025-05-06 18:55:20,022] INFO serviceapp.business  онтакт 29305341 уже есть Ч обновл€ю
+[2025-05-06 18:55:22,218] INFO serviceapp.business ќбновил за€вку 24601063
+[2025-05-06 18:55:24,380] INFO serviceapp.business  онтакт 29310827 уже есть Ч обновл€ю
+[2025-05-06 18:55:25,599] INFO serviceapp.business ќбновил за€вку 24607117
+[2025-05-06 18:55:27,987] INFO serviceapp.business  онтакт 29313991 уже есть Ч обновл€ю
+[2025-05-06 18:55:30,480] INFO serviceapp.business ќбновил за€вку 24610655
+[2025-05-06 18:55:32,797] INFO serviceapp.business  онтакт 29314483 уже есть Ч обновл€ю
+[2025-05-06 18:55:34,266] INFO serviceapp.business ќбновил за€вку 24611293
+[2025-05-06 18:55:36,314] INFO serviceapp.business  онтакт 29308071 уже есть Ч обновл€ю
+[2025-05-06 18:55:38,590] INFO serviceapp.business ќбновил за€вку 24604073
+[2025-05-06 18:55:42,442] INFO serviceapp.business  онтакт 29304375 уже есть Ч обновл€ю
+[2025-05-06 18:55:43,657] INFO serviceapp.business ќбновил за€вку 24599975
+[2025-05-06 18:55:45,836] INFO serviceapp.business  онтакт 29313991 уже есть Ч обновл€ю
+[2025-05-06 18:55:48,270] INFO serviceapp.business ќбновил за€вку 24611833
+[2025-05-06 18:55:50,390] INFO serviceapp.business  онтакт 29314083 уже есть Ч обновл€ю
+[2025-05-06 18:55:52,885] INFO serviceapp.business ќбновил за€вку 24610839
+[2025-05-06 18:55:55,039] INFO serviceapp.business  онтакт 29314279 уже есть Ч обновл€ю
+[2025-05-06 18:55:56,264] INFO serviceapp.business ќбновил за€вку 24611065
+[2025-05-06 18:55:58,485] INFO serviceapp.business  онтакт 29310465 уже есть Ч обновл€ю
+[2025-05-06 18:56:00,700] INFO serviceapp.business ќбновил за€вку 24606711
+[2025-05-06 18:56:03,043] INFO serviceapp.business  онтакт 29313981 уже есть Ч обновл€ю
+[2025-05-06 18:56:04,259] INFO serviceapp.business ќбновил за€вку 24610639
+[2025-05-06 18:56:06,479] INFO serviceapp.business  онтакт 29311927 уже есть Ч обновл€ю
+[2025-05-06 18:56:07,937] INFO serviceapp.business ќбновил за€вку 24608471
+[2025-05-06 18:56:10,341] INFO serviceapp.business  онтакт 29315119 уже есть Ч обновл€ю
+[2025-05-06 18:56:12,785] INFO serviceapp.business ќбновил за€вку 24611959
+[2025-05-06 18:56:14,048] INFO serviceapp.business Ћид 24609519 пропущен: нет св€занного контакта
+[2025-05-06 18:56:14,048] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24609519 пропущен: нет св€занного контакта
+[2025-05-06 18:56:15,985] INFO serviceapp.business  онтакт 29314733 уже есть Ч обновл€ю
+[2025-05-06 18:56:17,447] INFO serviceapp.business ќбновил за€вку 24611547
+[2025-05-06 18:56:18,619] INFO serviceapp.business Ћид 24601541 пропущен: нет св€занного контакта
+[2025-05-06 18:56:18,619] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24601541 пропущен: нет св€занного контакта
+[2025-05-06 18:56:20,688] INFO serviceapp.business  онтакт 29304605 уже есть Ч обновл€ю
+[2025-05-06 18:56:21,889] INFO serviceapp.business ќбновил за€вку 24600225
+[2025-05-06 18:56:24,026] INFO serviceapp.business  онтакт 29312193 уже есть Ч обновл€ю
+[2025-05-06 18:56:25,490] INFO serviceapp.business ќбновил за€вку 24608753
+[2025-05-06 18:56:27,632] INFO serviceapp.business  онтакт 29309055 уже есть Ч обновл€ю
+[2025-05-06 18:56:29,836] INFO serviceapp.business ќбновил за€вку 24605145
+[2025-05-06 18:56:32,092] INFO serviceapp.business  онтакт 29316275 уже есть Ч обновл€ю
+[2025-05-06 18:56:34,618] INFO serviceapp.business ќбновил за€вку 24613237
+[2025-05-06 18:56:36,657] INFO serviceapp.business  онтакт 29314045 уже есть Ч обновл€ю
+[2025-05-06 18:56:38,884] INFO serviceapp.business ќбновил за€вку 24610773
+[2025-05-06 18:56:41,054] INFO serviceapp.business  онтакт 11516753 уже есть Ч обновл€ю
+[2025-05-06 18:56:42,577] INFO serviceapp.business ќбновил за€вку 24609923
+[2025-05-06 18:56:45,449] INFO serviceapp.business  онтакт 29308005 уже есть Ч обновл€ю
+[2025-05-06 18:56:47,624] INFO serviceapp.business ќбновил за€вку 24604007
+[2025-05-06 18:56:49,791] INFO serviceapp.business  онтакт 29284031 уже есть Ч обновл€ю
+[2025-05-06 18:56:51,975] INFO serviceapp.business ќбновил за€вку 24575663
+[2025-05-06 18:56:54,216] INFO serviceapp.business  онтакт 29317341 уже есть Ч обновл€ю
+[2025-05-06 18:56:56,407] INFO serviceapp.business ќбновил за€вку 24614481
+[2025-05-06 18:56:58,349] INFO serviceapp.business  онтакт 29315241 уже есть Ч обновл€ю
+[2025-05-06 18:57:00,557] INFO serviceapp.business ќбновил за€вку 24612099
+[2025-05-06 18:57:02,785] INFO serviceapp.business  онтакт 29315219 уже есть Ч обновл€ю
+[2025-05-06 18:57:05,027] INFO serviceapp.business ќбновил за€вку 24612063
+[2025-05-06 18:57:15,755] INFO serviceapp.business  онтакт 29321519 уже есть Ч обновл€ю
+[2025-05-06 18:57:17,924] INFO serviceapp.business ќбновил за€вку 24618539
+[2025-05-06 18:57:20,312] INFO serviceapp.business  онтакт 29323743 уже есть Ч обновл€ю
+[2025-05-06 18:57:22,730] INFO serviceapp.business ќбновил за€вку 24621137
+[2025-05-06 18:57:24,917] INFO serviceapp.business  онтакт 29314073 уже есть Ч обновл€ю
+[2025-05-06 18:57:27,093] INFO serviceapp.business ќбновил за€вку 24610827
+[2025-05-06 18:57:29,370] INFO serviceapp.business  онтакт 29320799 уже есть Ч обновл€ю
+[2025-05-06 18:57:30,816] INFO serviceapp.business ќбновил за€вку 24617723
+[2025-05-06 18:57:32,885] INFO serviceapp.business  онтакт 29280073 уже есть Ч обновл€ю
+[2025-05-06 18:57:34,103] INFO serviceapp.business ќбновил за€вку 24571005
+[2025-05-06 18:57:36,228] INFO serviceapp.business  онтакт 29290109 уже есть Ч обновл€ю
+[2025-05-06 18:57:37,450] INFO serviceapp.business ќбновил за€вку 24583617
+[2025-05-06 18:57:39,502] INFO serviceapp.business  онтакт 29298213 уже есть Ч обновл€ю
+[2025-05-06 18:57:40,704] INFO serviceapp.business ќбновил за€вку 24592989
+[2025-05-06 18:57:42,859] INFO serviceapp.business  онтакт 29320741 уже есть Ч обновл€ю
+[2025-05-06 18:57:44,072] INFO serviceapp.business ќбновил за€вку 24617657
+[2025-05-06 18:57:46,167] INFO serviceapp.business  онтакт 29320833 уже есть Ч обновл€ю
+[2025-05-06 18:57:47,377] INFO serviceapp.business ќбновил за€вку 24617757
+[2025-05-06 18:57:49,350] INFO serviceapp.business  онтакт 29280689 уже есть Ч обновл€ю
+[2025-05-06 18:57:50,563] INFO serviceapp.business ќбновил за€вку 24571691
+[2025-05-06 18:57:51,627] INFO serviceapp.business Ћид 24621207 пропущен: нет св€занного контакта
+[2025-05-06 18:57:51,628] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24621207 пропущен: нет св€занного контакта
+[2025-05-06 18:57:53,519] INFO serviceapp.business  онтакт 29305171 уже есть Ч обновл€ю
+[2025-05-06 18:57:54,730] INFO serviceapp.business ќбновил за€вку 24600849
+[2025-05-06 18:57:56,921] INFO serviceapp.business  онтакт 29322875 уже есть Ч обновл€ю
+[2025-05-06 18:57:58,386] INFO serviceapp.business ќбновил за€вку 24620131
+[2025-05-06 18:58:00,425] INFO serviceapp.business  онтакт 29316827 уже есть Ч обновл€ю
+[2025-05-06 18:58:02,604] INFO serviceapp.business ќбновил за€вку 24613883
+[2025-05-06 18:58:04,871] INFO serviceapp.business  онтакт 29305343 уже есть Ч обновл€ю
+[2025-05-06 18:58:06,073] INFO serviceapp.business ќбновил за€вку 24601069
+[2025-05-06 18:58:08,663] INFO serviceapp.business  онтакт 29307129 уже есть Ч обновл€ю
+[2025-05-06 18:58:09,882] INFO serviceapp.business ќбновил за€вку 24603059
+[2025-05-06 18:58:22,450] INFO serviceapp.business Ћид 24615399 пропущен: нет св€занного контакта
+[2025-05-06 18:58:22,451] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24615399 пропущен: нет св€занного контакта
+[2025-05-06 18:58:24,249] INFO serviceapp.business  онтакт 29308387 уже есть Ч обновл€ю
+[2025-05-06 18:58:25,463] INFO serviceapp.business ќбновил за€вку 24604427
+[2025-05-06 18:58:27,487] INFO serviceapp.business  онтакт 29312193 уже есть Ч обновл€ю
+[2025-05-06 18:58:28,700] INFO serviceapp.business ќбновил за€вку 24614539
+[2025-05-06 18:58:30,673] INFO serviceapp.business  онтакт 29308505 уже есть Ч обновл€ю
+[2025-05-06 18:58:31,910] INFO serviceapp.business ќбновил за€вку 24604561
+[2025-05-06 18:58:33,011] INFO serviceapp.business Ћид 24604781 пропущен: нет св€занного контакта
+[2025-05-06 18:58:33,011] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24604781 пропущен: нет св€занного контакта
+[2025-05-06 18:58:34,937] INFO serviceapp.business  онтакт 29307857 уже есть Ч обновл€ю
+[2025-05-06 18:58:36,248] INFO serviceapp.business ќбновил за€вку 24605431
+[2025-05-06 18:58:38,310] INFO serviceapp.business  онтакт 29309697 уже есть Ч обновл€ю
+[2025-05-06 18:58:39,557] INFO serviceapp.business ќбновил за€вку 24605877
+[2025-05-06 18:58:40,704] INFO serviceapp.business Ћид 24606519 пропущен: нет св€занного контакта
+[2025-05-06 18:58:40,704] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24606519 пропущен: нет св€занного контакта
+[2025-05-06 18:58:42,537] INFO serviceapp.business  онтакт 29313425 уже есть Ч обновл€ю
+[2025-05-06 18:58:43,775] INFO serviceapp.business ќбновил за€вку 24610073
+[2025-05-06 18:58:45,851] INFO serviceapp.business  онтакт 29313461 уже есть Ч обновл€ю
+[2025-05-06 18:58:47,071] INFO serviceapp.business ќбновил за€вку 24610109
+[2025-05-06 18:58:49,323] INFO serviceapp.business  онтакт 29326267 уже есть Ч обновл€ю
+[2025-05-06 18:58:50,549] INFO serviceapp.business ќбновил за€вку 24624269
+[2025-05-06 18:58:52,489] INFO serviceapp.business  онтакт 29312719 уже есть Ч обновл€ю
+[2025-05-06 18:58:53,727] INFO serviceapp.business ќбновил за€вку 24609285
+[2025-05-06 18:58:54,973] INFO serviceapp.business Ћид 24626973 пропущен: нет св€занного контакта
+[2025-05-06 18:58:54,973] INFO serviceapp.management.commands.sync_amocrm_leads Ћид 24626973 пропущен: нет св€занного контакта
+[2025-05-06 18:58:56,816] INFO serviceapp.business  онтакт 29293753 уже есть Ч обновл€ю
+[2025-05-06 18:58:58,037] INFO serviceapp.business ќбновил за€вку 24587789
+[2025-05-06 18:59:00,139] INFO serviceapp.business  онтакт 29336565 уже есть Ч обновл€ю
+[2025-05-06 18:59:02,352] INFO serviceapp.business ќбновил за€вку 24630341
+[2025-05-06 18:59:04,607] INFO serviceapp.business  онтакт 29330335 уже есть Ч обновл€ю
+[2025-05-06 18:59:06,088] INFO serviceapp.business ќбновил за€вку 24629397
+[2025-05-06 18:59:08,434] INFO serviceapp.business  онтакт 29330707 уже есть Ч обновл€ю
+[2025-05-06 18:59:10,624] INFO serviceapp.business ќбновил за€вку 24629873
+[2025-05-06 18:59:12,945] INFO serviceapp.business  онтакт 29320879 уже есть Ч обновл€ю
+[2025-05-06 18:59:14,156] INFO serviceapp.business ќбновил за€вку 24617803
+[2025-05-06 18:59:16,236] INFO serviceapp.business  онтакт 29318921 уже есть Ч обновл€ю
+[2025-05-06 18:59:17,466] INFO serviceapp.business ќбновил за€вку 24615709
+[2025-05-06 18:59:19,678] INFO serviceapp.business  онтакт 29314451 уже есть Ч обновл€ю
+[2025-05-06 18:59:20,929] INFO serviceapp.business ќбновил за€вку 24611257
+[2025-05-06 18:59:23,271] INFO serviceapp.business  онтакт 29314723 уже есть Ч обновл€ю
+[2025-05-06 18:59:24,502] INFO serviceapp.business ќбновил за€вку 24611541
+[2025-05-06 18:59:26,523] INFO serviceapp.business  онтакт 29321477 уже есть Ч обновл€ю
+[2025-05-06 18:59:27,743] INFO serviceapp.business ќбновил за€вку 24618495
+[2025-05-06 18:59:29,668] INFO serviceapp.business  онтакт 29330371 уже есть Ч обновл€ю
+[2025-05-06 18:59:30,885] INFO serviceapp.business ќбновил за€вку 24629443
+[2025-05-06 18:59:33,027] INFO serviceapp.business  онтакт 29321191 уже есть Ч обновл€ю
+[2025-05-06 18:59:34,302] INFO serviceapp.business ќбновил за€вку 24618151
+[2025-05-06 18:59:36,584] INFO serviceapp.business  онтакт 29314315 уже есть Ч обновл€ю
+[2025-05-06 18:59:37,813] INFO serviceapp.business ќбновил за€вку 24611101
+[2025-05-06 18:59:39,891] INFO serviceapp.business  онтакт 29314465 уже есть Ч обновл€ю
+[2025-05-06 18:59:41,140] INFO serviceapp.business ќбновил за€вку 24611275
+[2025-05-06 18:59:43,264] INFO serviceapp.business  онтакт 29314569 уже есть Ч обновл€ю
+[2025-05-06 18:59:44,478] INFO serviceapp.business ќбновил за€вку 24611375
+[2025-05-06 18:59:47,668] INFO serviceapp.business  онтакт 29315295 уже есть Ч обновл€ю
+[2025-05-06 18:59:48,918] INFO serviceapp.business ќбновил за€вку 24612181
+[2025-05-06 18:59:50,976] INFO serviceapp.business  онтакт 29315363 уже есть Ч обновл€ю
+[2025-05-06 18:59:52,196] INFO serviceapp.business ќбновил за€вку 24612271
+[2025-05-06 18:59:54,359] INFO serviceapp.business  онтакт 29320955 уже есть Ч обновл€ю
+[2025-05-06 18:59:55,570] INFO serviceapp.business ќбновил за€вку 24617887
+[2025-05-06 18:59:57,701] INFO serviceapp.business  онтакт 29316815 уже есть Ч обновл€ю
+[2025-05-06 18:59:58,917] INFO serviceapp.business ќбновил за€вку 24613837
+[2025-05-06 19:00:00,874] INFO serviceapp.business  онтакт 29316911 уже есть Ч обновл€ю
+[2025-05-06 19:00:02,095] INFO serviceapp.business ќбновил за€вку 24613983
+[2025-05-06 19:00:04,453] INFO serviceapp.business  онтакт 29320953 уже есть Ч обновл€ю
+[2025-05-06 19:00:05,666] INFO serviceapp.business ќбновил за€вку 24617885
