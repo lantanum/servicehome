@@ -24,6 +24,7 @@ from django.utils.decorators import method_decorator
 from serviceapp.amocrm_client import AmoCRMClient
 from serviceapp.deposits import apply_first_deposit_bonus, apply_registration_bonus
 from serviceapp.amocrm_client import AmoCRMClient
+from serviceapp.signals import recalc_master_balance
 from serviceapp.utils import STATUS_MAPPING, parse_nested_form_data, MASTER_LEVEL_MAPPING
 from .serializers import (
     AmoCRMWebhookSerializer,
@@ -4273,6 +4274,7 @@ class MasterBalanceView(APIView):
             return Response({"detail": "Профиль мастера не найден."}, status=status.HTTP_404_NOT_FOUND)
         
         # Форматируем баланс – число без запятых (например, "4500.00")
+        recalc_master_balance(master)
         balance = int(master.balance)
         
         # Определяем комиссию за заявку по типу сервиса мастера.

@@ -197,7 +197,7 @@ class Transaction(models.Model):
         else:
             linked_to = "Без связки"
 
-        return f"TX#{self.pk} | {self.transaction_type} | {self.amount} → {linked_to}"
+        return f"TX#{self.pk} | {self.transaction_type} | {self.amount} → {linked_to} {self.status}"
 
 
 
